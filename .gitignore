@@ -1,0 +1,38 @@
+node_modules
+.turbo
+.alchemy
+.env
+.DS_Store
+
+# Python: virtualenv, caches, and build artifacts under `python/`
+# Keep source like `python/main.py` and project assets tracked.
+python/bin/
+python/insightface/
+python/include/
+python/lib/
+python/lib64/
+python/share/
+python/.Python
+
+# Byte-compiled / optimized / DLL files
+python/**/__pycache__/
+python/**/*.py[cod]
+python/**/*.so
+python/**/*.pyd
+python/**/*.dll
+python/**/*.dylib
+
+# Test, coverage, type-checker caches
+python/.pytest_cache/
+python/.mypy_cache/
+python/.ruff_cache/
+python/.coverage
+python/coverage.xml
+
+# Packaging / build
+python/build/
+python/dist/
+python/*.egg-info/
+python/.eggs/
+python/.tox/
+python/.nox/
