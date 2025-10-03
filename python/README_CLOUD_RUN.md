@@ -177,11 +177,70 @@ curl -X POST \
 }
 ```
 
-### 3. Compare Faces (Placeholder)
+### 3. Compare Faces
 
 **POST** `/compare-faces`
 
-Endpoint for comparing faces with a reference image. This is a placeholder for future implementation.
+Compares a reference face with all stored embeddings to find matching faces.
+
+**Request (File Upload):**
+- Content-Type: `multipart/form-data`
+- Parameters:
+  - `reference_image` (file, required): Reference image with face to find
+  - `bucket_name` (string, required): GCS bucket name
+  - `base_path` (string, required): Base path containing embeddings
+  - `similarity_threshold` (float, optional): Minimum similarity (default: 0.6)
+  - `gender_match` (boolean, optional): Require gender match (default: true)
+  - `return_top_n` (int, optional): Limit results to top N matches
+
+**Request (JSON with GCS path):**
+- Content-Type: `application/json`
+- Parameters:
+  - `reference_image_gcs_path` (string, required): GCS path to reference image
+  - `bucket_name` (string, required): GCS bucket name
+  - `base_path` (string, required): Base path containing embeddings
+  - `similarity_threshold` (float, optional): Minimum similarity (default: 0.6)
+  - `gender_match` (boolean, optional): Require gender match (default: true)
+  - `return_top_n` (int, optional): Limit results to top N matches
+
+**Example:**
+
+```bash
+curl -X POST \
+  -F "reference_image=@ref.jpg" \
+  -F "bucket_name=my-bucket" \
+  -F "base_path=batch-001" \
+  -F "similarity_threshold=0.6" \
+  -F "gender_match=true" \
+  -F "return_top_n=10" \
+  https://your-service-url.run.app/compare-faces
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "reference_gender": "male",
+  "similarity_threshold": 0.6,
+  "gender_match_required": true,
+  "total_images_checked": 100,
+  "total_faces_checked": 150,
+  "matches_found": 12,
+  "matches": [
+    {
+      "image_name": "photo1.jpg",
+      "image_path": "batch-001/images/photo1.jpg",
+      "face_index": 0,
+      "similarity": 0.8542,
+      "gender": "male",
+      "bbox": [100, 200, 300, 400]
+    }
+  ]
+}
+```
+
+For detailed usage, see **[FACE_COMPARISON_GUIDE.md](FACE_COMPARISON_GUIDE.md)**
 
 ## Storage Structure
 
@@ -372,7 +431,7 @@ The original `main.py` logic has been preserved in the new `app.py`:
 
 ## Next Steps
 
-1. Implement face comparison endpoint for matching against reference
+1. ✅ Implement face comparison endpoint for matching against reference - **DONE!**
 2. Add batch processing for comparing multiple reference faces
 3. Implement webhook notifications when processing completes
 4. Add support for video processing

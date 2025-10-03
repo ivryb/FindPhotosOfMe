@@ -277,36 +277,277 @@ def process_zip_endpoint():
         logger.error(f"Error in process_zip_endpoint: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+def download_from_gcs(bucket_name, blob_path):
+    """Download data from Google Cloud Storage"""
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+        return blob.download_as_bytes()
+    except Exception as e:
+        logger.error(f"Error downloading from GCS: {e}")
+        raise
+
+def get_reference_embedding(reference_source, is_gcs=False, bucket_name=None):
+    """
+    Get embedding from reference image
+    
+    Args:
+        reference_source: Either image bytes or GCS path
+        is_gcs: Whether reference_source is a GCS path
+        bucket_name: GCS bucket name if is_gcs is True
+        
+    Returns:
+        (embedding, gender) tuple or None if no face detected
+    """
+    try:
+        if is_gcs:
+            # Download from GCS
+            image_data = download_from_gcs(bucket_name, reference_source)
+        else:
+            image_data = reference_source
+        
+        # Decode image
+        nparr = np.frombuffer(image_data, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            logger.error("Could not decode reference image")
+            return None
+        
+        # Get face embeddings
+        face_features = get_face_embeddings(img)
+        
+        if not face_features:
+            logger.error("No face detected in reference image")
+            return None
+        
+        # Return first face's embedding and gender
+        embedding, gender, bbox = face_features[0]
+        logger.info(f"Reference face detected - Gender: {'male' if gender == 1 else 'female'}")
+        
+        return embedding, gender
+        
+    except Exception as e:
+        logger.error(f"Error getting reference embedding: {e}")
+        raise
+
+def list_embedding_files(bucket_name, base_path):
+    """List all embedding JSON files in a GCS path"""
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        
+        # Ensure base_path ends with /
+        if not base_path.endswith('/'):
+            base_path += '/'
+        
+        # List all blobs with the prefix
+        blobs = bucket.list_blobs(prefix=base_path)
+        
+        embedding_files = []
+        for blob in blobs:
+            if blob.name.endswith('.json') and '/embeddings/' in blob.name:
+                embedding_files.append(blob.name)
+        
+        logger.info(f"Found {len(embedding_files)} embedding files in {base_path}")
+        return embedding_files
+        
+    except Exception as e:
+        logger.error(f"Error listing embedding files: {e}")
+        raise
+
+def compare_embeddings(ref_embedding, ref_gender, embedding_data, similarity_threshold=0.6, gender_match=True):
+    """
+    Compare reference embedding with face embeddings
+    
+    Args:
+        ref_embedding: Reference face embedding
+        ref_gender: Reference face gender (1 for male, 0 for female)
+        embedding_data: Dict with embedding data from JSON
+        similarity_threshold: Minimum similarity score (0.0 to 1.0)
+        gender_match: Whether to require gender match
+        
+    Returns:
+        List of matching faces with similarity scores
+    """
+    matches = []
+    
+    for face in embedding_data.get('faces', []):
+        face_embedding = np.array(face['embedding'])
+        face_gender = 1 if face['gender'] == 'male' else 0
+        
+        # Calculate similarity using dot product (cosine similarity for normalized vectors)
+        similarity = np.dot(ref_embedding, face_embedding) / (
+            np.linalg.norm(ref_embedding) * np.linalg.norm(face_embedding)
+        )
+        
+        # Check if it matches criteria
+        if similarity > similarity_threshold:
+            if not gender_match or (gender_match and ref_gender == face_gender):
+                matches.append({
+                    'face_index': face['face_index'],
+                    'similarity': float(similarity),
+                    'gender': face['gender'],
+                    'bbox': face.get('bbox')
+                })
+    
+    return matches
+
 @app.route('/compare-faces', methods=['POST'])
 def compare_faces_endpoint():
     """
     Endpoint to compare a reference face with stored embeddings
     
-    Expected JSON:
-    {
-        "reference_image_path": "gs://bucket/path/to/reference.jpg",
-        "embeddings_base_path": "gs://bucket/path/to/embeddings/",
-        "similarity_threshold": 0.6,
-        "gender_match": true
-    }
+    Accepts either:
+    1. multipart/form-data with reference_image file
+    2. application/json with reference_image_gcs_path
+    
+    Form/JSON parameters:
+    - reference_image (file): Reference image file (multipart)
+    - reference_image_gcs_path (string): GCS path to reference image (JSON)
+    - bucket_name (string): GCS bucket name
+    - base_path (string): Base path containing embeddings
+    - similarity_threshold (float): Minimum similarity (default: 0.6)
+    - gender_match (bool): Whether to match gender (default: true)
+    - return_top_n (int): Return only top N matches (optional)
     
     Returns:
-    - JSON with matching images
+    - JSON with matching images and their similarity scores
     """
     try:
-        data = request.get_json()
+        # Check if it's multipart (file upload) or JSON
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            # File upload mode
+            if 'reference_image' not in request.files:
+                return jsonify({"error": "No reference image provided"}), 400
+            
+            ref_image_file = request.files['reference_image']
+            if ref_image_file.filename == '':
+                return jsonify({"error": "Empty filename"}), 400
+            
+            reference_data = ref_image_file.read()
+            is_gcs = False
+            
+            bucket_name = request.form.get('bucket_name')
+            base_path = request.form.get('base_path')
+            similarity_threshold = float(request.form.get('similarity_threshold', 0.6))
+            gender_match = request.form.get('gender_match', 'true').lower() == 'true'
+            return_top_n = request.form.get('return_top_n')
+            
+        else:
+            # JSON mode
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({"error": "No data provided"}), 400
+            
+            reference_gcs_path = data.get('reference_image_gcs_path')
+            if not reference_gcs_path:
+                return jsonify({"error": "reference_image_gcs_path is required in JSON mode"}), 400
+            
+            bucket_name = data.get('bucket_name')
+            base_path = data.get('base_path')
+            similarity_threshold = float(data.get('similarity_threshold', 0.6))
+            gender_match = data.get('gender_match', True)
+            return_top_n = data.get('return_top_n')
+            
+            reference_data = reference_gcs_path
+            is_gcs = True
         
-        if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
+        # Validate required parameters
+        if not bucket_name:
+            return jsonify({"error": "bucket_name is required"}), 400
+        if not base_path:
+            return jsonify({"error": "base_path is required"}), 400
         
-        # This is a placeholder for face comparison logic
-        # You would implement the actual comparison logic here
-        # reading embeddings from GCS and comparing with reference
+        if return_top_n:
+            return_top_n = int(return_top_n)
         
-        return jsonify({
+        logger.info(f"Starting face comparison: bucket={bucket_name}, base_path={base_path}, threshold={similarity_threshold}")
+        
+        # Initialize face model
+        initialize_face_model()
+        
+        # Get reference embedding
+        ref_result = get_reference_embedding(reference_data, is_gcs, bucket_name)
+        if ref_result is None:
+            return jsonify({"error": "Could not detect face in reference image"}), 400
+        
+        ref_embedding, ref_gender = ref_result
+        
+        # List all embedding files
+        embedding_files = list_embedding_files(bucket_name, base_path)
+        
+        if not embedding_files:
+            return jsonify({
+                "success": True,
+                "message": "No embedding files found",
+                "matches": [],
+                "total_embeddings_checked": 0
+            }), 200
+        
+        # Compare with each embedding file
+        all_matches = []
+        total_faces_checked = 0
+        
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        
+        for embedding_file in embedding_files:
+            try:
+                # Download and parse embedding JSON
+                blob = bucket.blob(embedding_file)
+                embedding_json = blob.download_as_text()
+                embedding_data = json.loads(embedding_json)
+                
+                # Compare faces
+                matches = compare_embeddings(
+                    ref_embedding,
+                    ref_gender,
+                    embedding_data,
+                    similarity_threshold,
+                    gender_match
+                )
+                
+                total_faces_checked += embedding_data.get('faces_count', 0)
+                
+                # Add matches with image information
+                for match in matches:
+                    all_matches.append({
+                        'image_name': embedding_data['image_name'],
+                        'image_path': embedding_data['image_path'],
+                        'face_index': match['face_index'],
+                        'similarity': match['similarity'],
+                        'gender': match['gender'],
+                        'bbox': match['bbox']
+                    })
+                
+            except Exception as e:
+                logger.error(f"Error processing embedding file {embedding_file}: {e}")
+                continue
+        
+        # Sort by similarity (highest first)
+        all_matches.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        # Limit results if requested
+        if return_top_n:
+            all_matches = all_matches[:return_top_n]
+        
+        logger.info(f"Face comparison completed: {len(all_matches)} matches found out of {total_faces_checked} faces")
+        
+        response = {
             "success": True,
-            "message": "Face comparison endpoint - to be implemented"
-        }), 200
+            "reference_gender": "male" if ref_gender == 1 else "female",
+            "similarity_threshold": similarity_threshold,
+            "gender_match_required": gender_match,
+            "total_images_checked": len(embedding_files),
+            "total_faces_checked": total_faces_checked,
+            "matches_found": len(all_matches),
+            "matches": all_matches
+        }
+        
+        return jsonify(response), 200
         
     except Exception as e:
         logger.error(f"Error in compare_faces_endpoint: {e}", exc_info=True)

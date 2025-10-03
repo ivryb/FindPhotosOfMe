@@ -6,6 +6,7 @@ A scalable face detection and embedding extraction service that runs on Google C
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 10 minutes
 - **[README_CLOUD_RUN.md](README_CLOUD_RUN.md)** - Complete documentation
+- **[FACE_COMPARISON_GUIDE.md](FACE_COMPARISON_GUIDE.md)** - Face comparison usage guide
 - **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Detailed migration guide from local version
 
 ## 🚀 Quick Start
@@ -180,6 +181,67 @@ curl -X POST \
 }
 ```
 
+### Compare Faces
+
+```bash
+POST /compare-faces
+Content-Type: multipart/form-data OR application/json
+
+Parameters (multipart):
+- reference_image: Reference image file
+- bucket_name: GCS bucket name
+- base_path: Base path containing embeddings
+- similarity_threshold: Minimum similarity (optional, default: 0.6)
+- gender_match: Require gender match (optional, default: true)
+- return_top_n: Limit results (optional)
+
+Parameters (JSON):
+- reference_image_gcs_path: GCS path to reference image
+- bucket_name: GCS bucket name
+- base_path: Base path containing embeddings
+- similarity_threshold: Minimum similarity (optional, default: 0.6)
+- gender_match: Require gender match (optional, default: true)
+- return_top_n: Limit results (optional)
+```
+
+### Example Request (File Upload)
+
+```bash
+curl -X POST \
+  -F "reference_image=@ref.jpg" \
+  -F "bucket_name=my-bucket" \
+  -F "base_path=batch-001" \
+  -F "similarity_threshold=0.6" \
+  -F "gender_match=true" \
+  https://your-service.run.app/compare-faces
+```
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "reference_gender": "male",
+  "similarity_threshold": 0.6,
+  "gender_match_required": true,
+  "total_images_checked": 100,
+  "total_faces_checked": 150,
+  "matches_found": 12,
+  "matches": [
+    {
+      "image_name": "photo1.jpg",
+      "image_path": "batch-001/images/photo1.jpg",
+      "face_index": 0,
+      "similarity": 0.8542,
+      "gender": "male",
+      "bbox": [100, 200, 300, 400]
+    }
+  ]
+}
+```
+
+For detailed usage, see **[FACE_COMPARISON_GUIDE.md](FACE_COMPARISON_GUIDE.md)**
+
 ## 📊 Output Structure
 
 ```
@@ -234,6 +296,20 @@ result = client.process_zip(
 )
 
 print(f"Processed: {result['summary']['processed_successfully']} images")
+
+# Compare faces
+comparison = client.compare_faces(
+    reference_image_path="ref.jpg",
+    bucket_name="my-bucket",
+    base_path="batch-001",
+    similarity_threshold=0.6,
+    gender_match=True,
+    return_top_n=10
+)
+
+print(f"Found {comparison['matches_found']} matching faces")
+for match in comparison['matches']:
+    print(f"{match['image_name']}: {match['similarity']:.4f}")
 
 # Download embeddings
 embeddings = client.download_embeddings(
@@ -382,8 +458,9 @@ Same as your original project.
 
 1. ✅ Follow [QUICKSTART.md](QUICKSTART.md) to deploy
 2. 📖 Read [README_CLOUD_RUN.md](README_CLOUD_RUN.md) for details
-3. 🔄 Check [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for migration info
-4. 🚀 Start processing your images!
+3. 🔍 Learn face comparison in [FACE_COMPARISON_GUIDE.md](FACE_COMPARISON_GUIDE.md)
+4. 🔄 Check [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for migration info
+5. 🚀 Start processing and comparing faces!
 
 ---
 

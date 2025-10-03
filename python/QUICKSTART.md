@@ -116,6 +116,20 @@ python example_client.py \
   --base-path batch-$(date +%Y%m%d)
 ```
 
+### Find Matching Faces
+
+```bash
+# Compare a reference face with processed images
+python example_client.py \
+  --url ${SERVICE_URL} \
+  --action compare \
+  --reference-image ref.jpg \
+  --bucket ${BUCKET_NAME} \
+  --base-path family-reunion-2024 \
+  --similarity-threshold 0.6 \
+  --top-n 10
+```
+
 ### Local Testing
 
 Before deploying changes:
