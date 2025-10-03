@@ -1,8 +1,3 @@
----
-description: Convex DB & Backend
-alwaysApply: false
----
-
 # Convex guidelines
 
 ## Function guidelines
