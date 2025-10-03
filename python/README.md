@@ -7,7 +7,9 @@ A scalable face detection and embedding extraction service that runs on Google C
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 10 minutes
 - **[README_CLOUD_RUN.md](README_CLOUD_RUN.md)** - Complete documentation
 - **[FACE_COMPARISON_GUIDE.md](FACE_COMPARISON_GUIDE.md)** - Face comparison usage guide
+- **[CONSOLIDATED_EMBEDDINGS_UPDATE.md](CONSOLIDATED_EMBEDDINGS_UPDATE.md)** - Performance improvements (v2.1)
 - **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - Detailed migration guide from local version
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
 
 ## 🚀 Quick Start
 
@@ -249,31 +251,63 @@ gs://your-bucket/
 └── batch-001/
     ├── images/
     │   ├── photo1.jpg
-    │   └── photo2.jpg
-    ├── embeddings/
-    │   ├── photo1.json
-    │   └── photo2.json
+    │   ├── photo2.jpg
+    │   └── ...
+    ├── embeddings.json          # Consolidated file for fast searching
     └── summary.json
 ```
 
-### Embedding Format
+### Consolidated Embeddings Format
+
+All face embeddings are stored in a **single file** (`embeddings.json`) for efficient searching:
 
 ```json
 {
-  "image_name": "photo1.jpg",
-  "image_path": "batch-001/images/photo1.jpg",
-  "faces_count": 1,
-  "faces": [
+  "metadata": {
+    "total_images": 100,
+    "images_with_faces": 95,
+    "total_faces": 150,
+    "created_at": "2025-10-03T12:00:00",
+    "base_path": "batch-001",
+    "bucket_name": "my-bucket"
+  },
+  "embeddings": [
     {
-      "face_index": 0,
-      "embedding": [512-dimensional array],
-      "gender": "male",
-      "bbox": [x1, y1, x2, y2]
+      "image_name": "photo1.jpg",
+      "image_path": "batch-001/images/photo1.jpg",
+      "faces_count": 2,
+      "faces": [
+        {
+          "face_index": 0,
+          "embedding": [512-dimensional array],
+          "gender": "male",
+          "bbox": [100, 200, 300, 400]
+        },
+        {
+          "face_index": 1,
+          "embedding": [512-dimensional array],
+          "gender": "female",
+          "bbox": [150, 180, 350, 380]
+        }
+      ],
+      "processed_at": "2025-10-03T12:00:00"
+    },
+    {
+      "image_name": "photo2.jpg",
+      "image_path": "batch-001/images/photo2.jpg",
+      "faces_count": 1,
+      "faces": [...],
+      "processed_at": "2025-10-03T12:00:00"
     }
-  ],
-  "processed_at": "2025-10-03T12:00:00"
+  ]
 }
 ```
+
+**Benefits:**
+- ✅ Single file download for searching (vs. 100+ individual files)
+- ✅ Faster face comparison (all embeddings loaded at once)
+- ✅ Easier to manage and backup
+- ✅ Ready for vector database integration
 
 ## 🐍 Python Client
 
@@ -311,12 +345,14 @@ print(f"Found {comparison['matches_found']} matching faces")
 for match in comparison['matches']:
     print(f"{match['image_name']}: {match['similarity']:.4f}")
 
-# Download embeddings
+# Download consolidated embeddings file
 embeddings = client.download_embeddings(
     bucket_name="my-bucket",
     base_path="batch-001",
-    output_dir="./embeddings"
+    output_file="batch-001-embeddings.json"
 )
+
+print(f"Total faces: {embeddings['metadata']['total_faces']}")
 ```
 
 ## 📈 Performance

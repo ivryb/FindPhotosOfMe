@@ -182,9 +182,9 @@ class FaceDetectionClient:
                 print(f"Response: {e.response.text}")
             return None
     
-    def download_embeddings(self, bucket_name, base_path, output_dir='.'):
+    def download_embeddings(self, bucket_name, base_path, output_file='embeddings.json'):
         """
-        Download embeddings from GCS
+        Download consolidated embeddings file from GCS
         
         Note: This requires google-cloud-storage to be installed and
         proper authentication to be set up locally
@@ -192,7 +192,7 @@ class FaceDetectionClient:
         Args:
             bucket_name: GCS bucket name
             base_path: Base path in bucket
-            output_dir: Local directory to save embeddings
+            output_file: Local file path to save embeddings (default: embeddings.json)
         """
         try:
             from google.cloud import storage
@@ -200,29 +200,34 @@ class FaceDetectionClient:
             client = storage.Client()
             bucket = client.bucket(bucket_name)
             
-            # List all embeddings
-            blobs = bucket.list_blobs(prefix=f"{base_path}/embeddings/")
+            # Ensure base_path doesn't end with /
+            if base_path.endswith('/'):
+                base_path = base_path.rstrip('/')
             
-            output_path = Path(output_dir)
-            output_path.mkdir(parents=True, exist_ok=True)
+            # Download consolidated embeddings file
+            embeddings_path = f"{base_path}/embeddings.json"
+            blob = bucket.blob(embeddings_path)
             
-            embeddings = []
-            for blob in blobs:
-                if blob.name.endswith('.json'):
-                    # Download and parse
-                    content = blob.download_as_text()
-                    embedding_data = json.loads(content)
-                    embeddings.append(embedding_data)
-                    
-                    # Save locally
-                    filename = Path(blob.name).name
-                    local_path = output_path / filename
-                    with open(local_path, 'w') as f:
-                        json.dump(embedding_data, f, indent=2)
-                    
-                    print(f"Downloaded: {filename}")
+            if not blob.exists():
+                print(f"Error: Embeddings file not found at {embeddings_path}")
+                return None
             
-            return embeddings
+            # Download and parse
+            content = blob.download_as_text()
+            embeddings_data = json.loads(content)
+            
+            # Save locally
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(output_path, 'w') as f:
+                json.dump(embeddings_data, f, indent=2)
+            
+            print(f"Downloaded consolidated embeddings file: {output_file}")
+            print(f"Total images with faces: {embeddings_data['metadata']['images_with_faces']}")
+            print(f"Total faces: {embeddings_data['metadata']['total_faces']}")
+            
+            return embeddings_data
             
         except ImportError:
             print("Error: google-cloud-storage not installed")
@@ -248,7 +253,7 @@ def main():
     parser.add_argument('--no-gender-match', action='store_true', 
                        help='Disable gender matching requirement')
     parser.add_argument('--top-n', type=int, help='Return only top N matches')
-    parser.add_argument('--output-dir', default='embeddings', help='Output directory for downloads')
+    parser.add_argument('--output-file', default='embeddings.json', help='Output file for embeddings download')
     
     args = parser.parse_args()
     
@@ -331,11 +336,11 @@ def main():
         embeddings = client.download_embeddings(
             args.bucket,
             args.base_path,
-            args.output_dir
+            args.output_file
         )
         
         if embeddings:
-            print(f"\nDownloaded {len(embeddings)} embedding files to {args.output_dir}")
+            print(f"\nConsolidated embeddings saved to: {args.output_file}")
 
 if __name__ == '__main__':
     main()

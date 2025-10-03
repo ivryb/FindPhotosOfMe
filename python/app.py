@@ -71,7 +71,7 @@ def upload_to_gcs(bucket_name, blob_path, data):
 def process_image_from_zip(image_data, image_name, bucket_name, base_path):
     """
     Process a single image: detect faces, extract embeddings, and upload to GCS
-    Returns metadata about the processed image
+    Returns metadata about the processed image including embeddings for consolidation
     """
     try:
         # Decode image from bytes
@@ -112,26 +112,15 @@ def process_image_from_zip(image_data, image_name, bucket_name, base_path):
             }
             faces_data.append(face_info)
         
-        # Upload embeddings as JSON file
-        embeddings_path = f"{base_path}/embeddings/{Path(image_name).stem}.json"
-        embeddings_json = json.dumps({
+        logger.info(f"Processed {image_name}: {len(face_features)} face(s) detected")
+        
+        # Return data for consolidation (don't upload individual files)
+        return {
             "image_name": image_name,
             "image_path": image_path,
             "faces_count": len(face_features),
             "faces": faces_data,
             "processed_at": datetime.utcnow().isoformat()
-        }, indent=2)
-        
-        upload_to_gcs(bucket_name, embeddings_path, embeddings_json.encode('utf-8'))
-        
-        logger.info(f"Processed {image_name}: {len(face_features)} face(s) detected")
-        
-        return {
-            "image_name": image_name,
-            "image_path": image_path,
-            "embeddings_path": embeddings_path,
-            "faces_count": len(face_features),
-            "faces": faces_data
         }
         
     except Exception as e:
@@ -146,10 +135,12 @@ def stream_process_zip(zip_file_data, bucket_name, base_path, max_workers=4):
     """
     Stream process images from a zip file
     Processes images as they are extracted without storing all in memory
+    Creates a consolidated embeddings file for efficient searching
     """
     results = []
     processed_count = 0
     error_count = 0
+    all_embeddings = []  # Consolidated list of all embeddings
     
     try:
         # Open zip file from memory
@@ -189,10 +180,35 @@ def stream_process_zip(zip_file_data, bucket_name, base_path, max_workers=4):
                         results.append(result)
                         if "error" not in result:
                             processed_count += 1
+                            # Add to consolidated embeddings if faces were found
+                            if result.get('faces_count', 0) > 0:
+                                all_embeddings.append(result)
                         else:
                             error_count += 1
             
             logger.info(f"Processing completed: {processed_count} successful, {error_count} errors")
+            
+            # Create consolidated embeddings file
+            if all_embeddings:
+                consolidated_data = {
+                    "metadata": {
+                        "total_images": total_images,
+                        "images_with_faces": len(all_embeddings),
+                        "total_faces": sum(img.get('faces_count', 0) for img in all_embeddings),
+                        "created_at": datetime.utcnow().isoformat(),
+                        "base_path": base_path,
+                        "bucket_name": bucket_name
+                    },
+                    "embeddings": all_embeddings
+                }
+                
+                # Upload consolidated embeddings file
+                embeddings_path = f"{base_path}/embeddings.json"
+                embeddings_json = json.dumps(consolidated_data, indent=2)
+                upload_to_gcs(bucket_name, embeddings_path, embeddings_json.encode('utf-8'))
+                
+                logger.info(f"Uploaded consolidated embeddings file: {embeddings_path}")
+                logger.info(f"Total faces in consolidated file: {consolidated_data['metadata']['total_faces']}")
             
     except Exception as e:
         logger.error(f"Error processing zip file: {e}")
@@ -202,7 +218,8 @@ def stream_process_zip(zip_file_data, bucket_name, base_path, max_workers=4):
         "total_images": len(results),
         "processed_successfully": processed_count,
         "errors": error_count,
-        "results": results
+        "results": results,
+        "embeddings_file": f"{base_path}/embeddings.json" if all_embeddings else None
     }
 
 @app.route('/health', methods=['GET'])
@@ -258,7 +275,8 @@ def process_zip_endpoint():
             "total_images": results["total_images"],
             "processed_successfully": results["processed_successfully"],
             "errors": results["errors"],
-            "completed_at": datetime.utcnow().isoformat()
+            "completed_at": datetime.utcnow().isoformat(),
+            "embeddings_file": results.get("embeddings_file")
         }
         
         summary_path = f"{base_path}/summary.json"
@@ -268,6 +286,7 @@ def process_zip_endpoint():
             "success": True,
             "summary": summary,
             "summary_path": summary_path,
+            "embeddings_file": results.get("embeddings_file"),
             "results": results["results"]
         }
         
@@ -332,29 +351,32 @@ def get_reference_embedding(reference_source, is_gcs=False, bucket_name=None):
         logger.error(f"Error getting reference embedding: {e}")
         raise
 
-def list_embedding_files(bucket_name, base_path):
-    """List all embedding JSON files in a GCS path"""
+def load_consolidated_embeddings(bucket_name, base_path):
+    """Load the consolidated embeddings file from GCS"""
     try:
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         
-        # Ensure base_path ends with /
-        if not base_path.endswith('/'):
-            base_path += '/'
+        # Ensure base_path doesn't end with /
+        if base_path.endswith('/'):
+            base_path = base_path.rstrip('/')
         
-        # List all blobs with the prefix
-        blobs = bucket.list_blobs(prefix=base_path)
+        # Download consolidated embeddings file
+        embeddings_path = f"{base_path}/embeddings.json"
+        blob = bucket.blob(embeddings_path)
         
-        embedding_files = []
-        for blob in blobs:
-            if blob.name.endswith('.json') and '/embeddings/' in blob.name:
-                embedding_files.append(blob.name)
+        if not blob.exists():
+            logger.warning(f"Consolidated embeddings file not found: {embeddings_path}")
+            return None
         
-        logger.info(f"Found {len(embedding_files)} embedding files in {base_path}")
-        return embedding_files
+        embeddings_json = blob.download_as_text()
+        embeddings_data = json.loads(embeddings_json)
+        
+        logger.info(f"Loaded consolidated embeddings: {embeddings_data['metadata']['images_with_faces']} images, {embeddings_data['metadata']['total_faces']} faces")
+        return embeddings_data
         
     except Exception as e:
-        logger.error(f"Error listing embedding files: {e}")
+        logger.error(f"Error loading consolidated embeddings: {e}")
         raise
 
 def compare_embeddings(ref_embedding, ref_gender, embedding_data, similarity_threshold=0.6, gender_match=True):
@@ -476,47 +498,39 @@ def compare_faces_endpoint():
         
         ref_embedding, ref_gender = ref_result
         
-        # List all embedding files
-        embedding_files = list_embedding_files(bucket_name, base_path)
+        # Load consolidated embeddings file
+        embeddings_data = load_consolidated_embeddings(bucket_name, base_path)
         
-        if not embedding_files:
+        if not embeddings_data:
             return jsonify({
                 "success": True,
-                "message": "No embedding files found",
+                "message": "No embeddings found. Please process images first.",
                 "matches": [],
-                "total_embeddings_checked": 0
+                "total_images_checked": 0,
+                "total_faces_checked": 0
             }), 200
         
-        # Compare with each embedding file
+        # Compare with all embeddings
         all_matches = []
-        total_faces_checked = 0
+        total_faces_checked = embeddings_data['metadata']['total_faces']
+        total_images_checked = embeddings_data['metadata']['images_with_faces']
         
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        
-        for embedding_file in embedding_files:
+        for image_data in embeddings_data['embeddings']:
             try:
-                # Download and parse embedding JSON
-                blob = bucket.blob(embedding_file)
-                embedding_json = blob.download_as_text()
-                embedding_data = json.loads(embedding_json)
-                
-                # Compare faces
+                # Compare faces in this image
                 matches = compare_embeddings(
                     ref_embedding,
                     ref_gender,
-                    embedding_data,
+                    image_data,
                     similarity_threshold,
                     gender_match
                 )
                 
-                total_faces_checked += embedding_data.get('faces_count', 0)
-                
                 # Add matches with image information
                 for match in matches:
                     all_matches.append({
-                        'image_name': embedding_data['image_name'],
-                        'image_path': embedding_data['image_path'],
+                        'image_name': image_data['image_name'],
+                        'image_path': image_data['image_path'],
                         'face_index': match['face_index'],
                         'similarity': match['similarity'],
                         'gender': match['gender'],
@@ -524,7 +538,7 @@ def compare_faces_endpoint():
                     })
                 
             except Exception as e:
-                logger.error(f"Error processing embedding file {embedding_file}: {e}")
+                logger.error(f"Error processing image {image_data.get('image_name', 'unknown')}: {e}")
                 continue
         
         # Sort by similarity (highest first)
@@ -541,10 +555,11 @@ def compare_faces_endpoint():
             "reference_gender": "male" if ref_gender == 1 else "female",
             "similarity_threshold": similarity_threshold,
             "gender_match_required": gender_match,
-            "total_images_checked": len(embedding_files),
+            "total_images_checked": total_images_checked,
             "total_faces_checked": total_faces_checked,
             "matches_found": len(all_matches),
-            "matches": all_matches
+            "matches": all_matches,
+            "embeddings_file": f"{base_path}/embeddings.json"
         }
         
         return jsonify(response), 200

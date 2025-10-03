@@ -253,33 +253,64 @@ gs://your-bucket/
     │   ├── photo1.jpg
     │   ├── photo2.jpg
     │   └── ...
-    ├── embeddings/
-    │   ├── photo1.json
-    │   ├── photo2.json
-    │   └── ...
+    ├── embeddings.json          # Consolidated file with ALL embeddings
     └── summary.json
 ```
 
-### Embedding JSON Format
+### Consolidated Embeddings File
 
-Each embedding file contains:
+**All face embeddings are stored in a single file** (`embeddings.json`) for efficient searching:
 
 ```json
 {
-  "image_name": "photo1.jpg",
-  "image_path": "batch-001/images/photo1.jpg",
-  "faces_count": 1,
-  "faces": [
+  "metadata": {
+    "total_images": 100,
+    "images_with_faces": 95,
+    "total_faces": 150,
+    "created_at": "2025-10-03T12:00:00.000000",
+    "base_path": "batch-001",
+    "bucket_name": "my-bucket"
+  },
+  "embeddings": [
     {
-      "face_index": 0,
-      "embedding": [512-dimensional array],
-      "gender": "male",
-      "bbox": [x1, y1, x2, y2]
+      "image_name": "photo1.jpg",
+      "image_path": "batch-001/images/photo1.jpg",
+      "faces_count": 2,
+      "faces": [
+        {
+          "face_index": 0,
+          "embedding": [512-dimensional array],
+          "gender": "male",
+          "bbox": [100, 200, 300, 400]
+        },
+        {
+          "face_index": 1,
+          "embedding": [512-dimensional array],
+          "gender": "female",
+          "bbox": [150, 180, 350, 380]
+        }
+      ],
+      "processed_at": "2025-10-03T12:00:00.000000"
+    },
+    {
+      "image_name": "photo2.jpg",
+      "image_path": "batch-001/images/photo2.jpg",
+      "faces_count": 1,
+      "faces": [...],
+      "processed_at": "2025-10-03T12:00:00.000000"
     }
-  ],
-  "processed_at": "2025-10-03T12:00:00.000000"
+    // ... all other images
+  ]
 }
 ```
+
+**Benefits:**
+- ✅ Single file download (10-100x faster than individual files)
+- ✅ 99% reduction in GCS API calls
+- ✅ Easier to manage and backup
+- ✅ Ready for vector database integration
+
+See **[CONSOLIDATED_EMBEDDINGS_UPDATE.md](CONSOLIDATED_EMBEDDINGS_UPDATE.md)** for details.
 
 ## Testing
 

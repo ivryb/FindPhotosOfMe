@@ -80,8 +80,8 @@ curl -X POST \
 # List processed images
 gsutil ls gs://${BUCKET_NAME}/face-processing-*/images/
 
-# Download an embedding file
-gsutil cat gs://${BUCKET_NAME}/face-processing-*/embeddings/photo1.json
+# Download consolidated embeddings file (contains ALL embeddings)
+gsutil cat gs://${BUCKET_NAME}/face-processing-*/embeddings.json | jq '.metadata'
 
 # View summary
 gsutil cat gs://${BUCKET_NAME}/face-processing-*/summary.json
@@ -151,11 +151,19 @@ Before deploying changes:
 ./deploy.sh
 ```
 
-### Download All Embeddings
+### Download Consolidated Embeddings
 
 ```bash
-# Download embeddings from a specific batch
-gsutil -m cp -r gs://${BUCKET_NAME}/batch-20251003/embeddings/ ./local-embeddings/
+# Download consolidated embeddings file (single file with all embeddings)
+gsutil cp gs://${BUCKET_NAME}/batch-20251003/embeddings.json ./local-embeddings.json
+
+# Or use Python client
+python example_client.py \
+  --url ${SERVICE_URL} \
+  --action download \
+  --bucket ${BUCKET_NAME} \
+  --base-path batch-20251003 \
+  --output-file my-embeddings.json
 ```
 
 ### Delete Service

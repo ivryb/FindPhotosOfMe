@@ -13,7 +13,9 @@ The face comparison endpoint allows you to:
 ## How It Works
 
 ```
-Reference Image → Extract Face Embedding → Compare with Stored Embeddings
+Reference Image → Extract Face Embedding → Load Consolidated Embeddings File
+                                                    ↓
+                                          Compare with All Embeddings
                                                     ↓
                                           Sort by Similarity Score
                                                     ↓
@@ -25,6 +27,7 @@ The comparison uses the same logic from your original `main.py`:
 - **Default Threshold**: 0.6 (same as original)
 - **Gender Matching**: Optional gender filter (enabled by default)
 - **Sorted Results**: Returns matches sorted by similarity (highest first)
+- **Single File Search**: All embeddings in one file for fast searching
 
 ## API Endpoint
 
