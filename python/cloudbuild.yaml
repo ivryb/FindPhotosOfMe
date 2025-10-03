@@ -1,0 +1,66 @@
+# Cloud Build configuration file
+# This file is used by Google Cloud Build for CI/CD
+# 
+# To use this:
+# gcloud builds submit --config cloudbuild.yaml
+
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/face-detection-service:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/face-detection-service:latest'
+      - '.'
+    
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/face-detection-service:$COMMIT_SHA'
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/face-detection-service:latest'
+  
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'face-detection-service'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/face-detection-service:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--memory'
+      - '4Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '3600'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '0'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'PYTHONUNBUFFERED=1'
+
+# Store images in Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/face-detection-service:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/face-detection-service:latest'
+
+# Build timeout
+timeout: '1800s'
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
