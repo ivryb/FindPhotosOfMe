@@ -6,4 +6,9 @@ export default defineSchema({
 		text: v.string(),
 		completed: v.boolean(),
 	}),
+	events: defineTable({
+		subdomain: v.string(),
+		title: v.string(),
+		description: v.string(),
+	}).index("by_subdomain", ["subdomain"]),
 });
