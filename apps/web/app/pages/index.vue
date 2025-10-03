@@ -34,11 +34,11 @@ const { data: todos } = await useConvexSSRQuery(api.todos.getAll, {});
       {{ TITLE_TEXT }}
     </pre>
   </div> -->
-  <div class="text-center py-10 space-y-5">
-    <h1 class="text-5xl font-bold text-primary">
+  <div class="text-center py-16 space-y-8">
+    <h1 class="text-5xl font-bold text-accent">
       <span class="text-6xl mr-2">📸</span> Find Photos of Me
     </h1>
-    <h2 class="text-3xl font-bold text-accent">IT Arena 2025</h2>
+    <h2 class="text-3xl font-bold text-primary">IT Arena 2025</h2>
   </div>
   <section class="rounded-lg p-4">
     <h2 class="mb-2 font-semibold text-secondary">API Status</h2>

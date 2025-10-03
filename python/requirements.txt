@@ -1,0 +1,17 @@
+# Core face recognition dependencies
+insightface==0.7.3
+onnxruntime==1.18.1
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+
+# Web framework
+Flask==3.0.3
+gunicorn==22.0.0
+
+# Google Cloud Storage
+google-cloud-storage==2.17.0
+
+# Utilities
+tqdm==4.66.4
+Werkzeug==3.0.3
+
