@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Models
+models/
+*.onnx
+
+# Logs
+*.log
+
+# Test files
+*.zip
+ref.jpg
+test_*.py
