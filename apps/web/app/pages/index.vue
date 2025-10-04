@@ -1,20 +1,6 @@
 <script setup lang="ts">
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-
-const TITLE_TEXT = `
-▗▄▄▄▖▄ ▄▄▄▄     ▐▌    ▗▄▄▖ ▐▌    ▄▄▄     ■   ▄▄▄   ▄▄▄ 
-▐▌   ▄ █   █    ▐▌    ▐▌ ▐▌▐▌   █   █ ▗▄▟▙▄▖█   █ ▀▄▄  
-▐▛▀▀▘█ █   █ ▗▞▀▜▌    ▐▛▀▘ ▐▛▀▚▖▀▄▄▄▀   ▐▌  ▀▄▄▄▀ ▄▄▄▀ 
-▐▌   █       ▝▚▄▟▌    ▐▌   ▐▌ ▐▌        ▐▌             
-                                        ▐▌             
-
- ▗▄▖ ▗▞▀▀▘    ▗▖  ▗▖▗▞▀▚▖
-▐▌ ▐▌▐▌       ▐▛▚▞▜▌▐▛▀▀▘
-▐▌ ▐▌▐▛▀▘     ▐▌  ▐▌▝▚▄▄▖
-▝▚▄▞▘▐▌       ▐▌  ▐▌     
-                         
-                         
-`;
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const { data: healthCheck } = await useConvexSSRQuery(api.healthCheck.get, {});
 
@@ -34,34 +20,34 @@ const { data: todos } = await useConvexSSRQuery(api.todos.getAll, {});
       {{ TITLE_TEXT }}
     </pre>
   </div> -->
-  <div class="text-center py-16 space-y-8">
-    <h1 class="text-5xl font-bold text-accent">
-      <span class="text-6xl mr-2">📸</span> Find Photos of Me
-    </h1>
-    <h2 class="text-3xl font-bold text-primary">IT Arena 2025</h2>
+  <div class="container my-8">
+    <Card>
+      <CardHeader>
+        <h1 class="text-2xl tracking-tight font-bold">IT Arena 2025</h1>
+      </CardHeader>
+      <CardContent>
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-muted-foreground"> Health Check </span>
+          <span class="text-sm text-muted-foreground">
+            {{
+              healthCheck === undefined
+                ? "Checking..."
+                : healthCheck === "OK"
+                  ? "Connected"
+                  : "Error"
+            }}
+            {{ healthCheck }}
+          </span>
+        </div>
+        <div class="text-sm text-muted-foreground">
+          {{ todos.length }}
+          <ul>
+            <li v-for="todo in todos" :key="todo._id">
+              {{ todo.text }}
+            </li>
+          </ul>
+        </div>
+      </CardContent>
+    </Card>
   </div>
-  <section class="rounded-lg p-4">
-    <h2 class="mb-2 font-semibold text-secondary">API Status</h2>
-    <div class="flex items-center gap-2">
-      <span class="text-sm text-muted-foreground"> Health Check </span>
-      <span class="text-sm text-muted-foreground">
-        {{
-          healthCheck === undefined
-            ? "Checking..."
-            : healthCheck === "OK"
-              ? "Connected"
-              : "Error"
-        }}
-        {{ healthCheck }}
-      </span>
-    </div>
-    <div class="text-sm text-muted-foreground">
-      {{ todos.length }}
-      <ul>
-        <li v-for="todo in todos" :key="todo._id">
-          {{ todo.text }}
-        </li>
-      </ul>
-    </div>
-  </section>
 </template>
