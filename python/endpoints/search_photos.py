@@ -35,7 +35,7 @@ async def search_photos(
     print(f"[{get_time()}] Starting search for request: {search_request_id}")
     
     # Validate image file
-    if not reference_photo.content_type.startswith('image/'):
+    if not reference_photo.content_type or not reference_photo.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
     
     try:
@@ -89,7 +89,7 @@ async def search_photos(
         print(f"[{get_time()}] Reference face extracted. Gender: {'male' if ref_gender == 1 else 'female'}")
         
         # Download embeddings.json from R2
-        embeddings_key = f"find-photos-of-me/{collection_id}/embeddings.json"
+        embeddings_key = f"{collection_id}/embeddings.json"
         embeddings_data_bytes = r2_service.download_file(embeddings_key)
         
         if not embeddings_data_bytes:
@@ -124,7 +124,7 @@ async def search_photos(
         # Build image paths for R2
         images_found = []
         for filename, similarity in matches:
-            image_path = f"find-photos-of-me/{collection_id}/{filename}"
+            image_path = f"{collection_id}/{filename}"
             images_found.append(image_path)
         
         # Update search request with results

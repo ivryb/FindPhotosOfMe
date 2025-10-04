@@ -21,6 +21,17 @@ def get_time() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
+def get_content_type(filename: str) -> str:
+    """Determine content type based on file extension."""
+    lower_filename = filename.lower()
+    if lower_filename.endswith(('.jpg', '.jpeg')):
+        return 'image/jpeg'
+    elif lower_filename.endswith('.png'):
+        return 'image/png'
+    else:
+        return 'application/octet-stream'
+
+
 @router.post("/upload-collection", response_model=UploadResponse)
 async def upload_collection(
     collection_id: str = Form(...),
@@ -38,7 +49,7 @@ async def upload_collection(
     print(f"[{get_time()}] Starting upload for collection: {collection_id}")
     
     # Validate zip file
-    if not file.filename.endswith('.zip'):
+    if not file.filename or not file.filename.endswith('.zip'):
         raise HTTPException(status_code=400, detail="File must be a zip archive")
     
     try:
@@ -91,8 +102,9 @@ async def upload_collection(
                     embeddings_data[image_name] = embeddings
                     
                     # Upload image to R2
-                    r2_key = f"find-photos-of-me/{collection_id}/{image_name}"
-                    r2_service.upload_file(image_data, r2_key, 'image/jpeg')
+                    r2_key = f"{collection_id}/{image_name}"
+                    content_type = get_content_type(image_name)
+                    r2_service.upload_file(image_data, r2_key, content_type)
                     
                     processed_count += 1
                     
@@ -111,7 +123,7 @@ async def upload_collection(
         
         # Save embeddings to R2
         embeddings_json = json.dumps(embeddings_data, indent=2)
-        embeddings_key = f"find-photos-of-me/{collection_id}/embeddings.json"
+        embeddings_key = f"{collection_id}/embeddings.json"
         r2_service.upload_file(
             embeddings_json.encode('utf-8'),
             embeddings_key,

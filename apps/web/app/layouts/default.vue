@@ -18,11 +18,6 @@
     />
   </Head>
   <Body>
-    <Header />
-    <div class="grid grid-rows-[auto_1fr] h-svh">
-      <main class="overflow-y-auto">
-        <slot />
-      </main>
-    </div>
+    <slot />
   </Body>
 </template>

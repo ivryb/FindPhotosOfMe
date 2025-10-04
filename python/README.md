@@ -37,13 +37,45 @@ The service consists of two main endpoints:
    pip install -r requirements.txt
    ```
 
-2. Configure environment variables (see `.env.example`)
+2. Configure environment variables:
 
-3. Run with Docker:
+   Create a `.env` file in the `python/` directory:
+
    ```bash
-   docker build -t photo-service .
-   docker run -p 8000:8000 --env-file .env photo-service
+   R2_ACCOUNT_ID=your_r2_account_id
+   R2_ACCESS_KEY_ID=your_r2_access_key_id
+   R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+   R2_BUCKET_NAME=your_bucket_name
+   CONVEX_URL=https://your-convex-deployment-url.convex.cloud
+   CORS_ORIGINS=*
    ```
+
+3. Run locally with Docker:
+
+   ```bash
+   ./deploy-local.sh
+   ```
+
+   This script will:
+   - Build the Docker image
+   - Load environment variables from `.env`
+   - Run the container on port 8000 (in detached mode)
+   - Verify all required credentials are present
+   - Automatically stop/remove any existing container
+
+   To stop the service:
+
+   ```bash
+   ./stop-local.sh
+   ```
+
+   View logs:
+
+   ```bash
+   docker logs -f find-photos-of-me-service
+   ```
+
+**Note**: InsightFace models (~400MB) will be downloaded automatically on first run and cached in the `/app/models` directory.
 
 ## API Endpoints
 

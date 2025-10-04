@@ -2,13 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+# Install system dependencies and build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Runtime dependencies for OpenCV and InsightFace
+    libgl1 \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
+    libgomp1 \
+    # Build tools required for compiling InsightFace C++ extensions
+    build-essential \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
@@ -23,8 +26,11 @@ COPY . .
 # Create directory for InsightFace models
 RUN mkdir -p /app/models
 
-# Expose port
+# Expose port (default 8000, can be overridden with PORT env var)
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set default port
+ENV PORT=8000
+
+# Run the application using JSON array format (prevents signal handling issues)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]

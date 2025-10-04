@@ -2,8 +2,10 @@ export const useSubdomain = () => {
   const url = useRequestURL();
   const route = useRoute();
 
-  if (route.query.subdomain) {
-    return route.query.subdomain as string;
+  if (import.meta.dev) {
+    if (route.query.subdomain) {
+      return route.query.subdomain as string;
+    }
   }
 
   const subdomain = url.hostname.split(".")[0];
