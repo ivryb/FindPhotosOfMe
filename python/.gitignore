@@ -7,77 +7,25 @@ __pycache__/
 env/
 venv/
 ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-*.cover
-.hypothesis/
-.mypy_cache/
-.dmypy.json
-dmypy.json
+.venv
 
-# Virtual environments
-bin/
-include/
-share/
-pyvenv.cfg
-lib64
+# Environment
+.env
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
 
-# Project specific
-all/
-filtered/
-*.jpg
-*.jpeg
-*.png
-*.bmp
-!public/*.jpg  # Keep public images if any
-
-# InsightFace downloaded models (will be downloaded in Docker)
-insightface/
-.insightface/
-~/.insightface/
-
-# Test files
-test_images/
-*.zip
-
-# Environment variables
-.env
-.env.local
+# Models
+models/
+*.onnx
 
 # Logs
 *.log
-logs/
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-
+# Test files
+*.zip
+ref.jpg
+test_*.py

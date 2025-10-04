@@ -1,65 +1,16 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
+__pycache__
+*.pyc
+*.pyo
+*.pyd
 .Python
 env/
 venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Virtual environment
-bin/
-include/
-share/
-pyvenv.cfg
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project specific
-ref.jpg
-all/
-filtered/
-*.jpg
-*.jpeg
-*.png
-*.bmp
-
-# Git
-.git/
+.env
+*.log
+.git
 .gitignore
-
-# Documentation
 README.md
-docs/
-
-# InsightFace data (will be downloaded during build)
-insightface/
-
+.DS_Store
+*.zip
+ref.jpg
+pyvenv.cfg
