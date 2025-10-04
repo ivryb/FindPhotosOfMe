@@ -5,7 +5,7 @@ export const getAll = query({
   args: {},
   returns: v.array(
     v.object({
-      _id: v.id("events"),
+      _id: v.id("collections"),
       _creationTime: v.number(),
       subdomain: v.string(),
       title: v.string(),
@@ -13,17 +13,17 @@ export const getAll = query({
     })
   ),
   handler: async (ctx) => {
-    return await ctx.db.query("events").collect();
+    return await ctx.db.query("collections").collect();
   },
 });
 
 export const getById = query({
   args: {
-    id: v.id("events"),
+    id: v.id("collections"),
   },
   returns: v.union(
     v.object({
-      _id: v.id("events"),
+      _id: v.id("collections"),
       _creationTime: v.number(),
       subdomain: v.string(),
       title: v.string(),
@@ -42,7 +42,7 @@ export const getBySubdomain = query({
   },
   returns: v.union(
     v.object({
-      _id: v.id("events"),
+      _id: v.id("collections"),
       _creationTime: v.number(),
       subdomain: v.string(),
       title: v.string(),
@@ -52,7 +52,7 @@ export const getBySubdomain = query({
   ),
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("events")
+      .query("collections")
       .withIndex("by_subdomain", (q) => q.eq("subdomain", args.subdomain))
       .first();
   },
@@ -64,52 +64,52 @@ export const create = mutation({
     title: v.string(),
     description: v.string(),
   },
-  returns: v.id("events"),
+  returns: v.id("collections"),
   handler: async (ctx, args) => {
     // Check if subdomain already exists
     const existing = await ctx.db
-      .query("events")
+      .query("collections")
       .withIndex("by_subdomain", (q) => q.eq("subdomain", args.subdomain))
       .first();
 
     if (existing) {
-      throw new Error("An event with this subdomain already exists");
+      throw new Error("A collection with this subdomain already exists");
     }
 
-    const newEventId = await ctx.db.insert("events", {
+    const newCollectionId = await ctx.db.insert("collections", {
       subdomain: args.subdomain,
       title: args.title,
       description: args.description,
     });
 
-    return newEventId;
+    return newCollectionId;
   },
 });
 
 export const update = mutation({
   args: {
-    id: v.id("events"),
+    id: v.id("collections"),
     subdomain: v.string(),
     title: v.string(),
     description: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Check if the event exists
-    const event = await ctx.db.get(args.id);
-    if (!event) {
-      throw new Error("Event not found");
+    // Check if the Collection exists
+    const Collection = await ctx.db.get(args.id);
+    if (!Collection) {
+      throw new Error("Collection not found");
     }
 
     // If subdomain is changing, check if new subdomain is available
-    if (event.subdomain !== args.subdomain) {
+    if (Collection.subdomain !== args.subdomain) {
       const existing = await ctx.db
-        .query("events")
+        .query("collections")
         .withIndex("by_subdomain", (q) => q.eq("subdomain", args.subdomain))
         .first();
 
       if (existing) {
-        throw new Error("An event with this subdomain already exists");
+        throw new Error("A collection with this subdomain already exists");
       }
     }
 
@@ -123,9 +123,9 @@ export const update = mutation({
   },
 });
 
-export const deleteEvent = mutation({
+export const deleteCollection = mutation({
   args: {
-    id: v.id("events"),
+    id: v.id("collections"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

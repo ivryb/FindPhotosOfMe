@@ -16,38 +16,41 @@ import {
 const route = useRoute();
 const subdomain = computed(() => route.params.subdomain as string);
 
-const { data: event } = await useConvexSSRQuery(api.events.getBySubdomain, {
-  subdomain: subdomain.value,
-});
+const { data: collection } = await useConvexSSRQuery(
+  api.collections.getBySubdomain,
+  {
+    subdomain: subdomain.value,
+  }
+);
 
-const { mutate: updateEvent } = useConvexMutation(api.events.update);
+const { mutate: updatecollection } = useConvexMutation(api.collections.update);
 
 const isEditing = ref(false);
 const formData = ref({
-  subdomain: event.value?.subdomain || "",
-  title: event.value?.title || "",
-  description: event.value?.description || "",
+  subdomain: collection.value?.subdomain || "",
+  title: collection.value?.title || "",
+  description: collection.value?.description || "",
 });
 
 watch(
-  () => event.value,
-  (newEvent) => {
-    if (newEvent) {
+  () => collection.value,
+  (newcollection) => {
+    if (newcollection) {
       formData.value = {
-        subdomain: newEvent.subdomain,
-        title: newEvent.title,
-        description: newEvent.description,
+        subdomain: newcollection.subdomain,
+        title: newcollection.title,
+        description: newcollection.description,
       };
     }
   }
 );
 
 const handleSave = async () => {
-  if (!event.value) return;
+  if (!collection.value) return;
 
   try {
-    await updateEvent({
-      id: event.value._id,
+    await updatecollection({
+      id: collection.value._id,
       subdomain: formData.value.subdomain,
       title: formData.value.title,
       description: formData.value.description,
@@ -56,20 +59,20 @@ const handleSave = async () => {
 
     // If subdomain changed, navigate to the new URL
     if (formData.value.subdomain !== subdomain.value) {
-      navigateTo(`/events/${formData.value.subdomain}`);
+      navigateTo(`/admin/collections/${formData.value.subdomain}`);
     }
   } catch (error) {
-    console.error("Error updating event:", error);
-    alert(error instanceof Error ? error.message : "Error updating event");
+    console.error("Error updating collection:", error);
+    alert(error instanceof Error ? error.message : "Error updating collection");
   }
 };
 
 const handleCancel = () => {
-  if (event.value) {
+  if (collection.value) {
     formData.value = {
-      subdomain: event.value.subdomain,
-      title: event.value.title,
-      description: event.value.description,
+      subdomain: collection.value.subdomain,
+      title: collection.value.title,
+      description: collection.value.description,
     };
   }
   isEditing.value = false;
@@ -84,10 +87,10 @@ const handleCancel = () => {
       </Button>
     </div>
 
-    <div v-if="!event" class="text-center py-20">
-      <h1 class="text-2xl font-bold mb-4">Event Not Found</h1>
+    <div v-if="!collection" class="text-center py-20">
+      <h1 class="text-2xl font-bold mb-4">collection Not Found</h1>
       <p class="text-muted-foreground mb-6">
-        The event with subdomain "{{ subdomain }}" does not exist.
+        The collection with subdomain "{{ subdomain }}" does not exist.
       </p>
       <Button @click="navigateTo('/admin')">Go to Admin</Button>
     </div>
@@ -97,13 +100,13 @@ const handleCancel = () => {
         <CardHeader>
           <div class="flex justify-between items-start">
             <div>
-              <CardTitle class="text-3xl">{{ event.title }}</CardTitle>
+              <CardTitle class="text-3xl">{{ collection.title }}</CardTitle>
               <CardDescription class="mt-2">
-                Event Subdomain: {{ event.subdomain }}
+                collection Subdomain: {{ collection.subdomain }}
               </CardDescription>
             </div>
             <Button v-if="!isEditing" @click="isEditing = true">
-              Edit Event
+              Edit collection
             </Button>
           </div>
         </CardHeader>
@@ -113,14 +116,14 @@ const handleCancel = () => {
               <h3 class="text-sm font-medium text-muted-foreground mb-1">
                 Description
               </h3>
-              <p class="text-lg">{{ event.description }}</p>
+              <p class="text-lg">{{ collection.description }}</p>
             </div>
             <div>
               <h3 class="text-sm font-medium text-muted-foreground mb-1">
                 Created
               </h3>
               <p class="text-lg">
-                {{ new Date(event._creationTime).toLocaleString() }}
+                {{ new Date(collection._creationTime).toLocaleString() }}
               </p>
             </div>
           </div>
@@ -134,7 +137,7 @@ const handleCancel = () => {
                 placeholder="e.g., itarena2025"
               />
               <p class="text-xs text-muted-foreground">
-                This will be used in the event URL
+                This will be used in the collection URL
               </p>
             </div>
             <div class="grid gap-2">
@@ -150,7 +153,7 @@ const handleCancel = () => {
               <Input
                 id="edit-description"
                 v-model="formData.description"
-                placeholder="Event description"
+                placeholder="collection description"
               />
             </div>
             <div class="flex gap-2">

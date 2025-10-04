@@ -181,6 +181,6 @@
     letter-spacing: var(--tracking-normal);
   }
   .container {
-    @apply max-w-xl mx-auto px-3;
+    @apply max-w-3xl! mx-auto px-4;
   }
 }

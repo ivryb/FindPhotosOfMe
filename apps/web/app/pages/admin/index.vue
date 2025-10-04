@@ -24,13 +24,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const { data: events } = await useConvexSSRQuery(api.events.getAll, {});
+const { data: collections } = await useConvexSSRQuery(
+  api.collections.getAll,
+  {}
+);
 
 const isDialogOpen = ref(false);
 const isEditing = ref(false);
-const currentEventId = ref<Id<"events"> | null>(null);
+const currentCollectionId = ref<Id<"collections"> | null>(null);
 
 const formData = ref({
   subdomain: "",
@@ -38,13 +40,15 @@ const formData = ref({
   description: "",
 });
 
-const { mutate: createEvent } = useConvexMutation(api.events.create);
-const { mutate: updateEvent } = useConvexMutation(api.events.update);
-const { mutate: deleteEvent } = useConvexMutation(api.events.deleteEvent);
+const { mutate: createCollection } = useConvexMutation(api.collections.create);
+const { mutate: updateCollection } = useConvexMutation(api.collections.update);
+const { mutate: deleteCollection } = useConvexMutation(
+  api.collections.deleteCollection
+);
 
 const openCreateDialog = () => {
   isEditing.value = false;
-  currentEventId.value = null;
+  currentCollectionId.value = null;
   formData.value = {
     subdomain: "",
     title: "",
@@ -53,63 +57,63 @@ const openCreateDialog = () => {
   isDialogOpen.value = true;
 };
 
-const openEditDialog = (event: {
-  _id: Id<"events">;
+const openEditDialog = (Collection: {
+  _id: Id<"collections">;
   subdomain: string;
   title: string;
   description: string;
 }) => {
   isEditing.value = true;
-  currentEventId.value = event._id;
+  currentCollectionId.value = Collection._id;
   formData.value = {
-    subdomain: event.subdomain,
-    title: event.title,
-    description: event.description,
+    subdomain: Collection.subdomain,
+    title: Collection.title,
+    description: Collection.description,
   };
   isDialogOpen.value = true;
 };
 
 const handleSubmit = async () => {
   try {
-    if (isEditing.value && currentEventId.value) {
-      await updateEvent({
-        id: currentEventId.value,
+    if (isEditing.value && currentCollectionId.value) {
+      await updateCollection({
+        id: currentCollectionId.value,
         subdomain: formData.value.subdomain,
         title: formData.value.title,
         description: formData.value.description,
       });
     } else {
-      const newEventId = await createEvent({
+      const newCollectionId = await createCollection({
         subdomain: formData.value.subdomain,
         title: formData.value.title,
         description: formData.value.description,
       });
 
-      if (newEventId) {
-        navigateTo(`/events/${formData.value.subdomain}`);
+      if (newCollectionId) {
+        navigateTo(`/admin/collections/${formData.value.subdomain}`);
       }
     }
     isDialogOpen.value = false;
     // The data will automatically refresh due to Convex reactivity
   } catch (error) {
-    console.error("Error saving event:", error);
-    alert(error instanceof Error ? error.message : "Error saving event");
+    console.error("Error saving Collection:", error);
+    alert(error instanceof Error ? error.message : "Error saving Collection");
   }
 };
 
-const handleDelete = async (id: Id<"events">) => {
-  if (confirm("Are you sure you want to delete this event?")) {
+const handleDelete = async (id: Id<"collections">) => {
+  if (confirm("Are you sure you want to delete this Collection?")) {
     try {
-      await deleteEvent({ id });
+      await deleteCollection({ id });
     } catch (error) {
-      console.error("Error deleting event:", error);
-      alert("Error deleting event");
+      console.error("Error deleting Collection:", error);
+      alert("Error deleting Collection");
     }
   }
 };
 
-const navigateToEvent = (subdomain: string) => {
-  navigateTo(`/events/${subdomain}`);
+const navigateToCollection = (subdomain: string) => {
+  navigateTo(`/admin/collections/${subdomain}`);
 };
 </script>
 
@@ -117,22 +121,22 @@ const navigateToEvent = (subdomain: string) => {
   <div class="container mx-auto py-10">
     <div class="flex justify-between items-center mb-6">
       <div>
-        <h1 class="text-4xl font-bold">Event Management</h1>
+        <h1 class="text-4xl font-bold">Collection Management</h1>
       </div>
       <Dialog v-model:open="isDialogOpen">
         <DialogTrigger as-child>
-          <Button @click="openCreateDialog"> Create New Event </Button>
+          <Button @click="openCreateDialog"> Create New Collection </Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-[525px]">
           <DialogHeader>
             <DialogTitle>
-              {{ isEditing ? "Edit Event" : "Create New Event" }}
+              {{ isEditing ? "Edit Collection" : "Create New Collection" }}
             </DialogTitle>
             <DialogDescription>
               {{
                 isEditing
-                  ? "Update the event details below."
-                  : "Fill in the details for your new event."
+                  ? "Update the Collection details below."
+                  : "Fill in the details for your new Collection."
               }}
             </DialogDescription>
           </DialogHeader>
@@ -146,7 +150,7 @@ const navigateToEvent = (subdomain: string) => {
                 :disabled="isEditing"
               />
               <p class="text-xs text-muted-foreground">
-                This will be used in the event URL
+                This will be used in the Collection URL
               </p>
             </div>
             <div class="grid gap-2">
@@ -162,7 +166,7 @@ const navigateToEvent = (subdomain: string) => {
               <Input
                 id="description"
                 v-model="formData.description"
-                placeholder="Event description"
+                placeholder="Collection description"
               />
             </div>
           </div>
@@ -171,7 +175,7 @@ const navigateToEvent = (subdomain: string) => {
               Cancel
             </Button>
             <Button @click="handleSubmit">
-              {{ isEditing ? "Update Event" : "Create Event" }}
+              {{ isEditing ? "Update Collection" : "Create Collection" }}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -189,45 +193,48 @@ const navigateToEvent = (subdomain: string) => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableEmpty :colspan="5" v-if="!events || events.length === 0">
-          No events yet. Create your first event to get started!
+        <TableEmpty
+          :colspan="5"
+          v-if="!collections || collections.length === 0"
+        >
+          No collections yet. Create your first Collection to get started!
         </TableEmpty>
         <TableRow
-          v-for="event in events"
-          :key="event._id"
+          v-for="Collection in collections"
+          :key="Collection._id"
           class="cursor-pointer hover:bg-muted/50"
         >
           <TableCell
             class="font-medium"
-            @click="navigateToEvent(event.subdomain)"
+            @click="navigateToCollection(Collection.subdomain)"
           >
-            {{ event.subdomain }}
+            {{ Collection.subdomain }}
           </TableCell>
-          <TableCell @click="navigateToEvent(event.subdomain)">
-            {{ event.title }}
+          <TableCell @click="navigateToCollection(Collection.subdomain)">
+            {{ Collection.title }}
           </TableCell>
           <TableCell
             class="max-w-md truncate"
-            @click="navigateToEvent(event.subdomain)"
+            @click="navigateToCollection(Collection.subdomain)"
           >
-            {{ event.description }}
+            {{ Collection.description }}
           </TableCell>
-          <TableCell @click="navigateToEvent(event.subdomain)">
-            {{ new Date(event._creationTime).toLocaleDateString() }}
+          <TableCell @click="navigateToCollection(Collection.subdomain)">
+            {{ new Date(Collection._creationTime).toLocaleDateString() }}
           </TableCell>
           <TableCell class="text-right">
             <div class="flex justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                @click="openEditDialog(event)"
+                @click="openEditDialog(Collection)"
               >
                 Edit
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                @click="handleDelete(event._id)"
+                @click="handleDelete(Collection._id)"
               >
                 Delete
               </Button>

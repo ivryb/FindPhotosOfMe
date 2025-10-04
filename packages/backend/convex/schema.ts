@@ -6,7 +6,7 @@ export default defineSchema({
     text: v.string(),
     completed: v.boolean(),
   }),
-  events: defineTable({
+  collections: defineTable({
     subdomain: v.string(),
     title: v.string(),
     description: v.string(),

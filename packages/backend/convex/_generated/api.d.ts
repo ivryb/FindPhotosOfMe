@@ -13,7 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import type * as events from "../events.js";
+import type * as collections from "../collections.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as todos from "../todos.js";
 
@@ -26,7 +26,7 @@ import type * as todos from "../todos.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  events: typeof events;
+  collections: typeof collections;
   healthCheck: typeof healthCheck;
   todos: typeof todos;
 }>;
