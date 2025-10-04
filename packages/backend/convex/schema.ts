@@ -18,6 +18,8 @@ export default defineSchema({
       v.literal("error")
     ),
     imagesCount: v.number(),
+    // First 50 image keys for previews
+    previewImages: v.optional(v.array(v.string())),
     createdBy: v.optional(v.string()), // User ID or identifier
   })
     .index("by_status", ["status"])

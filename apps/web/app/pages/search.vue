@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Images } from "lucide-vue-next";
 import SearchForm from "@/components/SearchForm.vue";
+import { marked } from "marked";
 
 const subdomain = useSubdomain();
 
@@ -44,6 +45,15 @@ const statusColor = computed(() => {
       return "bg-muted";
   }
 });
+
+const previewImages = computed(() => {
+  const list = (collection.value as any)?.previewImages as string[] | undefined;
+  return (list || []).slice(0, 20);
+});
+
+const descriptionHtml = computed(() => {
+  return marked.parse(collection.value?.description || "");
+});
 </script>
 
 <template>
@@ -51,8 +61,7 @@ const statusColor = computed(() => {
     <!-- Event Information -->
     <Card>
       <CardHeader>
-        <div class="space-y-2">
-          <CardTitle class="text-3xl">{{ collection?.title }}</CardTitle>
+        <div class="space-y-4">
           <div class="flex items-center gap-2 text-sm text-muted-foreground">
             <Images :size="20" />
             <span
@@ -60,10 +69,23 @@ const statusColor = computed(() => {
               collection</span
             >
           </div>
+          <div v-if="previewImages.length" class="grid grid-cols-5 gap-1">
+            <div
+              v-for="(key, idx) in previewImages"
+              :key="idx"
+              class="relative aspect-square overflow-hidden rounded-sm"
+            >
+              <img
+                :src="`/api/r2/${key}`"
+                alt="Preview"
+                class="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          </div>
+          <CardTitle class="text-3xl">{{ collection?.title }}</CardTitle>
         </div>
-        <CardDescription class="text-base mt-4">
-          {{ collection?.description }}
-        </CardDescription>
+        <CardDescription class="text-base mt-4 prose prose-sm dark:prose-invert max-w-none" v-html="descriptionHtml" />
       </CardHeader>
       <CardContent> </CardContent>
     </Card>

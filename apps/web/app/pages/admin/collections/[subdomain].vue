@@ -4,6 +4,7 @@ import { useConvexMutation } from "convex-vue";
 import { ref, computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
@@ -235,7 +236,7 @@ const formatFileSize = (bytes: number): string => {
             </div>
             <div class="grid gap-2">
               <Label for="edit-description">Description</Label>
-              <Input
+              <Textarea
                 id="edit-description"
                 v-model="formData.description"
                 placeholder="collection description"

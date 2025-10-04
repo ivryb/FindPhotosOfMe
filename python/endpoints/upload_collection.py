@@ -88,6 +88,7 @@ async def upload_collection(
         # Process each image
         embeddings_data = {}
         processed_count = 0
+        preview_image_keys: list[str] = []
         
         for image_name in image_files:
             try:
@@ -107,6 +108,9 @@ async def upload_collection(
                     r2_service.upload_file(image_data, r2_key, content_type)
                     
                     processed_count += 1
+                    # Collect first 50 keys for previews
+                    if len(preview_image_keys) < 50:
+                        preview_image_keys.append(r2_key)
                     
                     # Update Convex with progress every 10 images
                     if processed_count % 10 == 0:
@@ -132,6 +136,12 @@ async def upload_collection(
         
         print(f"[{get_time()}] Saved embeddings.json to R2")
         
+        # Save first 50 preview images to Convex
+        try:
+            convex_service.set_collection_preview_images(collection_id, preview_image_keys)
+        except Exception as e:
+            print(f"[{get_time()}] Warning: failed setting preview images: {e}")
+
         # Update collection status to complete
         convex_service.update_collection_status(
             collection_id,

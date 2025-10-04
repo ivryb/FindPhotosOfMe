@@ -13,6 +13,9 @@ export default defineNuxtConfig({
     url: process.env.NUXT_PUBLIC_CONVEX_URL,
   },
   runtimeConfig: {
+    r2PublicBaseURL: process.env.R2_PUBLIC_BASE_URL,
+    r2AccountId: process.env.R2_ACCOUNT_ID,
+    r2BucketName: process.env.R2_BUCKET_NAME,
     public: {
       serverURL: process.env.NUXT_PUBLIC_SERVER_URL,
       apiURL: process.env.NUXT_PUBLIC_API_URL,

@@ -88,6 +88,30 @@ class ConvexService:
         except Exception as e:
             print(f"[{self._get_time()}] Error incrementing collection images: {e}")
             return False
+
+    def set_collection_preview_images(self, collection_id: str, preview_images: list[str]) -> bool:
+        """Set first N preview image keys for a collection.
+        
+        Args:
+            collection_id: Collection ID
+            preview_images: List of R2 object keys (e.g., "<collection>/<filename>")
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.client.mutation(
+                "collections:setPreviewImages",
+                {
+                    "id": collection_id,
+                    "previewImages": preview_images[:50],
+                },
+            )
+            print(f"[{self._get_time()}] Set {len(preview_images[:50])} preview images for collection {collection_id}")
+            return True
+        except Exception as e:
+            print(f"[{self._get_time()}] Error setting preview images: {e}")
+            return False
     
     def get_search_request(self, search_request_id: str) -> Optional[dict]:
         """Get search request by ID.
