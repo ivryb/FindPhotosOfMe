@@ -4,6 +4,7 @@ import { useConvexMutation } from "convex-vue";
 import { ref, computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,7 +14,22 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Loader2, CheckCircle2, AlertCircle, Upload } from "lucide-vue-next";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Upload,
+  Trash2,
+} from "lucide-vue-next";
 
 const route = useRoute();
 const config = useRuntimeConfig();
@@ -27,9 +43,16 @@ const { data: collection } = await useConvexSSRQuery(
 );
 
 const { mutate: updatecollection } = useConvexMutation(api.collections.update);
+const { mutate: deletecollection } = useConvexMutation(
+  api.collections.deleteCollection
+);
 
 // Edit form state
 const isEditing = ref(false);
+
+// Delete dialog state
+const isDeleteDialogOpen = ref(false);
+const isDeleting = ref(false);
 const formData = ref({
   subdomain: collection.value?.subdomain || "",
   title: collection.value?.title || "",
@@ -162,6 +185,26 @@ const formatFileSize = (bytes: number): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
 };
+
+const handleDelete = async () => {
+  if (!collection.value) return;
+
+  isDeleting.value = true;
+  try {
+    console.log(`[Delete] Deleting collection: ${collection.value._id}`);
+    await deletecollection({ id: collection.value._id });
+    console.log(`[Delete] Collection deleted successfully`);
+    isDeleteDialogOpen.value = false;
+    navigateTo("/admin");
+  } catch (error) {
+    console.error("[Delete] Error deleting collection:", error);
+    alert(
+      error instanceof Error ? error.message : "Failed to delete collection"
+    );
+  } finally {
+    isDeleting.value = false;
+  }
+};
 </script>
 
 <template>
@@ -190,9 +233,48 @@ const formatFileSize = (bytes: number): string => {
                 collection Subdomain: {{ collection.subdomain }}
               </CardDescription>
             </div>
-            <Button v-if="!isEditing" @click="isEditing = true">
-              Edit collection
-            </Button>
+            <div v-if="!isEditing" class="flex gap-2">
+              <Button @click="isEditing = true"> Edit collection </Button>
+              <Dialog v-model:open="isDeleteDialogOpen">
+                <DialogTrigger as-child>
+                  <Button variant="destructive">
+                    <Trash2 class="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Collection</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to delete "{{ collection.title }}"?
+                      This action cannot be undone and will permanently delete
+                      all associated data.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      @click="isDeleteDialogOpen = false"
+                      :disabled="isDeleting"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      @click="handleDelete"
+                      :disabled="isDeleting"
+                    >
+                      <Loader2
+                        v-if="isDeleting"
+                        class="mr-2 h-4 w-4 animate-spin"
+                      />
+                      <span v-if="isDeleting">Deleting...</span>
+                      <span v-else>Delete Collection</span>
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -235,7 +317,7 @@ const formatFileSize = (bytes: number): string => {
             </div>
             <div class="grid gap-2">
               <Label for="edit-description">Description</Label>
-              <Input
+              <Textarea
                 id="edit-description"
                 v-model="formData.description"
                 placeholder="collection description"

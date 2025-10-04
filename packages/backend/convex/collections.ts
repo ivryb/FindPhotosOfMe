@@ -20,6 +20,7 @@ export const get = query({
         v.literal("error")
       ),
       imagesCount: v.number(),
+      previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
     }),
     v.null()
@@ -48,6 +49,7 @@ export const create = mutation({
       subdomain: args.subdomain,
       status: "not_started" as const,
       imagesCount: 0,
+      previewImages: [],
       createdBy: args.createdBy,
     });
     return collectionId;
@@ -119,6 +121,7 @@ export const getAll = query({
         v.literal("error")
       ),
       imagesCount: v.number(),
+      previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
     })
   ),
@@ -147,6 +150,7 @@ export const getBySubdomain = query({
         v.literal("error")
       ),
       imagesCount: v.number(),
+      previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
     }),
     v.null()
@@ -182,6 +186,23 @@ export const update = mutation({
       subdomain: args.subdomain,
       title: args.title,
       description: args.description,
+    });
+    return null;
+  },
+});
+
+/**
+ * Set preview images (first 50) for a collection.
+ */
+export const setPreviewImages = mutation({
+  args: {
+    id: v.id("collections"),
+    previewImages: v.array(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      previewImages: args.previewImages.slice(0, 50),
     });
     return null;
   },

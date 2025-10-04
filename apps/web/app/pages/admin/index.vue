@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 
@@ -112,7 +113,7 @@ const navigateToCollection = (subdomain: string) => {
             </div>
             <div class="grid gap-2">
               <Label for="description">Description</Label>
-              <Input
+              <Textarea
                 id="description"
                 v-model="formData.description"
                 placeholder="Collection description"

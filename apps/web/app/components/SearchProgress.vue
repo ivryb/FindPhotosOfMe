@@ -155,7 +155,7 @@ function handleReset() {
           class="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted hover:border-primary transition-colors group"
         >
           <img
-            :src="`${config.public.serverURL}/${photoPath}`"
+            :src="`/api/r2/${photoPath}`"
             :alt="`Match ${index + 1}`"
             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
