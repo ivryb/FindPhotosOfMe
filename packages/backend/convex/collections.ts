@@ -130,3 +130,59 @@ export const getAll = query({
     return collections;
   },
 });
+
+export const getBySubdomain = query({
+  args: { subdomain: v.string() },
+  returns: v.union(
+    v.object({
+      _id: v.id("collections"),
+      _creationTime: v.number(),
+      title: v.string(),
+      description: v.string(),
+      subdomain: v.string(),
+      status: v.union(
+        v.literal("not_started"),
+        v.literal("processing"),
+        v.literal("complete"),
+        v.literal("error")
+      ),
+      imagesCount: v.number(),
+      createdBy: v.optional(v.string()),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const collection = await ctx.db
+      .query("collections")
+      .filter((q) => q.eq(q.field("subdomain"), args.subdomain))
+      .first();
+    return collection;
+  },
+});
+
+export const deleteCollection = mutation({
+  args: { id: v.id("collections") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+    return null;
+  },
+});
+
+export const update = mutation({
+  args: {
+    id: v.id("collections"),
+    subdomain: v.string(),
+    title: v.string(),
+    description: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      subdomain: args.subdomain,
+      title: args.title,
+      description: args.description,
+    });
+    return null;
+  },
+});

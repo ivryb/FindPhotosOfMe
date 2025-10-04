@@ -31,8 +31,6 @@ const { data: collections } = await useConvexSSRQuery(
 );
 
 const isDialogOpen = ref(false);
-const isEditing = ref(false);
-const currentCollectionId = ref<Id<"collections"> | null>(null);
 
 const formData = ref({
   subdomain: "",
@@ -41,14 +39,8 @@ const formData = ref({
 });
 
 const { mutate: createCollection } = useConvexMutation(api.collections.create);
-const { mutate: updateCollection } = useConvexMutation(api.collections.update);
-const { mutate: deleteCollection } = useConvexMutation(
-  api.collections.deleteCollection
-);
 
 const openCreateDialog = () => {
-  isEditing.value = false;
-  currentCollectionId.value = null;
   formData.value = {
     subdomain: "",
     title: "",
@@ -57,58 +49,22 @@ const openCreateDialog = () => {
   isDialogOpen.value = true;
 };
 
-const openEditDialog = (Collection: {
-  _id: Id<"collections">;
-  subdomain: string;
-  title: string;
-  description: string;
-}) => {
-  isEditing.value = true;
-  currentCollectionId.value = Collection._id;
-  formData.value = {
-    subdomain: Collection.subdomain,
-    title: Collection.title,
-    description: Collection.description,
-  };
-  isDialogOpen.value = true;
-};
-
 const handleSubmit = async () => {
   try {
-    if (isEditing.value && currentCollectionId.value) {
-      await updateCollection({
-        id: currentCollectionId.value,
-        subdomain: formData.value.subdomain,
-        title: formData.value.title,
-        description: formData.value.description,
-      });
-    } else {
-      const newCollectionId = await createCollection({
-        subdomain: formData.value.subdomain,
-        title: formData.value.title,
-        description: formData.value.description,
-      });
+    const newCollectionId = await createCollection({
+      subdomain: formData.value.subdomain,
+      title: formData.value.title,
+      description: formData.value.description,
+    });
 
-      if (newCollectionId) {
-        navigateTo(`/admin/collections/${formData.value.subdomain}`);
-      }
+    if (newCollectionId) {
+      navigateTo(`/admin/collections/${formData.value.subdomain}`);
     }
     isDialogOpen.value = false;
     // The data will automatically refresh due to Convex reactivity
   } catch (error) {
     console.error("Error saving Collection:", error);
     alert(error instanceof Error ? error.message : "Error saving Collection");
-  }
-};
-
-const handleDelete = async (id: Id<"collections">) => {
-  if (confirm("Are you sure you want to delete this Collection?")) {
-    try {
-      await deleteCollection({ id });
-    } catch (error) {
-      console.error("Error deleting Collection:", error);
-      alert("Error deleting Collection");
-    }
   }
 };
 
@@ -129,15 +85,9 @@ const navigateToCollection = (subdomain: string) => {
         </DialogTrigger>
         <DialogContent class="sm:max-w-[525px]">
           <DialogHeader>
-            <DialogTitle>
-              {{ isEditing ? "Edit Collection" : "Create New Collection" }}
-            </DialogTitle>
+            <DialogTitle>Create New Collection</DialogTitle>
             <DialogDescription>
-              {{
-                isEditing
-                  ? "Update the Collection details below."
-                  : "Fill in the details for your new Collection."
-              }}
+              Fill in the details for your new Collection.
             </DialogDescription>
           </DialogHeader>
           <div class="grid gap-4 py-4">
@@ -147,7 +97,6 @@ const navigateToCollection = (subdomain: string) => {
                 id="subdomain"
                 v-model="formData.subdomain"
                 placeholder="e.g., itarena2025"
-                :disabled="isEditing"
               />
               <p class="text-xs text-muted-foreground">
                 This will be used in the Collection URL
@@ -174,9 +123,7 @@ const navigateToCollection = (subdomain: string) => {
             <Button variant="outline" @click="isDialogOpen = false">
               Cancel
             </Button>
-            <Button @click="handleSubmit">
-              {{ isEditing ? "Update Collection" : "Create Collection" }}
-            </Button>
+            <Button @click="handleSubmit">Create Collection</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -189,12 +136,11 @@ const navigateToCollection = (subdomain: string) => {
           <TableHead>Title</TableHead>
           <TableHead>Description</TableHead>
           <TableHead>Created</TableHead>
-          <TableHead class="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableEmpty
-          :colspan="5"
+          :colspan="4"
           v-if="!collections || collections.length === 0"
         >
           No collections yet. Create your first Collection to get started!
@@ -221,24 +167,6 @@ const navigateToCollection = (subdomain: string) => {
           </TableCell>
           <TableCell @click="navigateToCollection(Collection.subdomain)">
             {{ new Date(Collection._creationTime).toLocaleDateString() }}
-          </TableCell>
-          <TableCell class="text-right">
-            <div class="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                @click="openEditDialog(Collection)"
-              >
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                @click="handleDelete(Collection._id)"
-              >
-                Delete
-              </Button>
-            </div>
           </TableCell>
         </TableRow>
       </TableBody>
