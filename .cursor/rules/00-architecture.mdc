@@ -1,0 +1,113 @@
+---
+alwaysApply: true
+---
+
+# FindPhotosOfMe - Architecture Overview
+
+This is a **monorepo** for a face recognition photo search application that helps users find photos of themselves in large collections.
+
+## Project Structure
+
+```
+FindPhotosOfMe/
+├── apps/web/                 # Nuxt 3 frontend (port 3001)
+├── packages/backend/convex/  # Convex backend (real-time database & API)
+└── python/                   # Python ML service (FastAPI + InsightFace)
+```
+
+## Tech Stack
+
+- **Frontend**: Nuxt 3, Vue 3 Composition API, TypeScript, TailwindCSS, shadcn-vue
+- **Backend**: Convex (serverless queries/mutations/actions)
+- **ML Service**: Python FastAPI, InsightFace (face detection/embeddings), OpenCV
+- **Storage**: Cloudflare R2 (S3-compatible)
+- **Package Manager**: pnpm with workspaces
+
+## Architecture Flow
+
+1. **Admin uploads collection** → Photos stored in R2 → Python service extracts embeddings → Stored in R2 as `{collectionId}/embeddings.json`
+2. **User searches** → Upload reference photo → Create search request in Convex → Python service compares embeddings → Returns matching photos
+3. **Results** → Convex tracks progress → Frontend subscribes to updates via reactive queries
+
+## Key Patterns
+
+### SOLID Principles (User Preference)
+
+- Single Responsibility: Keep files focused on one concern
+- Avoid large files that do multiple things
+- Component-based structure across all layers
+
+### Logging (User Preference)
+
+- **Server-side code must have detailed logging**
+- Log timestamps, state changes, and key operations
+- Use format: `[{timestamp}] Action: details` (Python) or `console.log("Context: details")` (TypeScript)
+
+### Documentation (User Preference)
+
+- **Only high-level overviews** - no comprehensive wikis
+- Avoid numerous inline comments
+- Code should be self-documenting where possible
+
+## Cross-Service Communication
+
+- **Nuxt → Convex**: Direct imports via `@FindPhotosOfMe/backend/convex/_generated/api`
+- **Nuxt → Python**: HTTP requests to `NUXT_PUBLIC_API_URL`
+- **Python → Convex**: Python SDK with mutations for progress updates
+- **Python → R2**: Boto3 S3-compatible client
+
+## Environment Variables
+
+### Nuxt (`apps/web`)
+
+- `NUXT_PUBLIC_CONVEX_URL` - Convex deployment URL
+- `NUXT_PUBLIC_API_URL` - Python service URL
+- `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+
+### Python (`python/`)
+
+- `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+- `CONVEX_URL` - For Python SDK client
+
+## Data Models
+
+### Convex Schema (packages/backend/convex/schema.ts)
+
+- **collections**: Subdomain, title, status, imagesCount, previewImages
+- **searchRequests**: CollectionId, status, imagesFound, progress tracking
+
+### Python Embeddings Format
+
+```json
+{
+  "photo1.jpg": [
+    {
+      "embedding": [512 floats],
+      "gender": 0 or 1,
+      "age": number,
+      "bbox": [x, y, w, h]
+    }
+  ]
+}
+```
+
+## File Naming Conventions
+
+- Vue components: PascalCase (e.g., `SearchForm.vue`)
+- Composables: camelCase with `use` prefix (e.g., `useConvexSSRQuery.ts`)
+- Convex functions: camelCase files (e.g., `collections.ts`, `searchRequests.ts`)
+- Python: snake_case (e.g., `search_photos.py`, `face_recognition_service.py`)
+
+## Development Commands
+
+- `pnpm dev:setup` - Initialize Convex
+- `pnpm dev` - Run all services
+- `pnpm dev:web` - Run Nuxt only
+- `pnpm dev:server` - Run Convex only
+
+## Key Files Reference
+
+- [README.md](mdc:README.md) - Full architecture documentation
+- [convex_rules.md](mdc:docs/convex_rules.md) - Convex patterns and guidelines
+- [nuxt.config.ts](mdc:apps/web/nuxt.config.ts) - Nuxt configuration
+- [schema.ts](mdc:packages/backend/convex/schema.ts) - Database schema

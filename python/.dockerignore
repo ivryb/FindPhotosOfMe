@@ -1,17 +1,69 @@
+# Python cache and bytecode
 __pycache__
 *.pyc
 *.pyo
 *.pyd
 .Python
+*.so
+*.egg
+*.egg-info
+
+# Virtual environments
 env/
 venv/
+bin/
+lib/
+lib64/
+include/
+share/
+pyvenv.cfg
+
+# Environment and secrets
 .env
+.env.*
+*.pem
+*.key
+
+# Logs
 *.log
+logs/
+
+# Git
 .git
 .gitignore
+.gitattributes
+
+# Documentation
 README.md
+*.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
+
+# Testing and development
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Sample data
 *.zip
 ref.jpg
-pyvenv.cfg
-models/
+example_*.py
+
+# Deployment scripts (not needed in container)
+deploy.sh
+deploy-local.sh
+stop-local.sh
+cloudbuild.yaml
+.dockerignore
+Dockerfile
+.gcloudignore
+manage-models-volume.sh

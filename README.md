@@ -1,217 +1,157 @@
-# Plan
+# Architecture Overview
 
-- [x] Vue/Nuxt: install shadcn-vue + theme
-- [ ] Vue/Nuxt: admin's UI to create collections/events and upload photo libraries
-  - [ ] GCP integration to store photos
-  - [ ] Python endpoint to analyze photos and store embeddings
-  - [ ] Convex DB schema & logic
+FindPhotosOfMe is a face recognition service that helps users find photos of themselves from large photo collections. The system uses machine learning to analyze faces and match them across thousands of images.
 
-# FindPhotosOfMe
+### Tech Stack
 
-Find photos of yourself from a large conference/gallery by uploading a single reference photo. The system searches thousands of images stored in Google Cloud Storage and returns matches.
+- **Frontend**: Nuxt 4 + Vue 3 + TypeScript + shadcn-vue components
+- **Backend**: Convex (real-time database and functions)
+- **ML Service**: Python FastAPI with InsightFace for face recognition
+- **Storage**: Cloudflare R2 for photo storage
+- **Monorepo**: pnpm workspaces + Turborepo
 
-This repo contains:
+### Data Flow
 
-- `apps/web` — Nuxt frontend
-- `packages/backend/convex` — Convex backend (schema + functions)
-- `python` — Python search service source and assets
+1. Admin uploads photo collection (zip) → Python service processes faces → stores in R2 + Convex
+2. User uploads reference photo → Python service compares against stored embeddings → returns matches
+3. Frontend subscribes to real-time progress updates via Convex
 
-## Architecture
+## Development Commands
 
-- **Frontend (Nuxt, `apps/web`)**: Uploads a reference photo, shows search job status and results.
-- **Backend (Convex, `packages/backend/convex`)**: Persists jobs, tracks status/results, and triggers the search worker.
-- **Search Worker (Python in Docker, GCP)**: Picks up jobs, scans photos in GCS, performs face detection/embedding and similarity search, writes results, and signals completion.
-- **Storage (GCS)**: Buckets for photo library, user uploads, and optional precomputed embeddings.
-- **Triggering (HTTP)**: Convex action sends an HTTP POST to Cloud Run with `{ jobId, refImageId }`. Cloud Run returns 202 and processes async.
-- **Optional messaging (Pub/Sub)**: For advanced scaling (fan-out, retries, backpressure) you can switch to or add Pub/Sub.
+### Root Level (Turborepo)
 
-### Data flow
+```bash
+pnpm install              # Install all workspace dependencies
+pnpm dev                  # Run all services (web + backend + python)
+pnpm build                # Build all packages
+pnpm check-types          # Type check all packages
+pnpm dev:web              # Run only frontend
+pnpm dev:server           # Run only Convex backend
+pnpm dev:setup            # Initialize Convex development environment
+```
 
-1. User uploads a reference image via the Nuxt app → stored in `gs://<uploads-bucket>`.
-2. Convex creates a search job and calls the Cloud Run endpoint (HTTP) with `{ jobId, refImageId }`.
-3. Python worker fetches the reference and library images from GCS, computes/loads embeddings, performs similarity search.
-4. Worker writes progress and results back to Convex, updates job status.
-5. Frontend subscribes to job updates via Convex and displays results.
+### Python Service
 
-## Why Cloud Run (vs. Cloud Functions) for the worker
+```bash
+# In python/ directory
+pip install -r requirements.txt
+./deploy-local.sh         # Build and run Docker container locally
+./stop-local.sh           # Stop local Docker container
+docker logs -f find-photos-of-me-service  # View service logs
+./manage-models-volume.sh info             # Manage cached ML models
+```
 
-- Cloud Run provides better control over CPU/memory/GPU, concurrency, startup command, and max instances. It’s ideal for heavier ML/vision workloads and parallel processing.
-- Cloud Functions Gen2 can also run containers and is fine for simple triggers, but for long-running or resource-tuned workloads Cloud Run is typically the safer default.
+### Frontend (apps/web)
 
-You can still use Cloud Functions Gen2 as a thin trigger or for periodic orchestration if needed.
+```bash
+npm run dev               # Development server
+npm run build            # Production build
+npm run preview          # Preview production build
+```
 
-## Parallelism strategy
+### Backend (packages/backend)
 
-- Shard work at the application layer (e.g., one job per library shard or per batch). Scale Cloud Run instances and keep concurrency low for CPU-bound inference.
-- For very large libraries, precompute embeddings and store them in GCS or a vector index (FAISS/ScaNN) to make per-job work O(1) embedding + fast vector search.
+```bash
+npm run dev              # Start Convex development
+npm run dev:setup        # Configure Convex project
+```
 
-## Monorepo layout
+## Project Structure
 
 ```
 FindPhotosOfMe/
-├── apps/web                  # Nuxt UI
-├── packages/backend/convex   # Convex functions, schema, jobs API
-└── python                    # Python worker and Docker context
+├── apps/web/                    # Nuxt frontend application
+│   ├── app/                     # Nuxt app directory
+│   │   ├── components/          # Vue components (shadcn-vue)
+│   │   ├── composables/         # Vue composables
+│   │   └── pages/              # Nuxt pages/routes
+├── packages/backend/            # Convex backend
+│   └── convex/                 # Convex functions and schema
+│       └── schema.ts           # Database schema (collections, searchRequests)
+└── python/                     # FastAPI ML service
+    ├── endpoints/              # API endpoints
+    │   ├── upload_collection.py # Process photo collections
+    │   └── search_photos.py    # Face matching search
+    ├── services/               # Core business logic
+    └── schemas/                # Pydantic models
 ```
 
-## Dev commands
+## Key Components
 
-- `pnpm install` — install workspace dependencies
-- `pnpm dev:setup` — set up Convex for development
-- `pnpm dev` — run web + backend locally, then open http://localhost:3001
+### Convex Schema (packages/backend/convex/schema.ts)
 
-## Google Cloud setup
+- `collections`: Photo collection metadata with processing status
+- `searchRequests`: Face search jobs with results and progress
+- Uses status tracking pattern: `not_started` → `processing` → `complete`/`error`
 
-1. Create/select a GCP project.
-2. Enable APIs: Artifact Registry, Cloud Run, Cloud Build, Pub/Sub, Cloud Storage, Secret Manager (and Cloud Functions if used).
-3. Create buckets (names are examples; pick your own):
-   - `gs://fpo-library` — conference photo library
-   - `gs://fpo-uploads` — user reference images
-   - `gs://fpo-results` — optional JSON/results artifacts
-4. (Optional) Create Pub/Sub topics if you adopt Pub/Sub later:
-   - Topic: `search-requests`
-   - (Optional) Topic: `search-completed`
-5. Artifact Registry repository for images, e.g. `us-docker.pkg.dev/<PROJECT>/find-photos`.
-6. Service account for the worker with roles: `Storage Object Admin`, and if using Pub/Sub, `Pub/Sub Subscriber`/`Publisher`. Grant access to Convex credentials via Secret Manager if used.
+### Python Service Architecture
 
-## Docker packaging (Python worker)
+- **FastAPI**: REST API with two main endpoints
+- **InsightFace**: Face detection and embedding generation
+- **Cloudflare R2**: Object storage for photos
+- **Convex Python SDK**: Real-time progress updates
 
-The `python/` directory contains the working code and dependencies for the worker. Build the container image using `python/` as the context. All dependency management lives there, so we avoid duplicating details in this README.
+### Frontend Integration
 
-### Build and deploy (Artifact Registry + Cloud Run)
+- **Convex-Vue**: Real-time reactive queries and mutations
+- **shadcn-vue**: UI component library
+- **Nuxt**: Server-side rendering and routing
+
+## Environment Variables
+
+### Python Service (.env in python/)
 
 ```bash
-# Authenticate gcloud and set project
-gcloud auth login
-gcloud config set project <PROJECT_ID>
-
-# Build with Cloud Build and push to Artifact Registry (use python/ as context)
-gcloud builds submit python --tag us-docker.pkg.dev/<PROJECT_ID>/find-photos/worker:latest
-
-# Deploy to Cloud Run (HTTP endpoint)
-gcloud run deploy fpo-worker \
-  --image us-docker.pkg.dev/<PROJECT_ID>/find-photos/worker:latest \
-  --region us-central1 \
-  --platform managed \
-  --allow-unauthenticated=false \
-  --max-instances 50 \
-  --cpu 2 --memory 2Gi \
-  --concurrency 1 \
-  --set-env-vars GCS_LIBRARY_BUCKET=fpo-library,GCS_UPLOADS_BUCKET=fpo-uploads,GCS_RESULTS_BUCKET=fpo-results,CONVEX_URL=<url>
+R2_ACCOUNT_ID=your_r2_account_id
+R2_ACCESS_KEY_ID=your_r2_access_key_id
+R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
+R2_BUCKET_NAME=your_bucket_name
+CONVEX_URL=https://your-deployment.convex.cloud
+CORS_ORIGINS=*
 ```
 
-If you later choose Pub/Sub push, expose a `/pubsub` endpoint and create a push subscription to that URL.
+### Convex (set via Convex dashboard or CLI)
 
-## HTTP-triggered worker + Convex Python SDK
-
-- Trigger: Convex action POSTs to Cloud Run (e.g., `POST https://<cloud-run-url>/jobs`) with `{ jobId, refImageId }`. Cloud Run returns 202 immediately and starts async work.
-- Progress/results back to Convex: use the Convex Python SDK from the worker to call an action that updates job status and persists results. See the Quickstart for client usage: [Convex Python Quickstart](https://docs.convex.dev/quickstart/python).
-
-Example (worker):
-
-```python
-import os
-from convex import ConvexClient
-
-client = ConvexClient(os.environ["CONVEX_URL"])  # e.g. https://<deployment>.convex.cloud
-
-client.action(
-    "jobs:updateProgress",
-    {
-        "jobId": job_id,
-        "stage": "embedding",
-        "percent": 20,
-        "secret": os.environ.get("CONVEX_WORKER_SECRET"),
-    },
-)
+```bash
+CONVEX_DEPLOYMENT=your-deployment-name
 ```
 
-### Reliability
+## Development Patterns
 
-- Make progress updates idempotent (key by `{ jobId, step }`).
-- Keep the Convex action that triggers the worker fast (enqueue/send only). The worker should not block that action.
+### Convex Functions
 
-## Option: Convex Vector Search for retrieval
+- Use TypeScript with strict typing via `v` validators
+- Mutations for data changes, queries for reads, actions for external calls
+- Index frequently queried fields (e.g., `by_status`, `by_collection`)
 
-Convex has a managed vector search you can use for image similarity. Store image embeddings in a Convex table with a vector index, then perform similarity search from an action. Docs: [Convex Vector Search](https://docs.convex.dev/search/vector-search).
+### Python Service
 
-Schema example (`packages/backend/convex/schema.ts`):
+- Async/await patterns for I/O operations
+- Detailed logging for ML processing steps
+- Progress tracking via Convex mutations during long operations
+- Service classes: `FaceRecognition`, `R2Storage`, `ConvexClient`
 
-```ts
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+### Frontend (Vue/Nuxt)
 
-export default defineSchema({
-  photoEmbeddings: defineTable({
-    imagePath: v.string(), // gs://... or public URL
-    conferenceId: v.string(), // optional filter field
-    embedding: v.array(v.float64()),
-  }).vectorIndex("by_embedding", {
-    vectorField: "embedding",
-    dimensions: 512, // match your model (e.g., 512)
-    filterFields: ["conferenceId"],
-  }),
-});
-```
+- Composition API pattern
+- `useConvexQuery` for reactive data
+- `useConvexMutation` for data updates
+- TypeScript integration with Convex-generated types
 
-Action example (search by a reference embedding):
+## Testing
 
-```ts
-import { v } from "convex/values";
-import { action, internal } from "./_generated/server";
+Tests are not currently implemented. When adding tests:
 
-export const similarPhotos = action({
-  args: {
-    conferenceId: v.string(),
-    embedding: v.array(v.float64()),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const results = await ctx.vectorSearch("photoEmbeddings", "by_embedding", {
-      vector: args.embedding,
-      limit: args.limit ?? 50,
-      filter: (q) => q.eq("conferenceId", args.conferenceId),
-    });
-    // Optionally load documents by ID to return metadata/paths
-    const docs = await ctx.runQuery(internal.photos.fetchByEmbeddingIds, {
-      ids: results.map((r) => r._id),
-    });
-    return docs;
-  },
-});
-```
+- Frontend: Use Vitest + Vue Test Utils
+- Python: Use pytest
+- Convex: Use Convex test framework
 
-Operational choices:
+## Deployment
 
-- Precompute embeddings once (Cloud Run batch) and insert into Convex. At query time, compute only the reference embedding and call the action to run vector search.
-- For small/medium libraries (e.g., up to hundreds of thousands), this keeps search fully managed and low-latency. For very large libraries, shard by `conferenceId` or additional fields.
-- Keep vector dimensions and filters aligned with your embedding model and query needs.
+### Python Service
 
-## Convex integration
+Uses Docker with Cloud Run/similar container platforms. Models (~400MB) are cached in persistent volume.
 
-- Define a job schema (`packages/backend/convex/schema.ts`) with fields for status, input reference, and result IDs.
-- Provide mutations to create jobs and actions to call the worker (HTTP) and to accept worker progress updates.
-- Provide queries to read job status and results.
+### Frontend + Backend
 
-Environment variables for Convex (example): `CONVEX_DEPLOYMENT`, `CONVEX_ADMIN_KEY` (if used), plus bucket names.
-
-## Frontend (Nuxt) integration
-
-- Upload reference photo to `gs://<uploads-bucket>` (direct upload with signed URL or via backend proxy).
-- Create a search job via Convex and show a progress state.
-- Poll Convex or subscribe to updates; render the ranked result images on completion.
-
-## Local development
-
-- Web + backend: `pnpm dev` (after `pnpm dev:setup`) then open http://localhost:3001.
-
-## Implementation notes and recommendations
-
-- Precompute library embeddings offline and store as shard files in GCS (e.g., Parquet/NumPy) to drastically reduce per-job latency.
-- Use FAISS (CPU) or ScaNN for vector search if the library grows beyond a few tens of thousands of photos.
-- Keep max Cloud Run instances high enough to meet demand, but cap to control cost.
-- Use Secret Manager for sensitive keys; do not commit them.
-
----
-
-This README focuses on architecture and deployment. See `python/` for the worker’s code and dependencies.
+Standard Nuxt deployment + Convex managed hosting.

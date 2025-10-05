@@ -8,7 +8,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from services.r2_storage import R2StorageService
 from services.face_recognition_service import FaceRecognitionService
 from services.convex_client import ConvexService
-from models.types import SearchResponse, ErrorResponse
+from schemas.types import SearchResponse, ErrorResponse
 
 
 router = APIRouter()

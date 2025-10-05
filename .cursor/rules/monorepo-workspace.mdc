@@ -1,0 +1,271 @@
+---
+globs: package.json,pnpm-workspace.yaml,turbo.json
+---
+
+# Monorepo & Workspace Management
+
+This project uses **pnpm workspaces** and **Turborepo** for monorepo management.
+
+## Workspace Structure
+
+Defined in `pnpm-workspace.yaml`:
+
+```yaml
+packages:
+  - "apps/*"
+  - "packages/*"
+```
+
+Current workspaces:
+
+- `apps/web` - Nuxt frontend
+- `packages/backend` - Convex backend
+- `python` - Not in workspace (separate Python venv)
+
+## Package Manager
+
+**pnpm v10.12.4** (specified in `package.json`)
+
+### Install Dependencies
+
+```bash
+pnpm install  # Install all workspace dependencies
+```
+
+### Add Dependencies
+
+```bash
+# Add to specific workspace
+pnpm add <package> --filter web
+pnpm add <package> --filter @FindPhotosOfMe/backend
+
+# Add to root
+pnpm add -w <package>
+```
+
+## Turborepo Commands
+
+Defined in root `package.json`:
+
+```bash
+pnpm dev              # Run all dev servers (web + backend)
+pnpm build            # Build all packages
+pnpm check-types      # Type check all packages
+pnpm dev:web          # Run only web (Nuxt)
+pnpm dev:server       # Run only backend (Convex)
+pnpm dev:setup        # Initialize Convex deployment
+```
+
+### Turbo Filters
+
+```bash
+# Run command for specific workspace
+turbo -F web dev
+turbo -F @FindPhotosOfMe/backend dev
+```
+
+## Cross-Workspace Dependencies
+
+### Convex Backend in Nuxt
+
+```typescript
+// In apps/web/**/*.vue or apps/web/**/*.ts
+import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import type {
+  Id,
+  Doc,
+} from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+```
+
+This works because:
+
+1. `packages/backend` exports `convex/_generated/` types
+2. TypeScript path resolution configured in `tsconfig.json`
+3. Convex generates types automatically during dev
+
+## Python Environment (Separate)
+
+The `python/` directory is **not** part of the pnpm workspace. It uses its own Python virtual environment.
+
+### Setup Python
+
+```bash
+cd python
+python3 -m venv .
+source bin/activate  # or .\bin\Activate.ps1 on Windows
+pip install -r requirements.txt
+```
+
+### Run Python Service
+
+```bash
+cd python
+./deploy-local.sh  # For local development
+```
+
+## TypeScript Configuration
+
+Each workspace has its own `tsconfig.json`:
+
+- `apps/web/tsconfig.json` - Nuxt-specific config
+- `packages/backend/convex/tsconfig.json` - Convex config
+
+## Build Process
+
+### Nuxt (apps/web)
+
+```bash
+pnpm build  # Builds for production
+# Output: apps/web/.output/
+```
+
+### Convex (packages/backend)
+
+```bash
+pnpm -F @FindPhotosOfMe/backend dev  # Pushes functions to Convex
+# No traditional build step - functions are deployed to Convex cloud
+```
+
+### Python
+
+```bash
+cd python
+docker build -t find-photos-worker .
+# Deploy to Google Cloud Run (see python/deploy.sh)
+```
+
+## Development Workflow
+
+1. **Initial setup**:
+
+   ```bash
+   pnpm install
+   pnpm dev:setup  # Configure Convex
+   ```
+
+2. **Start development**:
+
+   ```bash
+   pnpm dev  # Runs web + backend
+   # Nuxt: http://localhost:3001
+   # Convex: Watches for changes
+   ```
+
+3. **Python service** (separate terminal):
+   ```bash
+   cd python
+   source bin/activate
+   uvicorn main:app --reload --port 8000
+   ```
+
+## Adding New Workspaces
+
+1. Create directory in `apps/` or `packages/`
+2. Add `package.json` with name (e.g., `@FindPhotosOfMe/new-package`)
+3. Run `pnpm install` at root
+4. Configure in `turbo.json` if needed
+
+## Dependencies Management
+
+### Shared Dependencies
+
+Install at root if used by multiple workspaces:
+
+```bash
+pnpm add -w typescript
+```
+
+### Workspace-specific
+
+```bash
+pnpm add vue --filter web
+pnpm add convex --filter @FindPhotosOfMe/backend
+```
+
+## Environment Variables
+
+### Root `.env` (if needed)
+
+For shared env vars across workspaces
+
+### Workspace-specific
+
+- `apps/web/.env` - Nuxt env vars
+- `packages/backend/.env.local` - Convex secrets
+- `python/.env` - Python service config
+
+**Never commit `.env` files** - use `.env.example` as template
+
+## Git Configuration
+
+`.gitignore` handles:
+
+- `node_modules/` in all workspaces
+- `.env*` files (except `.env.example`)
+- Build outputs (`.output/`, `dist/`)
+- `_generated/` files (Convex auto-generated)
+- Python `__pycache__/`, `*.pyc`
+
+## Deployment
+
+### Nuxt (apps/web)
+
+- Build: `pnpm build`
+- Deploy to: Vercel, Netlify, or any Node.js host
+- Env vars: Set in hosting platform
+
+### Convex (packages/backend)
+
+- Deploy: `npx convex deploy` (from packages/backend/)
+- Automatic on push if CI configured
+- Manage at: https://dashboard.convex.dev
+
+### Python Service
+
+- Deploy to Google Cloud Run
+- See `python/deploy.sh` and `python/cloudbuild.yaml`
+- Requires: Docker, gcloud CLI
+
+## Useful Commands
+
+```bash
+# Install specific workspace
+pnpm install --filter web
+
+# Clean all node_modules
+rm -rf node_modules apps/*/node_modules packages/*/node_modules
+
+# Reinstall everything
+pnpm install
+
+# Update all dependencies
+pnpm update
+
+# Check which workspaces exist
+pnpm list --recursive --depth 0
+
+# Run command in all workspaces
+pnpm -r <command>
+```
+
+## Troubleshooting
+
+### Convex types not found
+
+```bash
+cd packages/backend
+npx convex dev  # Generates types
+```
+
+### TypeScript errors across workspaces
+
+```bash
+pnpm check-types  # Check all workspaces
+```
+
+### Stale dependencies
+
+```bash
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+```

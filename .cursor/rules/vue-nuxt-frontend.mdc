@@ -1,0 +1,274 @@
+---
+globs: apps/web/**/*.vue,apps/web/**/*.ts
+---
+
+# Vue/Nuxt Frontend Rules
+
+Apply these rules when working in `apps/web/`.
+
+## Vue Component Structure
+
+Use **Vue 3 Composition API** with `<script setup>`:
+
+```vue
+<script setup lang="ts">
+import { ref } from "vue";
+import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+
+const props = defineProps<{
+  collectionId: Id<"collections">;
+}>();
+
+const count = ref(0);
+</script>
+
+<template>
+  <div>{{ count }}</div>
+</template>
+```
+
+## UI Components
+
+This project uses **shadcn-vue** components from `@/components/ui/`:
+
+```vue
+<script setup lang="ts">
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+</script>
+```
+
+Available components: Button, Input, Card, Dialog, Badge, Progress, Select, Switch, Table, Label, Textarea, Toggle
+
+## Convex Integration
+
+### Import Convex API
+
+```typescript
+import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import { useConvexQuery, useConvexMutation } from "convex-vue";
+import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+```
+
+### Reactive Queries
+
+```typescript
+const { data: collection, isLoading } = useConvexQuery(api.collections.get, {
+  id: props.collectionId,
+});
+```
+
+### Mutations
+
+```typescript
+const { mutate: createCollection } = useConvexMutation(api.collections.create);
+
+async function handleCreate() {
+  const id = await createCollection({
+    title: "My Collection",
+    subdomain: "my-collection",
+    description: "Test",
+  });
+}
+```
+
+## Composables
+
+Store reusable logic in `app/composables/`:
+
+```typescript
+// app/composables/useConvexSSRQuery.ts
+export function useConvexSSRQuery<T>(query, args) {
+  // implementation
+}
+```
+
+Import as:
+
+```typescript
+import { useConvexSSRQuery } from "@/composables/useConvexSSRQuery";
+```
+
+## Runtime Config
+
+Access environment variables:
+
+```typescript
+const config = useRuntimeConfig();
+const apiUrl = config.public.apiURL;
+const serverUrl = config.public.serverURL;
+```
+
+## File Naming
+
+- Components: PascalCase (e.g., `SearchForm.vue`, `SearchProgress.vue`)
+- Pages: camelCase or kebab-case (e.g., `index.vue`, `search.vue`)
+- Composables: camelCase with `use` prefix (e.g., `useSubdomain.ts`)
+- Layouts: lowercase (e.g., `default.vue`)
+
+## Component Organization
+
+### Feature Components (`app/components/`)
+
+Domain-specific components like `SearchForm.vue`, `SearchProgress.vue`, `header.vue`
+
+### UI Components (`app/components/ui/`)
+
+Reusable shadcn-vue components organized by component type
+
+### Pages (`app/pages/`)
+
+File-based routing:
+
+- `pages/index.vue` → `/`
+- `pages/search.vue` → `/search`
+- `pages/admin/index.vue` → `/admin`
+
+### Layouts (`app/layouts/`)
+
+Wrap pages with common structure
+
+## TypeScript Patterns
+
+### Strongly typed IDs
+
+```typescript
+import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+
+const collectionId = ref<Id<"collections"> | null>(null);
+const searchRequestId = ref<Id<"searchRequests"> | null>(null);
+```
+
+### Component Props
+
+```typescript
+const props = defineProps<{
+  collectionId: Id<"collections">;
+  title?: string;
+}>();
+```
+
+## State Management
+
+Use `ref()` and `reactive()` from Vue:
+
+```typescript
+const isLoading = ref(false);
+const error = ref<string | null>(null);
+const selectedFile = ref<File | null>(null);
+```
+
+## Form Handling
+
+```vue
+<script setup lang="ts">
+const formData = ref({
+  title: "",
+  description: "",
+});
+
+async function handleSubmit() {
+  // validate
+  // submit
+}
+</script>
+
+<template>
+  <form @submit.prevent="handleSubmit">
+    <Input v-model="formData.title" />
+    <Button type="submit">Submit</Button>
+  </form>
+</template>
+```
+
+## API Calls to Python Service
+
+```typescript
+const config = useRuntimeConfig();
+const apiUrl = config.public.apiURL;
+
+async function searchPhotos(searchRequestId: string, photo: File) {
+  const formData = new FormData();
+  formData.append("search_request_id", searchRequestId);
+  formData.append("reference_photo", photo);
+
+  const response = await fetch(`${apiUrl}/api/search-photos`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || `HTTP ${response.status}`);
+  }
+
+  return await response.json();
+}
+```
+
+## Error Handling
+
+```typescript
+const error = ref<string | null>(null);
+
+try {
+  await someOperation();
+} catch (err: any) {
+  console.error("Operation failed:", err);
+  error.value = err.message || "Unknown error";
+}
+```
+
+## Icons
+
+Use `lucide-vue-next` for icons:
+
+```vue
+<script setup lang="ts">
+import { Upload, Search, XCircle, ImageIcon } from "lucide-vue-next";
+</script>
+
+<template>
+  <Upload :size="24" />
+  <Search :size="18" />
+</template>
+```
+
+## Styling
+
+- Use **TailwindCSS** utility classes
+- Custom styles in `app/assets/css/tailwind.css` and `v0.css`
+- Follow shadcn-vue's design system (variables in CSS)
+
+```vue
+<template>
+  <div class="flex items-center gap-4 p-6 bg-card rounded-lg border">
+    <Button class="w-full">Click me</Button>
+  </div>
+</template>
+```
+
+## Component Single Responsibility
+
+Keep components focused:
+
+- `SearchForm.vue` - Only handles file upload and search initiation
+- `SearchProgress.vue` - Only displays progress and results
+- `header.vue` - Only navigation/branding
+
+If a component grows beyond ~200 lines, consider splitting it.
+
+## Nuxt Configuration
+
+See [nuxt.config.ts](mdc:apps/web/nuxt.config.ts) for:
+
+- Modules: `@nuxtjs/tailwindcss`, `shadcn-nuxt`, `convex-nuxt`
+- Dev server port: 3001
+- Runtime config for env vars
+
+## SSR Considerations
+
+- Use `useConvexSSRQuery` for server-side rendered queries
+- Check `process.client` before accessing browser APIs
+- File uploads happen client-side only

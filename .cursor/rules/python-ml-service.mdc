@@ -1,0 +1,332 @@
+---
+globs: python/**/*.py
+---
+
+# Python ML Service Rules
+
+Apply these rules when working in `python/`.
+
+## Service Architecture
+
+The Python service is a **FastAPI** application with face recognition ML capabilities.
+
+### Structure
+
+```
+python/
+├── main.py                    # FastAPI app entry point
+├── endpoints/                 # API route handlers
+│   ├── search_photos.py       # Search endpoint
+│   └── upload_collection.py   # Collection upload endpoint
+├── services/                  # Business logic
+│   ├── face_recognition_service.py
+│   ├── r2_storage.py
+│   └── convex_client.py
+└── schemas/                   # Pydantic models
+    └── types.py
+```
+
+## Code Style
+
+- **snake_case** for all names (functions, variables, files)
+- Type hints everywhere
+- Docstrings for public functions (Google style)
+- Import order: stdlib → third-party → local
+
+```python
+"""Module docstring explaining purpose."""
+
+import json
+import threading
+from datetime import datetime
+from typing import List, Tuple, Optional
+
+from fastapi import APIRouter, UploadFile, File
+import numpy as np
+
+from services.face_recognition_service import FaceRecognitionService
+from schemas.types import SearchResponse
+```
+
+## Logging (Critical for This Project)
+
+**Add detailed logging to all operations** per user requirements:
+
+```python
+def get_time() -> str:
+    """Get current time as formatted string."""
+    return datetime.now().strftime("%H:%M:%S")
+
+print(f"[{get_time()}] Starting operation with params: {param1}, {param2}")
+print(f"[{get_time()}] State change: {old_state} -> {new_state}")
+print(f"[{get_time()}] Completed operation. Results: {summary}")
+```
+
+**Log all significant events**:
+
+- Request received
+- Service initialization
+- State transitions
+- Progress milestones
+- Errors with full context
+- Completion with summary
+
+## FastAPI Patterns
+
+### Router Definition
+
+```python
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from schemas.types import SearchResponse, ErrorResponse
+
+router = APIRouter()
+
+@router.post("/search-photos", response_model=SearchResponse)
+async def search_photos(
+    search_request_id: str = Form(...),
+    reference_photo: UploadFile = File(...)
+):
+    """Docstring explaining endpoint."""
+    print(f"[{get_time()}] Starting search for request: {search_request_id}")
+    # implementation
+```
+
+### Error Handling
+
+```python
+try:
+    result = await operation()
+except SpecificException as e:
+    print(f"[{get_time()}] Specific error: {e}")
+    raise HTTPException(status_code=400, detail=str(e))
+except Exception as e:
+    print(f"[{get_time()}] Unexpected error in operation: {e}")
+    raise HTTPException(status_code=500, detail=str(e))
+```
+
+## Service Classes
+
+Keep services **single-responsibility**:
+
+```python
+class FaceRecognitionService:
+    """Handles face detection and embedding extraction."""
+
+    def __init__(self):
+        """Initialize face recognition model."""
+        print(f"[{self._get_time()}] Initializing face recognition model...")
+        self.app = FaceAnalysis(
+            name='buffalo_l',
+            root='.',
+            providers=['CPUExecutionProvider']
+        )
+        self.app.prepare(ctx_id=0, det_size=(640, 640))
+        print(f"[{self._get_time()}] Model loaded successfully")
+
+    def extract_embeddings(self, image_data: bytes) -> List[dict]:
+        """Extract face embeddings from image data.
+
+        Args:
+            image_data: Image data as bytes
+
+        Returns:
+            List of dicts with 'embedding', 'gender', 'age', 'bbox'
+        """
+        # implementation
+```
+
+### R2 Storage Service
+
+```python
+class R2StorageService:
+    """Handles R2 (S3-compatible) storage operations."""
+
+    def upload_file(self, key: str, data: bytes) -> str:
+        """Upload file to R2."""
+        print(f"[{get_time()}] Uploading to R2: {key}")
+        # implementation
+
+    def download_file(self, key: str) -> bytes:
+        """Download file from R2."""
+        print(f"[{get_time()}] Downloading from R2: {key}")
+        # implementation
+```
+
+### Convex Client Service
+
+```python
+class ConvexService:
+    """Handles Convex API communication."""
+
+    def __init__(self):
+        self.client = ConvexClient(os.environ["CONVEX_URL"])
+
+    def update_search_request(
+        self,
+        search_request_id: str,
+        status: str,
+        **kwargs
+    ):
+        """Update search request status in Convex."""
+        self.client.mutation(
+            "searchRequests:updateStatus",
+            {
+                "id": search_request_id,
+                "status": status,
+                **kwargs
+            }
+        )
+```
+
+## Face Recognition Patterns
+
+### Embedding Extraction
+
+```python
+def extract_embeddings(self, image_data: bytes) -> List[dict]:
+    # Decode image
+    nparr = np.frombuffer(image_data, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    # Detect faces
+    faces = self.app.get(img)
+
+    # Extract embeddings
+    results = []
+    for face in faces:
+        results.append({
+            'embedding': face.embedding.tolist(),  # numpy → list
+            'gender': int(face.gender),  # 0=female, 1=male
+            'age': int(face.age),
+            'bbox': face.bbox.tolist()
+        })
+
+    return results
+```
+
+### Similarity Comparison
+
+```python
+def compare_embeddings(
+    self,
+    ref_embedding: List[float],
+    target_embedding: List[float],
+    threshold: float = 0.6
+) -> Tuple[bool, float]:
+    """Compare two embeddings using cosine similarity."""
+    ref_arr = np.array(ref_embedding)
+    target_arr = np.array(target_embedding)
+
+    # Cosine similarity
+    similarity = np.dot(ref_arr, target_arr) / (
+        np.linalg.norm(ref_arr) * np.linalg.norm(target_arr)
+    )
+
+    is_match = similarity > threshold
+    return is_match, float(similarity)
+```
+
+## Embeddings JSON Format
+
+Store embeddings in this format:
+
+```python
+{
+    "photo1.jpg": [
+        {
+            "embedding": [512 floats],
+            "gender": 0,  # or 1
+            "age": 25,
+            "bbox": [x, y, w, h]
+        }
+    ],
+    "photo2.jpg": [...]
+}
+```
+
+## Async Operations with Threading
+
+For non-blocking progress updates:
+
+```python
+# Update Convex status without blocking main flow
+threading.Thread(
+    target=convex_service.update_search_request,
+    args=(search_request_id, "processing"),
+    kwargs={"processed_images": count},
+    daemon=True
+).start()
+```
+
+## Progress Tracking Pattern
+
+```python
+total_images = collection.get('imagesCount', 0)
+processed_count = 0
+
+for filename, faces in embeddings_data.items():
+    # Process image
+    # ...
+
+    processed_count += 1
+
+    # Update progress every 100 images
+    if processed_count % 100 == 0:
+        print(f"[{get_time()}] Processed {processed_count}/{total_images} images")
+        threading.Thread(
+            target=convex_service.update_search_request,
+            args=(search_request_id, "processing"),
+            kwargs={"processed_images": processed_count},
+            daemon=True
+        ).start()
+```
+
+## File Validation
+
+```python
+# Validate image upload
+if not reference_photo.content_type or not reference_photo.content_type.startswith('image/'):
+    raise HTTPException(status_code=400, detail="File must be an image")
+
+# Read file data
+reference_data = await reference_photo.read()
+```
+
+## Environment Variables
+
+```python
+import os
+
+# Required env vars
+R2_ACCOUNT_ID = os.environ["R2_ACCOUNT_ID"]
+R2_BUCKET_NAME = os.environ["R2_BUCKET_NAME"]
+R2_ACCESS_KEY_ID = os.environ["R2_ACCESS_KEY_ID"]
+R2_SECRET_ACCESS_KEY = os.environ["R2_SECRET_ACCESS_KEY"]
+CONVEX_URL = os.environ["CONVEX_URL"]
+```
+
+## Pydantic Response Models
+
+```python
+from pydantic import BaseModel
+
+class SearchResponse(BaseModel):
+    success: bool
+    message: str
+    search_request_id: str
+
+class ErrorResponse(BaseModel):
+    detail: str
+```
+
+## Key Files
+
+- [search_photos.py](mdc:python/endpoints/search_photos.py) - Main search endpoint
+- [upload_collection.py](mdc:python/endpoints/upload_collection.py) - Collection upload
+- [face_recognition_service.py](mdc:python/services/face_recognition_service.py) - ML logic
+- [r2_storage.py](mdc:python/services/r2_storage.py) - Storage operations
+- [convex_client.py](mdc:python/services/convex_client.py) - Convex integration
+
+## Docker Deployment
+
+The service runs in Docker on Google Cloud Run. See `python/Dockerfile` and `python/deploy.sh`.

@@ -11,7 +11,7 @@ from typing import List
 from services.r2_storage import R2StorageService
 from services.face_recognition_service import FaceRecognitionService
 from services.convex_client import ConvexService
-from models.types import UploadResponse, ErrorResponse
+from schemas.types import UploadResponse, ErrorResponse
 
 
 router = APIRouter()
