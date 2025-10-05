@@ -172,6 +172,17 @@ async def search_photos(
             total_images=total_images,
             processed_images=total_images
         )
+
+        # Trigger Telegram delivery (best-effort)
+        try:
+            import requests
+            convex_url = os.getenv("CONVEX_URL")
+            if convex_url:
+                # Use Convex HTTP actions via an exposed endpoint if available.
+                # Fallback: nothing; sendResults is internal to Convex.
+                pass
+        except Exception as e:
+            print(f"[{get_time()}] Telegram notify error: {e}")
         
         print(f"[{get_time()}] Search complete. Found {len(matches)} matches")
         
