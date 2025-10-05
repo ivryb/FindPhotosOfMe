@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Local deployment script for testing
+# Local deployment script for Python ML service
 # This script builds and runs the Docker container locally
-# Usage: ./deploy-local.sh [--no-cache]
+# Usage: ./deploy-python-local.sh [--no-cache]
 
 set -e
 
@@ -17,20 +17,20 @@ if [[ "$1" == "--no-cache" ]]; then
 fi
 
 echo "======================================"
-echo "Building Docker image locally..."
+echo "Building Python ML service Docker image..."
 echo "======================================"
 
-# Build the Docker image
-docker build $CACHE_FLAG -t $SERVICE_NAME .
+# Build the Docker image from repository root
+docker build $CACHE_FLAG -f Dockerfile.python -t $SERVICE_NAME .
 
 echo "======================================"
 echo "Starting container..."
 echo "======================================"
 
-# Check if .env file exists
-if [ ! -f ".env" ]; then
-    echo "ERROR: .env file not found!"
-    echo "Please create a .env file with the following variables:"
+# Check if .env file exists in python directory
+if [ ! -f "python/.env" ]; then
+    echo "ERROR: python/.env file not found!"
+    echo "Please create a python/.env file with the following variables:"
     echo "  R2_ACCOUNT_ID=your_account_id"
     echo "  R2_ACCESS_KEY_ID=your_access_key"
     echo "  R2_SECRET_ACCESS_KEY=your_secret_key"
@@ -41,7 +41,7 @@ if [ ! -f ".env" ]; then
 fi
 
 # Load environment variables from .env file
-export $(cat .env | grep -v '^#' | xargs)
+export $(cat python/.env | grep -v '^#' | xargs)
 
 # Verify required environment variables
 MISSING_VARS=()
@@ -57,7 +57,7 @@ if [ ${#MISSING_VARS[@]} -ne 0 ]; then
     exit 1
 fi
 
-echo "Environment variables loaded from .env"
+echo "Environment variables loaded from python/.env"
 echo "Starting container on port $PORT..."
 
 # Stop and remove existing container if running
@@ -93,11 +93,11 @@ sleep 2
 # Check if container is running
 if [ "$(docker ps -q -f name=$SERVICE_NAME)" ]; then
     echo "======================================"
-    echo "✓ Service running at: http://localhost:$PORT"
+    echo "✓ Python ML service running at: http://localhost:$PORT"
     echo "Health check: curl http://localhost:$PORT/health"
     echo ""
     echo "View logs:    docker logs -f $SERVICE_NAME"
-    echo "Stop service: docker stop $SERVICE_NAME"
+    echo "Stop service: ./stop-python-local.sh"
     echo "======================================"
 else
     echo "======================================"

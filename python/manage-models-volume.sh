@@ -24,7 +24,7 @@ show_info() {
     
     if [ -z "$(docker volume ls -q -f name=$VOLUME_NAME)" ]; then
         echo "Volume does not exist."
-        echo "It will be created automatically when you run ./deploy-local.sh"
+        echo "It will be created automatically when you run ../deploy-python-local.sh"
         return
     fi
     

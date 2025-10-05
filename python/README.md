@@ -50,16 +50,17 @@ The service consists of two main endpoints:
    CORS_ORIGINS=*
    ```
 
-3. Run locally with Docker:
+3. Run locally with Docker (from repository root):
 
    ```bash
-   ./deploy-local.sh
+   cd ..
+   ./deploy-python-local.sh
    ```
 
    This script will:
-   - Build the Docker image
+   - Build the Docker image from the root directory
    - Create a persistent Docker volume for models (if not exists)
-   - Load environment variables from `.env`
+   - Load environment variables from `python/.env`
    - Run the container on port 8000 (in detached mode)
    - Verify all required credentials are present
    - Automatically stop/remove any existing container
@@ -67,7 +68,7 @@ The service consists of two main endpoints:
    To stop the service:
 
    ```bash
-   ./stop-local.sh
+   ./stop-python-local.sh
    ```
 
    View logs:

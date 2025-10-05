@@ -33,12 +33,13 @@ pnpm dev:setup            # Initialize Convex development environment
 ### Python Service
 
 ```bash
-# In python/ directory
-pip install -r requirements.txt
-./deploy-local.sh         # Build and run Docker container locally
-./stop-local.sh           # Stop local Docker container
+# From repository root
+./deploy-python-local.sh         # Build and run Docker container locally
+./stop-python-local.sh           # Stop local Docker container
 docker logs -f find-photos-of-me-service  # View service logs
-./manage-models-volume.sh info             # Manage cached ML models
+
+# Manage cached ML models (from python/ directory)
+cd python && ./manage-models-volume.sh info
 ```
 
 ### Frontend (apps/web)

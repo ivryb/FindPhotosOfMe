@@ -12,16 +12,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
+    # execstack tool to fix onnxruntime executable stack issue
+    execstack \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
+# Copy requirements from python directory
+# This assumes build context is the repository root (Railway/Cloud Run default)
+COPY python/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Fix onnxruntime executable stack issue for containerized environments
+# This clears the executable stack flag that causes issues on platforms like Railway
+RUN execstack -c /usr/local/lib/python3.11/site-packages/onnxruntime/capi/*.so || true
+
+# Copy application code from python directory
+COPY python/ .
 
 # Create directory for InsightFace models
 # This directory should be mounted as a volume to persist models across restarts

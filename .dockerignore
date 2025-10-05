@@ -1,0 +1,47 @@
+# Ignore everything except python directory
+*
+!python/
+
+# Within python directory, ignore these:
+python/__pycache__
+python/*.pyc
+python/*.pyo
+python/*.pyd
+python/.Python
+python/env/
+python/venv/
+python/.env
+python/.env.*
+python/*.log
+python/logs/
+python/tests/
+python/test_*.py
+python/*_test.py
+python/.pytest_cache/
+python/.coverage
+python/htmlcov/
+python/ref.jpg
+python/example_client.py
+python/deploy-local.sh
+python/stop-local.sh
+python/manage-models-volume.sh
+python/.dockerignore
+python/.gcloudignore
+python/README.md
+
+# Ignore root-level deployment scripts (not needed in container)
+deploy-python-local.sh
+stop-python-local.sh
+
+# Ignore other workspace directories
+.git
+.github
+node_modules
+apps/
+packages/
+docs/
+pnpm-lock.yaml
+pnpm-workspace.yaml
+turbo.json
+README.md
+bts.jsonc
