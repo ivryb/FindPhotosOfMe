@@ -7,14 +7,28 @@ FindPhotosOfMe is a face recognition service that helps users find photos of the
 - **Frontend**: Nuxt 4 + Vue 3 + TypeScript + shadcn-vue components
 - **Backend**: Convex (real-time database and functions)
 - **ML Service**: Python FastAPI with InsightFace for face recognition
+- **Telegram Bot**: Grammy framework (webhook-based, serverless)
 - **Storage**: Cloudflare R2 for photo storage
 - **Monorepo**: pnpm workspaces + Turborepo
 
 ### Data Flow
 
-1. Admin uploads photo collection (zip) → Python service processes faces → stores in R2 + Convex
-2. User uploads reference photo → Python service compares against stored embeddings → returns matches
-3. Frontend subscribes to real-time progress updates via Convex
+1. **Admin Flow**: Uploads photo collection (zip) → Python service processes faces → stores in R2 + Convex
+2. **Web Flow**: User uploads reference photo → Python service compares against stored embeddings → returns matches
+3. **Telegram Flow**: User sends photo to bot → Bot creates search request → Python processes → Bot sends results as media groups
+4. Frontend/Bot subscribes to real-time progress updates via Convex
+
+### Telegram Bot Integration
+
+Each collection can have its own Telegram bot. Users send a photo to the bot, and it automatically searches the collection and returns matching photos as media groups.
+
+**Setup**: See [TELEGRAM_INTEGRATION.md](TELEGRAM_INTEGRATION.md) for detailed documentation.
+
+**Quick Start**:
+1. Create bot via [@BotFather](https://t.me/botfather)
+2. Add bot token in collection settings
+3. Webhook is automatically configured
+4. Users can start searching by sending photos
 
 ## Development Commands
 
@@ -27,6 +41,7 @@ pnpm build                # Build all packages
 pnpm check-types          # Type check all packages
 pnpm dev:web              # Run only frontend
 pnpm dev:server           # Run only Convex backend
+pnpm dev:telegram         # Run only Telegram bot
 pnpm dev:setup            # Initialize Convex development environment
 ```
 
@@ -63,14 +78,22 @@ npm run dev:setup        # Configure Convex project
 
 ```
 FindPhotosOfMe/
-├── apps/web/                    # Nuxt frontend application
-│   ├── app/                     # Nuxt app directory
-│   │   ├── components/          # Vue components (shadcn-vue)
-│   │   ├── composables/         # Vue composables
-│   │   └── pages/              # Nuxt pages/routes
-├── packages/backend/            # Convex backend
+├── apps/
+│   ├── web/                    # Nuxt frontend application
+│   │   ├── app/                # Nuxt app directory
+│   │   │   ├── components/     # Vue components (shadcn-vue)
+│   │   │   ├── composables/    # Vue composables
+│   │   │   └── pages/          # Nuxt pages/routes
+│   └── telegram/               # Telegram bot (Grammy)
+│       ├── src/
+│       │   ├── handlers/       # Bot command and message handlers
+│       │   ├── bot.ts          # Bot instance creation
+│       │   └── index.ts        # HTTP webhook server
+│       └── vercel.json         # Vercel deployment config
+├── packages/backend/           # Convex backend
 │   └── convex/                 # Convex functions and schema
-│       └── schema.ts           # Database schema (collections, searchRequests)
+│       ├── schema.ts           # Database schema (collections, searchRequests)
+│       └── telegram.ts         # Telegram webhook handlers
 └── python/                     # FastAPI ML service
     ├── endpoints/              # API endpoints
     │   ├── upload_collection.py # Process photo collections

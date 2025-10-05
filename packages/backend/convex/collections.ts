@@ -22,6 +22,7 @@ export const get = query({
       imagesCount: v.number(),
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
+      telegramBotToken: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -123,6 +124,7 @@ export const getAll = query({
       imagesCount: v.number(),
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
+      telegramBotToken: v.optional(v.string()),
     })
   ),
   handler: async (ctx, args) => {
@@ -152,6 +154,7 @@ export const getBySubdomain = query({
       imagesCount: v.number(),
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
+      telegramBotToken: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -203,6 +206,23 @@ export const setPreviewImages = mutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.id, {
       previewImages: args.previewImages.slice(0, 50),
+    });
+    return null;
+  },
+});
+
+/**
+ * Update Telegram bot token for a collection.
+ */
+export const updateTelegramBotToken = mutation({
+  args: {
+    id: v.id("collections"),
+    token: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      telegramBotToken: args.token,
     });
     return null;
   },

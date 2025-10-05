@@ -20,6 +20,8 @@ export const get = query({
       imagesFound: v.array(v.string()),
       totalImages: v.optional(v.number()),
       processedImages: v.optional(v.number()),
+      telegramChatId: v.optional(v.string()),
+      telegramMessageId: v.optional(v.number()),
     }),
     v.null()
   ),
@@ -35,6 +37,7 @@ export const get = query({
 export const create = mutation({
   args: {
     collectionId: v.id("collections"),
+    telegramChatId: v.optional(v.string()),
   },
   returns: v.id("searchRequests"),
   handler: async (ctx, args) => {
@@ -48,6 +51,7 @@ export const create = mutation({
       collectionId: args.collectionId,
       status: "pending" as const,
       imagesFound: [],
+      telegramChatId: args.telegramChatId,
     });
 
     return searchRequestId;
@@ -108,6 +112,8 @@ export const listByCollection = query({
       imagesFound: v.array(v.string()),
       totalImages: v.optional(v.number()),
       processedImages: v.optional(v.number()),
+      telegramChatId: v.optional(v.string()),
+      telegramMessageId: v.optional(v.number()),
     })
   ),
   handler: async (ctx, args) => {
