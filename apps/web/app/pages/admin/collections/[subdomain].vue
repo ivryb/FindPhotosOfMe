@@ -63,6 +63,10 @@ const formData = ref({
 const selectedFile = ref<File | null>(null);
 const isUploading = ref(false);
 const uploadError = ref<string | null>(null);
+const isWarmingUp = computed(() => {
+  // Show "warming up" state when upload started but collection hasn't started processing yet
+  return isUploading.value && collection.value?.status === "not_started";
+});
 
 watch(
   () => collection.value,
@@ -342,7 +346,7 @@ const handleDelete = async () => {
         </CardHeader>
         <CardContent>
           <!-- Status Display -->
-          <div v-if="collection.status !== 'not_started'" class="mb-6">
+          <div v-if="collection.status !== 'not_started'">
             <div class="space-y-2">
               <div class="flex justify-between items-center">
                 <span class="text-sm font-medium">Status:</span>
@@ -365,9 +369,29 @@ const handleDelete = async () => {
             </div>
           </div>
 
+          <!-- Warming Up State -->
+          <div v-if="isWarmingUp" class="text-center py-8">
+            <div class="space-y-4">
+              <div
+                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 border-2 border-primary/20"
+              >
+                <Loader2 class="h-8 w-8 text-primary animate-spin" />
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold">Warming up the engine...</h3>
+                <p class="text-muted-foreground">
+                  Initializing face recognition models
+                </p>
+                <p class="text-sm text-muted-foreground mt-1">
+                  This may take a minute on the first request
+                </p>
+              </div>
+            </div>
+          </div>
+
           <!-- Upload Form -->
           <div
-            v-if="
+            v-else-if="
               collection.status === 'not_started' ||
               collection.status === 'error'
             "
@@ -436,29 +460,6 @@ const handleDelete = async () => {
                 <p class="text-lg font-medium mt-2">
                   {{ collection.imagesCount }} images processed
                 </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Complete State -->
-          <div
-            v-else-if="collection.status === 'complete'"
-            class="text-center py-8"
-          >
-            <div class="space-y-4">
-              <div
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 border-2 border-primary"
-              >
-                <CheckCircle2 class="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <h3 class="text-lg font-semibold">Upload Complete!</h3>
-                <p class="text-muted-foreground">
-                  Successfully processed {{ collection.imagesCount }} images
-                  <br />
-                  Collection is ready for face recognition searches
-                </p>
-                <p class="text-sm text-muted-foreground mt-2"></p>
               </div>
             </div>
           </div>

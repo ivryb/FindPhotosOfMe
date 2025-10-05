@@ -26,7 +26,7 @@ const { data: collection, error: collectionError } = await useConvexSSRQuery(
 );
 
 // If collection not found or not ready, show error
-if (!collection.value || collection.value.status !== "complete") {
+if (!collection.value) {
   throw createError({
     statusCode: 404,
     statusMessage: "Event not found or not ready yet",
@@ -35,7 +35,7 @@ if (!collection.value || collection.value.status !== "complete") {
 
 const previewImages = computed(() => {
   const list = (collection.value as any)?.previewImages as string[] | undefined;
-  return (list || []).slice(0, 20);
+  return (list || []).slice(0, 10);
 });
 
 const descriptionHtml = computed(() => {
@@ -47,7 +47,7 @@ const descriptionHtml = computed(() => {
   <div class="container max-w-4xl py-8 space-y-8">
     <!-- Event Information -->
     <Card>
-      <CardHeader>
+      <CardContent>
         <div class="space-y-4">
           <CardTitle class="text-3xl">{{ collection?.title }}</CardTitle>
           <div class="flex items-center gap-2 text-sm text-muted-foreground">
@@ -73,12 +73,12 @@ const descriptionHtml = computed(() => {
           </div>
         </div>
         <CardDescription
+          v-if="descriptionHtml"
           class="text-base mt-4 prose prose-sm dark:prose-invert max-w-none"
         >
           <div v-html="descriptionHtml"></div>
         </CardDescription>
-      </CardHeader>
-      <CardContent> </CardContent>
+      </CardContent>
     </Card>
 
     <!-- Search Form -->

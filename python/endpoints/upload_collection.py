@@ -3,6 +3,7 @@
 import json
 import zipfile
 import io
+import threading
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from typing import List
@@ -112,13 +113,14 @@ async def upload_collection(
                     if len(preview_image_keys) < 50:
                         preview_image_keys.append(r2_key)
                     
-                    # Update Convex with progress every 10 images
+                    # Update Convex with progress (non-blocking)
+                    threading.Thread(
+                        target=convex_service.update_collection_status,
+                        args=(collection_id, "processing", processed_count),
+                        daemon=True
+                    ).start()
+                    
                     if processed_count % 10 == 0:
-                        convex_service.update_collection_status(
-                            collection_id,
-                            "processing",
-                            processed_count
-                        )
                         print(f"[{get_time()}] Processed {processed_count}/{total_images} images")
                 
             except Exception as e:
