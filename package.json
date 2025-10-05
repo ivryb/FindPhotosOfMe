@@ -15,9 +15,9 @@
     "dev:server": "turbo -F @FindPhotosOfMe/backend dev",
     "dev:setup": "turbo -F @FindPhotosOfMe/backend dev:setup"
   },
-  "dependencies": {},
   "devDependencies": {
-    "turbo": "^2.5.4"
+    "turbo": "^2.5.4",
+    "wrangler": "^4.42.0"
   },
   "packageManager": "pnpm@10.12.4"
 }

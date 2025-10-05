@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Trash2 } from "lucide-vue-next";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 
 const { data: collections } = await useConvexSSRQuery(
@@ -72,6 +73,37 @@ const handleSubmit = async () => {
 const navigateToCollection = (subdomain: string) => {
   navigateTo(`/admin/collections/${subdomain}`);
 };
+
+const isClearing = ref(false);
+const clearError = ref<string | null>(null);
+
+const handleClearBucket = async () => {
+  const confirmed = confirm(
+    "⚠️ WARNING: This will permanently delete ALL files from the R2 bucket!\n\nThis action cannot be undone. Are you absolutely sure?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  isClearing.value = true;
+  clearError.value = null;
+
+  try {
+    const response = await $fetch("/api/r2-clear", {
+      method: "DELETE",
+    });
+
+    alert(`✓ ${response.message}`);
+    console.log("R2 bucket cleared:", response);
+  } catch (error: any) {
+    console.error("Failed to clear R2 bucket:", error);
+    clearError.value = error.message || "Failed to clear bucket";
+    alert(`✗ Failed to clear bucket: ${clearError.value}`);
+  } finally {
+    isClearing.value = false;
+  }
+};
 </script>
 
 <template>
@@ -80,54 +112,64 @@ const navigateToCollection = (subdomain: string) => {
       <div>
         <h1 class="text-4xl font-bold">Collection Management</h1>
       </div>
-      <Dialog v-model:open="isDialogOpen">
-        <DialogTrigger as-child>
-          <Button @click="openCreateDialog"> Create New Collection </Button>
-        </DialogTrigger>
-        <DialogContent class="sm:max-w-[525px]">
-          <DialogHeader>
-            <DialogTitle>Create New Collection</DialogTitle>
-            <DialogDescription>
-              Fill in the details for your new Collection.
-            </DialogDescription>
-          </DialogHeader>
-          <div class="grid gap-4 py-4">
-            <div class="grid gap-2">
-              <Label for="subdomain">Subdomain</Label>
-              <Input
-                id="subdomain"
-                v-model="formData.subdomain"
-                placeholder="e.g., itarena2025"
-              />
-              <p class="text-xs text-muted-foreground">
-                This will be used in the Collection URL
-              </p>
+      <div class="flex gap-3">
+        <Button
+          variant="destructive"
+          @click="handleClearBucket"
+          :disabled="isClearing"
+        >
+          <Trash2 :size="16" class="mr-2" />
+          {{ isClearing ? "Clearing..." : "Clear R2 Bucket" }}
+        </Button>
+        <Dialog v-model:open="isDialogOpen">
+          <DialogTrigger as-child>
+            <Button @click="openCreateDialog"> Create New Collection </Button>
+          </DialogTrigger>
+          <DialogContent class="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle>Create New Collection</DialogTitle>
+              <DialogDescription>
+                Fill in the details for your new Collection.
+              </DialogDescription>
+            </DialogHeader>
+            <div class="grid gap-4 py-4">
+              <div class="grid gap-2">
+                <Label for="subdomain">Subdomain</Label>
+                <Input
+                  id="subdomain"
+                  v-model="formData.subdomain"
+                  placeholder="e.g., itarena2025"
+                />
+                <p class="text-xs text-muted-foreground">
+                  This will be used in the Collection URL
+                </p>
+              </div>
+              <div class="grid gap-2">
+                <Label for="title">Title</Label>
+                <Input
+                  id="title"
+                  v-model="formData.title"
+                  placeholder="e.g., IT Arena 2025"
+                />
+              </div>
+              <div class="grid gap-2">
+                <Label for="description">Description</Label>
+                <Textarea
+                  id="description"
+                  v-model="formData.description"
+                  placeholder="Collection description"
+                />
+              </div>
             </div>
-            <div class="grid gap-2">
-              <Label for="title">Title</Label>
-              <Input
-                id="title"
-                v-model="formData.title"
-                placeholder="e.g., IT Arena 2025"
-              />
-            </div>
-            <div class="grid gap-2">
-              <Label for="description">Description</Label>
-              <Textarea
-                id="description"
-                v-model="formData.description"
-                placeholder="Collection description"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" @click="isDialogOpen = false">
-              Cancel
-            </Button>
-            <Button @click="handleSubmit">Create Collection</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" @click="isDialogOpen = false">
+                Cancel
+              </Button>
+              <Button @click="handleSubmit">Create Collection</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
 
     <Table>
