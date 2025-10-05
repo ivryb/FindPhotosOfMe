@@ -67,10 +67,17 @@ if [ "$(docker ps -aq -f name=$SERVICE_NAME)" ]; then
     docker rm $SERVICE_NAME 2>/dev/null || true
 fi
 
-# Run the container with environment variables
+# Create named volume for models if it doesn't exist
+if [ -z "$(docker volume ls -q -f name=insightface-models)" ]; then
+    echo "Creating Docker volume for InsightFace models..."
+    docker volume create insightface-models
+fi
+
+# Run the container with environment variables and volume mount
 docker run -d \
     --name $SERVICE_NAME \
     -p $PORT:$PORT \
+    -v insightface-models:/app/models \
     -e PORT=$PORT \
     -e R2_ACCOUNT_ID="$R2_ACCOUNT_ID" \
     -e R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \

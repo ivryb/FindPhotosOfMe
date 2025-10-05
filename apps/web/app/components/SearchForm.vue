@@ -31,6 +31,7 @@ const isUploading = ref(false);
 const error = ref<string | null>(null);
 const searchRequestId = ref<Id<"searchRequests"> | null>(null);
 const hasStartedSearch = ref(false);
+const isWarmingUp = ref(false);
 
 function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement;
@@ -68,6 +69,7 @@ async function startSearch() {
   }
 
   isUploading.value = true;
+  isWarmingUp.value = true;
   error.value = null;
 
   try {
@@ -109,6 +111,7 @@ async function startSearch() {
     error.value = err.message || "Failed to start search";
   } finally {
     isUploading.value = false;
+    isWarmingUp.value = false;
   }
 }
 
@@ -118,6 +121,7 @@ function resetForm() {
   error.value = null;
   searchRequestId.value = null;
   hasStartedSearch.value = false;
+  isWarmingUp.value = false;
 }
 </script>
 
@@ -194,6 +198,7 @@ function resetForm() {
     <SearchProgress
       v-if="hasStartedSearch && searchRequestId"
       :search-request-id="searchRequestId"
+      :is-warming-up="isWarmingUp"
       @reset="resetForm"
     />
   </div>

@@ -58,6 +58,7 @@ The service consists of two main endpoints:
 
    This script will:
    - Build the Docker image
+   - Create a persistent Docker volume for models (if not exists)
    - Load environment variables from `.env`
    - Run the container on port 8000 (in detached mode)
    - Verify all required credentials are present
@@ -75,7 +76,25 @@ The service consists of two main endpoints:
    docker logs -f find-photos-of-me-service
    ```
 
-**Note**: InsightFace models (~400MB) will be downloaded automatically on first run and cached in the `/app/models` directory.
+**Note**: InsightFace models (~400MB) will be downloaded automatically on first run and cached in a persistent Docker volume (`insightface-models`). The models persist across container restarts, so they only need to be downloaded once.
+
+### Managing Model Cache
+
+Use the `manage-models-volume.sh` script to manage the cached models:
+
+```bash
+# View volume information and size
+./manage-models-volume.sh info
+
+# Backup the models (useful before cleaning)
+./manage-models-volume.sh backup
+
+# Clean the volume (models will be re-downloaded on next run)
+./manage-models-volume.sh clean
+
+# Restore from a backup
+./manage-models-volume.sh restore
+```
 
 ## API Endpoints
 

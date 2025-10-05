@@ -77,6 +77,10 @@ async def search_photos(
                 detail=f"Collection {collection_id} is not ready for searching"
             )
         
+        # Get total images from collection
+        total_images = collection.get('imagesCount', 0)
+        print(f"[{get_time()}] Collection has {total_images} images")
+        
         # Extract face embeddings from reference photo
         reference_data = await reference_photo.read()
         reference_embeddings = face_service.extract_embeddings(reference_data)
@@ -104,9 +108,8 @@ async def search_photos(
             )
         
         embeddings_data = json.loads(embeddings_data_bytes.decode('utf-8'))
-        total_images = len(embeddings_data)
         
-        print(f"[{get_time()}] Loaded embeddings for {total_images} images")
+        print(f"[{get_time()}] Loaded embeddings for {len(embeddings_data)} images")
         
         # Update search request with total (non-blocking)
         threading.Thread(
@@ -116,13 +119,42 @@ async def search_photos(
             daemon=True
         ).start()
         
-        # Find matching faces
-        matches = face_service.find_matching_faces(
-            ref_embedding,
-            ref_gender,
-            embeddings_data,
-            threshold=0.6
-        )
+        # Find matching faces with progress updates
+        matches = []
+        processed_count = 0
+        
+        for filename, faces in embeddings_data.items():
+            for face in faces:
+                # Check gender match
+                if face.get('gender') != ref_gender:
+                    continue
+                
+                # Compare embeddings
+                is_match, similarity = face_service.compare_embeddings(
+                    ref_embedding,
+                    face['embedding'],
+                    threshold=0.6
+                )
+                
+                if is_match:
+                    matches.append((filename, similarity))
+                    break  # Only need one match per photo
+            
+            processed_count += 1
+            
+            # Update progress (non-blocking)
+            threading.Thread(
+                target=convex_service.update_search_request,
+                args=(search_request_id, "processing"),
+                kwargs={"processed_images": processed_count},
+                daemon=True
+            ).start()
+            
+            if processed_count % 100 == 0:
+                print(f"[{get_time()}] Processed {processed_count}/{total_images} images, found {len(matches)} matches so far")
+        
+        # Sort by similarity score (highest first)
+        matches.sort(key=lambda x: x[1], reverse=True)
         
         print(f"[{get_time()}] Found {len(matches)} matching images")
         

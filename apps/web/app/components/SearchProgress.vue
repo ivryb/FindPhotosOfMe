@@ -18,10 +18,12 @@ import {
   XCircle,
   Upload,
   ImageIcon,
+  Loader2,
 } from "lucide-vue-next";
 
 const props = defineProps<{
   searchRequestId: Id<"searchRequests">;
+  isWarmingUp?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -61,8 +63,26 @@ function handleReset() {
 
 <template>
   <div class="space-y-6">
+    <!-- Warming Up State -->
+    <Card v-if="isWarmingUp" class="border-primary/20">
+      <CardHeader>
+        <div class="flex items-center gap-2">
+          <Loader2 :size="24" class="text-primary animate-spin" />
+          <CardTitle>Warming up the engine...</CardTitle>
+        </div>
+        <CardDescription>
+          Initializing face recognition models
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p class="text-sm text-muted-foreground">
+          This may take a minute on the first request
+        </p>
+      </CardContent>
+    </Card>
+
     <!-- Search Progress -->
-    <Card v-if="isSearching" class="border-accent">
+    <Card v-else-if="isSearching" class="border-accent">
       <CardHeader>
         <div class="flex items-center gap-2">
           <Search :size="24" class="text-accent animate-pulse" />

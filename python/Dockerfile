@@ -24,7 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create directory for InsightFace models
+# This directory should be mounted as a volume to persist models across restarts
 RUN mkdir -p /app/models
+VOLUME ["/app/models"]
 
 # Expose port (default 8000, can be overridden with PORT env var)
 EXPOSE 8000
