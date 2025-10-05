@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { ConvexHttpClient } from "convex/browser";
+import { FormData, Blob } from "undici";
 
 const convexUrl = process.env.NUXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL;
 if (!convexUrl) {
@@ -87,9 +88,105 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!resp.ok) {
         const text = await resp.text();
         await ctx.reply(`Failed to start search: ${text}`);
+        return;
       }
     } catch (e) {
       await ctx.reply("Search service unreachable.");
+      return;
+    }
+
+    // Poll Convex for result and send from here
+    const timeoutMs = Number(process.env.TELEGRAM_SEARCH_TIMEOUT_MS || 60000);
+    const intervalMs = Number(process.env.TELEGRAM_POLL_INTERVAL_MS || 1500);
+    const r2ProxyBase = process.env.R2_PROXY_BASE_URL;
+
+    const start = Date.now();
+    const deadline = start + timeoutMs;
+
+    const log = (msg: string, extra?: Record<string, unknown>) =>
+      console.log(
+        `[${new Date().toISOString()}] [bot] ${msg}`,
+        extra ? JSON.stringify(extra) : ""
+      );
+
+    log("Polling for search result", { requestId });
+
+    let latest: any = null;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        latest = await client.query(api.searchRequests.get, {
+          id: requestId as Id<"searchRequests">,
+        });
+      } catch (e) {
+        log("Convex query error", { error: String(e) });
+      }
+
+      if (!latest) {
+        // Rare: not yet visible due to eventual consistency; wait
+        if (Date.now() >= deadline) break;
+        await new Promise((r) => setTimeout(r, intervalMs));
+        continue;
+      }
+
+      if (latest.status === "complete") break;
+      if (latest.status === "error") break;
+
+      if (Date.now() >= deadline) break;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+
+    if (!latest) {
+      await ctx.reply("Timed out waiting for result. Please try again.");
+      return;
+    }
+
+    if (latest.status === "error") {
+      await ctx.reply("Search failed. Please try again later.");
+      return;
+    }
+
+    const images: string[] = Array.isArray(latest.imagesFound)
+      ? latest.imagesFound
+      : [];
+
+    if (!images.length) {
+      await ctx.reply("No matching photos found.");
+      return;
+    }
+
+    if (!r2ProxyBase) {
+      await ctx.reply(
+        "Found results, but image proxy is not configured (R2_PROXY_BASE_URL)."
+      );
+      return;
+    }
+
+    // Chunk into groups of up to 10 images per Telegram rules
+    const chunkSize = 10;
+    const chunks: string[][] = [];
+    for (let i = 0; i < images.length; i += chunkSize) {
+      chunks.push(images.slice(i, i + chunkSize));
+    }
+
+    for (let groupIndex = 0; groupIndex < chunks.length; groupIndex++) {
+      const group = chunks[groupIndex];
+      const media = group.map((path, idx) => ({
+        type: "photo",
+        media: `${r2ProxyBase}/${path}`,
+        caption:
+          idx === 0 && groupIndex === 0
+            ? `Found ${images.length} matching photos`
+            : undefined,
+      }));
+
+      try {
+        await ctx.api.sendMediaGroup(ctx.chat.id, media as any);
+      } catch (e) {
+        log("Failed to send media group", { error: String(e) });
+        await ctx.reply("Failed to send some results.");
+        break;
+      }
     }
   });
 

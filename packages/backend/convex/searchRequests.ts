@@ -1,5 +1,4 @@
 import { query, mutation } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 /**
@@ -93,13 +92,6 @@ export const update = mutation({
     }
 
     await ctx.db.patch(args.id, updates);
-
-    if (args.status === "complete") {
-      // If telegram chat is known, schedule result delivery
-      await ctx.scheduler.runAfter(0, internal.telegram.sendResults, {
-        searchRequestId: args.id,
-      });
-    }
     return null;
   },
 });
