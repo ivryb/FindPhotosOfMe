@@ -2,26 +2,49 @@
 
 # Local deployment script for Python ML service
 # This script builds and runs the Docker container locally
-# Usage: ./deploy-python-local.sh [--no-cache]
+# Usage: ./deploy-python-local.sh [--no-cache] [--linux]
+#   --no-cache: Build without using Docker cache
+#   --linux:    Build for linux/amd64 (Railway/Cloud Run) instead of native platform
 
 set -e
 
 SERVICE_NAME="find-photos-of-me-service"
 PORT=8000
 
-# Check for --no-cache flag
+# Parse flags
 CACHE_FLAG=""
-if [[ "$1" == "--no-cache" ]]; then
-    CACHE_FLAG="--no-cache"
-    echo "Building without cache..."
-fi
+PLATFORM_FLAG=""
+
+for arg in "$@"
+do
+    case "$arg" in
+        --no-cache)
+            CACHE_FLAG="--no-cache"
+            echo "Building without cache..."
+            ;;
+        --linux)
+            PLATFORM_FLAG="--platform linux/amd64"
+            echo "Building for linux/amd64 platform (Railway/Cloud Run compatible)..."
+            ;;
+        *)
+            # Ignore unknown flags
+            ;;
+    esac
+done
 
 echo "======================================"
 echo "Building Python ML service Docker image..."
 echo "======================================"
 
 # Build the Docker image from repository root
-docker build $CACHE_FLAG -f Dockerfile.python -t $SERVICE_NAME .
+# By default builds for native platform (faster on Mac)
+# Use --linux flag to build for linux/amd64 (Railway/Cloud Run compatible)
+docker build $CACHE_FLAG $PLATFORM_FLAG -f Dockerfile.python -t $SERVICE_NAME .
+
+if [ -z "$PLATFORM_FLAG" ]; then
+    echo "Built for native platform (fast local development)"
+    echo "Tip: Use --linux flag to build for Railway/Cloud Run compatibility"
+fi
 
 echo "======================================"
 echo "Starting container..."

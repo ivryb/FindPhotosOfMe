@@ -34,8 +34,10 @@ pnpm dev:setup            # Initialize Convex development environment
 
 ```bash
 # From repository root
-./deploy-python-local.sh         # Build and run Docker container locally
-./stop-python-local.sh           # Stop local Docker container
+./deploy-python-local.sh                # Build and run (native platform, fast)
+./deploy-python-local.sh --linux        # Build for linux/amd64 (test production build)
+./deploy-python-local.sh --no-cache     # Force rebuild without cache
+./stop-python-local.sh                  # Stop local Docker container
 docker logs -f find-photos-of-me-service  # View service logs
 
 # Manage cached ML models (from python/ directory)

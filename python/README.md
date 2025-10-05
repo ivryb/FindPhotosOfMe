@@ -54,7 +54,11 @@ The service consists of two main endpoints:
 
    ```bash
    cd ..
+   # Fast local development (native platform)
    ./deploy-python-local.sh
+
+   # Or test production build (linux/amd64)
+   ./deploy-python-local.sh --linux
    ```
 
    This script will:
@@ -64,6 +68,10 @@ The service consists of two main endpoints:
    - Run the container on port 8000 (in detached mode)
    - Verify all required credentials are present
    - Automatically stop/remove any existing container
+
+   **Flags:**
+   - `--linux`: Build for linux/amd64 (matches Railway/Cloud Run)
+   - `--no-cache`: Force rebuild without cache
 
    To stop the service:
 

@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
-    # execstack tool to fix onnxruntime executable stack issue
-    execstack \
+    # patchelf to fix onnxruntime executable stack issue
+    patchelf \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements from python directory
@@ -24,8 +24,8 @@ COPY python/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Fix onnxruntime executable stack issue for containerized environments
-# This clears the executable stack flag that causes issues on platforms like Railway
-RUN execstack -c /usr/local/lib/python3.11/site-packages/onnxruntime/capi/*.so || true
+# This clears the executable stack flag that causes issues on platforms like Railway/Cloud Run
+RUN find /usr/local/lib/python3.11/site-packages/onnxruntime/capi -name "*.so" -exec patchelf --clear-execstack {} \; 2>/dev/null || true
 
 # Copy application code from python directory
 COPY python/ .

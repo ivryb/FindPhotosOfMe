@@ -58,8 +58,14 @@ steps:
 From repository root:
 
 ```bash
-# Start service
-./deploy-python-local.sh [--no-cache]
+# Start service (native platform - fast for local dev)
+./deploy-python-local.sh
+
+# Start service (linux/amd64 - test production build)
+./deploy-python-local.sh --linux
+
+# Combine flags
+./deploy-python-local.sh --linux --no-cache
 
 # Stop service
 ./stop-python-local.sh
@@ -67,6 +73,11 @@ From repository root:
 # View logs
 docker logs -f find-photos-of-me-service
 ```
+
+**Flags:**
+
+- `--linux`: Build for linux/amd64 platform (matches Railway/Cloud Run)
+- `--no-cache`: Force rebuild without using Docker cache
 
 ### Environment Variables Required
 
@@ -80,6 +91,10 @@ docker logs -f find-photos-of-me-service
 
 ## Notes
 
-- The Dockerfile includes a fix for onnxruntime executable stack issues on containerized platforms (Railway, Cloud Run)
-- Build context is always the repository root
-- Python code is in `python/` directory but gets copied to `/app` in the container
+- **Architecture**:
+  - By default, builds for native platform (arm64 on Apple Silicon, fast for local dev)
+  - Use `--linux` flag to build for `linux/amd64` (matches Railway/Cloud Run)
+  - Railway/Cloud Run automatically build for `linux/amd64`
+- **onnxruntime Fix**: The Dockerfile uses `patchelf --clear-execstack` to fix executable stack issues on containerized platforms (Railway, Cloud Run)
+- **Build Context**: Always the repository root
+- **Python Code**: Located in `python/` directory but gets copied to `/app` in the container
