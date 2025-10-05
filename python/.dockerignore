@@ -67,3 +67,7 @@ cloudbuild.yaml
 Dockerfile
 .gcloudignore
 manage-models-volume.sh
+
+# Old Flask app - don't copy to container
+app.py
+example_client.py
