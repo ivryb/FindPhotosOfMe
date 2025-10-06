@@ -1,4 +1,5 @@
 import type { Context } from "grammy";
+import { waitUntil } from "@vercel/functions";
 import { ConvexHttpClient } from "convex/browser";
 import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
 import { log } from "../_utils/log";
@@ -20,7 +21,7 @@ export const createOnPhotoHandler = (
 
     await ctx.reply("Search started. I'll send results here when finished.");
 
-    continueSearch(ctx);
+    waitUntil(continueSearch(ctx));
   };
 
   async function continueSearch(ctx: Context) {
