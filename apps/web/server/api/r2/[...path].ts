@@ -8,6 +8,9 @@ export default defineEventHandler(async (event) => {
 
   let s3Client: S3Client | null = null;
 
+  console.log("path param", pathParam);
+  console.log(config);
+
   function getS3Client(config: any): S3Client {
     if (!s3Client) {
       const accountId = config.r2AccountId as string | undefined;
