@@ -1,10 +1,17 @@
 import { ConvexClient } from "convex/browser";
+import type { Doc } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { log } from "./log";
 
-export const waitForSearch = async (requestId: string, timeoutMs: number) => {
+type SearchDoc = Doc<"searchRequests"> | null;
+
+export const waitForSearch = async (
+  requestId: string,
+  timeoutMs: number,
+  onUpdate?: (doc: NonNullable<SearchDoc>) => void | Promise<void>
+) => {
   const config = useRuntimeConfig();
   const subClient = new ConvexClient(config.public.convexUrl);
-  return await new Promise<null | any>((resolve) => {
+  return await new Promise<SearchDoc>((resolve) => {
     let done = false;
     const timer = setTimeout(() => {
       if (done) return;
@@ -16,12 +23,14 @@ export const waitForSearch = async (requestId: string, timeoutMs: number) => {
       resolve(null);
     }, timeoutMs);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const maybeUnsub: any = (subClient as any).onUpdate(
-      "searchRequests:get" as any,
-      { id: requestId as any },
-      (doc: any) => {
+    const maybeUnsub = (subClient as any).onUpdate(
+      "searchRequests:get",
+      { id: requestId },
+      (doc: SearchDoc) => {
         if (!doc) return;
+        try {
+          if (onUpdate) void onUpdate(doc);
+        } catch {}
         if (doc.status === "complete" || doc.status === "error") {
           if (done) return;
           done = true;
