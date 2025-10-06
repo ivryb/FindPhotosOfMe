@@ -1,6 +1,6 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+import { internal, api } from "./_generated/api";
 
 /**
  * Get a collection by ID.
@@ -198,7 +198,7 @@ export const update = mutation({
 /**
  * Set or clear a Telegram bot token for a collection and schedule webhook setup.
  */
-export const setTelegramBotToken = mutation({
+export const storeTelegramBotToken = mutation({
   args: {
     id: v.id("collections"),
     token: v.union(v.string(), v.literal("")),
@@ -206,6 +206,7 @@ export const setTelegramBotToken = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const collection = await ctx.db.get(args.id);
+
     if (!collection) {
       throw new Error("Collection not found");
     }
@@ -216,14 +217,55 @@ export const setTelegramBotToken = mutation({
       telegramBotToken: tokenToStore.length > 0 ? tokenToStore : undefined,
     });
 
-    // Schedule webhook setup only if a token is provided
-    if (tokenToStore.length > 0) {
-      await ctx.scheduler.runAfter(0, internal.telegram.setWebhook, {
-        collectionId: args.id,
-      });
+    await ctx.scheduler.runAfter(0, api.collections.setTelegramBotToken, {
+      id: args.id,
+      token: tokenToStore,
+    });
+  },
+});
+
+export const setTelegramBotToken = action({
+  args: {
+    id: v.id("collections"),
+    token: v.union(v.string(), v.literal("")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const webhookBase = process.env.TELEGRAM_WEBHOOK_BASE_URL;
+
+    if (!webhookBase) {
+      throw new Error("TELEGRAM_WEBHOOK_BASE_URL not configured");
     }
 
-    return null;
+    const collection = await ctx.runQuery(api.collections.get, {
+      id: args.id,
+    });
+
+    if (!collection || !collection.telegramBotToken) {
+      throw new Error("Collection or Telegram token not found");
+    }
+
+    const webhookUrl = `${webhookBase}/${args.id}`;
+    const endpoint = `https://api.telegram.org/bot${collection.telegramBotToken}/setWebhook?url=${webhookUrl}`;
+
+    const res = await fetch(endpoint, {
+      method: "GET",
+    });
+
+    const data = (await res.json()) as any;
+
+    if (!res.ok || !data.ok) {
+      throw new Error(
+        `Failed to set webhook: ${res.status} ${data?.description || "unknown"}`
+      );
+    }
+
+    console.log("Webhook set successfully", res);
+
+    // await ctx.runMutation(api.collections.storeTelegramBotToken, {
+    //   id: args.id,
+    //   token: args.token,
+    // });
   },
 });
 

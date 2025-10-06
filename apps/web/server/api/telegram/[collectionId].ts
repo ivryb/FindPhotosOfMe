@@ -5,7 +5,7 @@ import { createOnPhotoHandler } from "./_handlers/onPhoto";
 import { log } from "./_utils/log";
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event);
+  const config = useRuntimeConfig();
   const collectionId = getRouterParam(event, "collectionId");
 
   if (!collectionId) {

@@ -20,6 +20,7 @@ export default defineNuxtConfig({
     public: {
       origin: process.env.NUXT_PUBLIC_ORIGIN,
       serverURL: process.env.NUXT_PUBLIC_SERVER_URL,
+      convexUrl: process.env.NUXT_PUBLIC_CONVEX_URL,
       apiURL: process.env.NUXT_PUBLIC_API_URL,
     },
   },

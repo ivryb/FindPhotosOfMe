@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-import { useConvexMutation } from "convex-vue";
+import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+import { useConvexMutation, useConvexClient } from "convex-vue";
 import { ref, computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,12 +43,15 @@ const { data: collection } = await useConvexSSRQuery(
   }
 );
 
+const convex = useConvexClient();
+
 const { mutate: updatecollection } = useConvexMutation(api.collections.update);
-const { mutate: setTelegramToken } = useConvexMutation(
-  api.collections.setTelegramBotToken
-);
-const { mutate: deletecollection } = useConvexMutation(
+const { mutate: deleteCollection } = useConvexMutation(
   api.collections.deleteCollection
+);
+
+const { mutate: setTelegramToken } = useConvexMutation(
+  api.collections.storeTelegramBotToken
 );
 
 // Edit form state
@@ -222,7 +226,7 @@ const handleDelete = async () => {
   isDeleting.value = true;
   try {
     console.log(`[Delete] Deleting collection: ${collection.value._id}`);
-    await deletecollection({ id: collection.value._id });
+    await deleteCollection({ id: collection.value._id });
     console.log(`[Delete] Collection deleted successfully`);
     isDeleteDialogOpen.value = false;
     navigateTo("/admin");
