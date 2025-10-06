@@ -20,7 +20,8 @@
   },
   "devDependencies": {
     "turbo": "^2.5.4",
-    "wrangler": "^4.42.0"
+    "wrangler": "^4.42.0",
+    "vercel": "^33.0.0"
   },
   "packageManager": "pnpm@10.12.4"
 }
