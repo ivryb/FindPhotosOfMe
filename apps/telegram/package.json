@@ -4,13 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vercel dev",
-    "start": "node server.js"
+    "dev": "vercel dev --local-config vercel.json",
+    "start": "vercel dev --local-config vercel.json",
+    "build": "vercel build --local-config vercel.json"
   },
   "dependencies": {
     "@FindPhotosOfMe/backend": "workspace:*",
-    "@grammyjs/auto-retry": "^2.0.2",
-    "@grammyjs/ratelimiter": "^1.2.1",
     "@vercel/node": "^5.3.24",
     "convex": "^1.27.3",
     "grammy": "^1.38.3"

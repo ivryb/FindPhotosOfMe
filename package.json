@@ -13,7 +13,10 @@
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @FindPhotosOfMe/backend dev",
-    "dev:setup": "turbo -F @FindPhotosOfMe/backend dev:setup"
+    "dev:setup": "turbo -F @FindPhotosOfMe/backend dev:setup",
+    "dev:telegram": "turbo -F @FindPhotosOfMe/telegram dev",
+    "start:telegram": "turbo -F @FindPhotosOfMe/telegram start",
+    "build:telegram": "turbo -F @FindPhotosOfMe/telegram build"
   },
   "devDependencies": {
     "turbo": "^2.5.4",
