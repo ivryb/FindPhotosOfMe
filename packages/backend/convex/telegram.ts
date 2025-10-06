@@ -25,7 +25,7 @@ export const setWebhook = internalAction({
       throw new Error("Collection or Telegram token not found");
     }
 
-    const webhookUrl = `${webhookBase}/api/telegram/${args.collectionId}`;
+    const webhookUrl = `${webhookBase}/${args.collectionId}`;
     const endpoint = `https://api.telegram.org/bot${collection.telegramBotToken}/setWebhook`;
 
     const res = await fetch(endpoint, {

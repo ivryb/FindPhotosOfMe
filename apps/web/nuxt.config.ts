@@ -18,6 +18,7 @@ export default defineNuxtConfig({
     r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
     r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     public: {
+      origin: process.env.NUXT_PUBLIC_ORIGIN,
       serverURL: process.env.NUXT_PUBLIC_SERVER_URL,
       apiURL: process.env.NUXT_PUBLIC_API_URL,
     },

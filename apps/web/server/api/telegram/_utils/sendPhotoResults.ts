@@ -5,7 +5,7 @@ import type { TelegramInputMediaPhoto } from "./getPhotoFileUrl";
 export const sendPhotoResults = async (
   ctx: Context,
   imagePaths: string[],
-  r2ProxyBase: string
+  photoOrigin: string
 ) => {
   if (!imagePaths.length) {
     await ctx.reply("No matching photos found.");
@@ -28,7 +28,7 @@ export const sendPhotoResults = async (
     const group = chunks[groupIndex];
     const media: TelegramInputMediaPhoto[] = group.map((path, idx) => ({
       type: "photo",
-      media: `${r2ProxyBase}/${path}`,
+      media: `${photoOrigin}/${path}`,
       caption:
         idx === 0 && groupIndex === 0
           ? `Found ${imagePaths.length} matching photos`

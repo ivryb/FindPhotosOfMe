@@ -120,15 +120,6 @@ CORS_ORIGINS=*
 CONVEX_DEPLOYMENT=your-deployment-name
 ```
 
-### Telegram Bot (apps/telegram)
-
-```bash
-TELEGRAM_WEBHOOK_BASE_URL=https://your-vercel-app.vercel.app
-NUXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
-NUXT_PUBLIC_API_URL=https://your-python-service.example.com
-R2_PROXY_BASE_URL=https://your-web-app.example.com/api/r2
-```
-
 ## Development Patterns
 
 ### Convex Functions

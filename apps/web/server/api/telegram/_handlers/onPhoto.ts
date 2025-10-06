@@ -11,6 +11,7 @@ export const createOnPhotoHandler = (
   botToken: string
 ) => {
   const httpClient = new ConvexHttpClient(convexUrl);
+  const config = useRuntimeConfig();
 
   return async (ctx: Context) => {
     const photos = ctx.message?.photo;
@@ -35,7 +36,7 @@ export const createOnPhotoHandler = (
       return;
     }
 
-    const apiUrl = process.env.API_URL;
+    const apiUrl = config.public.apiURL;
     if (!apiUrl) {
       await ctx.reply("Search service not configured.");
       return;
@@ -68,15 +69,10 @@ export const createOnPhotoHandler = (
     }
 
     const timeoutMs = Number(process.env.TELEGRAM_SEARCH_TIMEOUT_MS || 60000);
-    const r2ProxyBase = process.env.R2_PROXY_BASE_URL;
-    if (!r2ProxyBase) {
-      await ctx.reply(
-        "Found results, but image proxy is not configured (R2_PROXY_BASE_URL)."
-      );
-      return;
-    }
+    const photoOrigin = `${config.public.origin}/api/r2`;
 
     log("Subscribing for search result", { requestId: String(requestId) });
+
     const latest = await waitForSearch(convexUrl, requestId as any, timeoutMs);
 
     if (!latest) {
@@ -92,6 +88,6 @@ export const createOnPhotoHandler = (
       ? latest.imagesFound
       : [];
 
-    await sendPhotoResults(ctx, images, r2ProxyBase);
+    await sendPhotoResults(ctx, images, photoOrigin);
   };
 };
