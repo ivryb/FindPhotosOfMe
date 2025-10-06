@@ -1,12 +1,9 @@
 import { ConvexClient } from "convex/browser";
 import { log } from "./log";
 
-export const waitForSearch = async (
-  convexUrl: string,
-  requestId: string,
-  timeoutMs: number
-) => {
-  const subClient = new ConvexClient(convexUrl);
+export const waitForSearch = async (requestId: string, timeoutMs: number) => {
+  const config = useRuntimeConfig();
+  const subClient = new ConvexClient(config.public.convexUrl);
   return await new Promise<null | any>((resolve) => {
     let done = false;
     const timer = setTimeout(() => {

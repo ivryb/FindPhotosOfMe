@@ -30,7 +30,10 @@ export default defineEventHandler(async (event) => {
 
   bot.command("start", handleStart(collection));
 
-  bot.on(":photo", createOnPhotoHandler(botToken, collection));
+  bot.on(
+    ":photo",
+    createOnPhotoHandler(collection.telegramBotToken, collection)
+  );
 
   bot.catch((err: any) => {
     log(`Bot error while handling update ${err}`);

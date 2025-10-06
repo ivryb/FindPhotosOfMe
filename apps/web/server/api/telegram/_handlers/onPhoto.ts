@@ -76,11 +76,7 @@ export const createOnPhotoHandler = (
       requestId: String(requestId),
     });
 
-    const searchRequest = await waitForSearch(
-      config.public.convexUrl,
-      requestId as any,
-      timeoutMs
-    );
+    const searchRequest = await waitForSearch(requestId as any, timeoutMs);
 
     if (!searchRequest) {
       await ctx.reply("Timed out waiting for result. Please try again.");
