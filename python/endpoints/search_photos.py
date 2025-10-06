@@ -141,15 +141,16 @@ async def search_photos(
                     break  # Only need one match per photo
             
             processed_count += 1
-            
-            # Update progress (non-blocking)
-            threading.Thread(
-                target=convex_service.update_search_request,
-                args=(search_request_id, "processing"),
-                kwargs={"processed_images": processed_count},
-                daemon=True
-            ).start()
-            
+
+            # Throttle progress updates to reduce load on Convex
+            if (processed_count % 10 == 0) or (processed_count == len(embeddings_data)):
+                threading.Thread(
+                    target=convex_service.update_search_request,
+                    args=(search_request_id, "processing"),
+                    kwargs={"processed_images": processed_count},
+                    daemon=True
+                ).start()
+
             if processed_count % 100 == 0:
                 print(f"[{get_time()}] Processed {processed_count}/{total_images} images, found {len(matches)} matches so far")
         

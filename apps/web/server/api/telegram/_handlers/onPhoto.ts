@@ -19,12 +19,12 @@ export const createOnPhotoHandler = (
 
     if (!Array.isArray(photos) || photos.length === 0) return;
 
-    await ctx.reply("Search started. I'll send results here when finished.");
+    const initial = await ctx.reply("Starting search...");
 
-    waitUntil(continueSearch(ctx));
+    waitUntil(continueSearch(ctx, initial.message_id));
   };
 
-  async function continueSearch(ctx: Context) {
+  async function continueSearch(ctx: Context, statusMessageId: number) {
     const photos = ctx.message?.photo;
 
     const best = photos?.[photos.length - 1];
@@ -64,7 +64,13 @@ export const createOnPhotoHandler = (
     try {
       await sendPhotoToAPI(imgRes, apiUrl, requestId);
     } catch (e) {
-      await ctx.reply(`Oops, search service unreachable 😭\n ${String(e)}`);
+      try {
+        await ctx.api.editMessageText(
+          ctx.chat!.id,
+          statusMessageId,
+          `Search service unreachable. Please try again later.`
+        );
+      } catch {}
 
       return;
     }
@@ -75,15 +81,56 @@ export const createOnPhotoHandler = (
       requestId: String(requestId),
     });
 
-    const searchRequest = await waitForSearch(requestId as any, timeoutMs);
+    const chatId = ctx.chat?.id;
+    let lastEditAt = 0;
+    let lastText: string | null = null;
+
+    const searchRequest = await waitForSearch(
+      requestId as any,
+      timeoutMs,
+      async (doc) => {
+        if (!chatId) return;
+        if (doc.status !== "processing") return;
+
+        const total = doc.totalImages ?? undefined;
+        const processed = doc.processedImages ?? 0;
+        const pct = total && total > 0 ? Math.floor((processed / total) * 100) : undefined;
+        const text = total
+          ? `Scanned ${processed} of ${total} photos${pct !== undefined ? ` (${pct}%)` : ""}...`
+          : `Scanned ${processed} photos...`;
+
+        const now = Date.now();
+        // Throttle: at most once every 1.5s and only when text changes
+        if (text === lastText || now - lastEditAt < 1500) return;
+        lastText = text;
+        lastEditAt = now;
+        try {
+          await ctx.api.editMessageText(chatId, statusMessageId, text);
+        } catch (e) {
+          // Ignore edit errors (e.g., message not modified)
+        }
+      }
+    );
 
     if (!searchRequest) {
-      await ctx.reply("Timed out waiting for result. Please try again.");
+      try {
+        await ctx.api.editMessageText(
+          ctx.chat!.id,
+          statusMessageId,
+          "Timed out waiting for result. Please try again."
+        );
+      } catch {}
       return;
     }
 
     if (searchRequest.status === "error") {
-      await ctx.reply("Search failed, please try again later 😔");
+      try {
+        await ctx.api.editMessageText(
+          ctx.chat!.id,
+          statusMessageId,
+          "Search failed, please try again later."
+        );
+      } catch {}
       return;
     }
 
@@ -92,7 +139,13 @@ export const createOnPhotoHandler = (
       : [];
 
     if (!imagePaths.length) {
-      await ctx.reply("No matching photos found 😔");
+      try {
+        await ctx.api.editMessageText(
+          ctx.chat!.id,
+          statusMessageId,
+          "No matching photos found."
+        );
+      } catch {}
 
       return;
     }
@@ -100,12 +153,24 @@ export const createOnPhotoHandler = (
     const imageUrls = await generateSignedUrls(imagePaths);
 
     if (!imageUrls.length) {
-      await ctx.reply(
-        "Couldn't get access to the photos from cloud storage 😔"
-      );
+      try {
+        await ctx.api.editMessageText(
+          ctx.chat!.id,
+          statusMessageId,
+          "Couldn't access photos from cloud storage."
+        );
+      } catch {}
 
       return;
     }
+
+    try {
+      await ctx.api.editMessageText(
+        ctx.chat!.id,
+        statusMessageId,
+        `Found ${imageUrls.length} matching photo(s). Sending results...`
+      );
+    } catch {}
 
     await sendPhotoResults(ctx, imageUrls);
   }
