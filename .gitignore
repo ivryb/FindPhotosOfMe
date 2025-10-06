@@ -5,8 +5,8 @@ node_modules
 .DS_Store
 
 # Telegram: build artifacts under `telegram/`
-apps/telegram/dist/
-apps/telegram/dist/**
+# apps/telegram/dist/
+# apps/telegram/dist/**
 
 # Python: virtualenv, caches, and build artifacts under `python/`
 # Keep source like `python/main.py` and project assets tracked.
