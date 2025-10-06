@@ -127,16 +127,3 @@ export async function deleteObjects(
   const deleteResponse = await client.send(deleteCommand);
   return deleteResponse.Deleted?.length || 0;
 }
-
-export function buildStaticCacheHeaders(ttlSeconds = 3600) {
-  // Static asset caching policy: cache on CDN aggressively, allow SWR for 1 minute
-  // Client max-age short to allow quick refresh but still leverage browser cache
-  return {
-    // For browsers
-    "Cache-Control": `public, max-age=10`,
-    // For intermediary CDNs
-    "CDN-Cache-Control": `max-age=60, stale-while-revalidate=60`,
-    // For Vercel specifically (highest priority on their edge)
-    "Vercel-CDN-Cache-Control": `max-age=${ttlSeconds}, stale-while-revalidate=60`,
-  } as Record<string, string>;
-}
