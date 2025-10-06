@@ -19,7 +19,7 @@ export const createOnPhotoHandler = (
 
     if (!Array.isArray(photos) || photos.length === 0) return;
 
-    const initial = await ctx.reply("Starting search...");
+    const initial = await ctx.reply("Starting search 🔍");
 
     waitUntil(continueSearch(ctx, initial.message_id));
   };
@@ -236,8 +236,8 @@ async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
     firstUrl: imageUrls[0],
   });
 
-  await ctx.reply(`Found *${imageUrls.length} matching photo\(s\)\!* 🥳`, {
-    parse_mode: "MarkdownV2",
+  await ctx.reply(`Found *${imageUrls.length} matching photo(s)!* 🥳`, {
+    parse_mode: "Markdown",
   });
 
   const chunkSize = 10;
