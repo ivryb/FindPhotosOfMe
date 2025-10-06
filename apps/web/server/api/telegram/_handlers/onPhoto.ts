@@ -1,10 +1,10 @@
 import type { Context } from "grammy";
+import type { TelegramInputMediaPhoto } from "../_utils/getPhotoFileUrl";
 import { waitUntil } from "@vercel/functions";
 import { ConvexHttpClient } from "convex/browser";
 import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
 import { log } from "../_utils/log";
 import { waitForSearch } from "../_utils/waitForSearch";
-import { sendPhotoResults } from "../_utils/sendPhotoResults";
 import { useR2 } from "../../../utils/r2";
 
 export const createOnPhotoHandler = (
@@ -33,6 +33,13 @@ export const createOnPhotoHandler = (
 
     if (!fileId) return;
 
+    const apiUrl = config.public.apiURL;
+
+    if (!apiUrl) {
+      await ctx.reply("Oops, search service not configured 😮");
+      return;
+    }
+
     const requestId = await httpClient.mutation(
       "searchRequests:create" as any,
       {
@@ -42,40 +49,24 @@ export const createOnPhotoHandler = (
     );
 
     const fileUrl = await getPhotoFileUrl(botToken, fileId);
-    if (!fileUrl) {
-      await ctx.reply("Failed to download the photo. Try again.");
-      return;
-    }
 
-    const apiUrl = config.public.apiURL;
-    if (!apiUrl) {
-      await ctx.reply("Search service not configured.");
+    if (!fileUrl) {
+      await ctx.reply("Failed to download the photo, please try again 😣");
       return;
     }
 
     const imgRes = await fetch(fileUrl);
+
     if (!imgRes.ok) {
-      await ctx.reply("Failed to download the photo. Try again.");
+      await ctx.reply("Failed to download the photo, please try again 😣");
       return;
     }
-    const buf = Buffer.from(await imgRes.arrayBuffer());
-    const form = new FormData();
-    form.append("search_request_id", String(requestId));
-    const blob = new Blob([buf], { type: "image/jpeg" });
-    form.append("reference_photo", blob, "photo.jpg");
 
     try {
-      const resp = await fetch(`${apiUrl}/api/search-photos`, {
-        method: "POST",
-        body: form,
-      });
-      if (!resp.ok) {
-        const text = await resp.text();
-        await ctx.reply(`Failed to start search: ${text}`);
-        return;
-      }
+      await sendPhotoToAPI(imgRes, apiUrl, requestId);
     } catch (e) {
-      await ctx.reply("Search service unreachable.");
+      await ctx.reply(`Oops, search service unreachable 😭\n ${String(e)}`);
+
       return;
     }
 
@@ -85,45 +76,130 @@ export const createOnPhotoHandler = (
       requestId: String(requestId),
     });
 
-    const latest = await waitForSearch(convexUrl, requestId as any, timeoutMs);
+    const searchRequest = await waitForSearch(
+      convexUrl,
+      requestId as any,
+      timeoutMs
+    );
 
-    if (!latest) {
+    if (!searchRequest) {
       await ctx.reply("Timed out waiting for result. Please try again.");
       return;
     }
-    if (latest.status === "error") {
-      await ctx.reply("Search failed. Please try again later.");
+
+    if (searchRequest.status === "error") {
+      await ctx.reply("Search failed, please try again later 😔");
       return;
     }
 
-    const imagePaths: string[] = Array.isArray(latest.imagesFound)
-      ? latest.imagesFound
+    const imagePaths: string[] = Array.isArray(searchRequest.imagesFound)
+      ? searchRequest.imagesFound
       : [];
 
     if (!imagePaths.length) {
-      await ctx.reply("No matching photos found.");
+      await ctx.reply("No matching photos found 😔");
+
       return;
     }
 
-    // Generate signed URLs for all images
-    log("Generating signed URLs", { imageCount: imagePaths.length });
-    const r2 = useR2();
-    const imageUrls: string[] = [];
-
-    for (const path of imagePaths) {
-      try {
-        const signedUrl = await r2.getSignedUrl(path, 3600); // 1 hour expiry
-        imageUrls.push(signedUrl);
-      } catch (e) {
-        log("Failed to generate signed URL", { path, error: String(e) });
-      }
-    }
+    const imageUrls = await generateSignedUrls(imagePaths);
 
     if (!imageUrls.length) {
-      await ctx.reply("Failed to generate image URLs. Please try again.");
+      await ctx.reply(
+        "Couldn't get access to the photos from cloud storage 😔"
+      );
+
       return;
     }
 
     await sendPhotoResults(ctx, imageUrls);
   }
 };
+
+async function generateSignedUrls(imagePaths: string[]) {
+  log("Generating signed URLs", { imageCount: imagePaths.length });
+
+  const r2 = useR2();
+  const imageUrls: string[] = [];
+  for (const path of imagePaths) {
+    const signedUrl = await r2.getSignedUrl(path, 3600);
+    imageUrls.push(signedUrl);
+  }
+  return imageUrls;
+}
+
+async function sendPhotoToAPI(
+  imgRes: Response,
+  apiUrl: string,
+  requestId: string
+) {
+  const buf = Buffer.from(await imgRes.arrayBuffer());
+  const form = new FormData();
+  form.append("search_request_id", String(requestId));
+  const blob = new Blob([buf], { type: "image/jpeg" });
+  form.append("reference_photo", blob, "photo.jpg");
+
+  const resp = await fetch(`${apiUrl}/api/search-photos`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+
+    log("Failed to start search", {
+      requestId,
+      error: text,
+    });
+
+    throw new Error(text);
+  }
+}
+
+async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
+  const chatId = ctx.chat?.id;
+
+  if (!chatId) {
+    log("No chat ID found", { imageCount: imageUrls.length });
+    return;
+  }
+
+  log("Sending photo results", {
+    imageCount: imageUrls.length,
+    firstUrl: imageUrls[0],
+  });
+
+  const chunkSize = 10;
+  const chunks: string[][] = [];
+  for (let i = 0; i < imageUrls.length; i += chunkSize) {
+    chunks.push(imageUrls.slice(i, i + chunkSize));
+  }
+
+  for (let groupIndex = 0; groupIndex < chunks.length; groupIndex++) {
+    const group = chunks[groupIndex];
+    const media: TelegramInputMediaPhoto[] = group.map((url, idx) => ({
+      type: "photo",
+      media: url,
+      caption:
+        idx === 0 && groupIndex === 0
+          ? `Found ${imageUrls.length} matching photo(s)`
+          : undefined,
+    }));
+
+    try {
+      await ctx.api.sendMediaGroup(chatId, media);
+      log("Successfully sent media group", {
+        groupIndex,
+        photoCount: group.length,
+      });
+    } catch (e) {
+      log("Failed to send media group", {
+        error: String(e),
+        groupIndex,
+        firstUrl: media[0]?.media,
+      });
+      await ctx.reply("Failed to send some results.");
+      break;
+    }
+  }
+}
