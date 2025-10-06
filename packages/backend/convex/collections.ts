@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 /**
  * Get a collection by ID.
@@ -22,6 +23,7 @@ export const get = query({
       imagesCount: v.number(),
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
+      telegramBotToken: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -123,6 +125,7 @@ export const getAll = query({
       imagesCount: v.number(),
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
+      telegramBotToken: v.optional(v.string()),
     })
   ),
   handler: async (ctx, args) => {
@@ -152,6 +155,7 @@ export const getBySubdomain = query({
       imagesCount: v.number(),
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
+      telegramBotToken: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -187,6 +191,38 @@ export const update = mutation({
       title: args.title,
       description: args.description,
     });
+    return null;
+  },
+});
+
+/**
+ * Set or clear a Telegram bot token for a collection and schedule webhook setup.
+ */
+export const setTelegramBotToken = mutation({
+  args: {
+    id: v.id("collections"),
+    token: v.union(v.string(), v.literal("")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const collection = await ctx.db.get(args.id);
+    if (!collection) {
+      throw new Error("Collection not found");
+    }
+
+    const tokenToStore = args.token.trim();
+
+    await ctx.db.patch(args.id, {
+      telegramBotToken: tokenToStore.length > 0 ? tokenToStore : undefined,
+    });
+
+    // Schedule webhook setup only if a token is provided
+    if (tokenToStore.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.telegram.setWebhook, {
+        collectionId: args.id,
+      });
+    }
+
     return null;
   },
 });

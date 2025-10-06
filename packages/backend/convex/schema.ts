@@ -21,6 +21,8 @@ export default defineSchema({
     // First 50 image keys for previews
     previewImages: v.optional(v.array(v.string())),
     createdBy: v.optional(v.string()), // User ID or identifier
+    // Optional Telegram bot token for this collection
+    telegramBotToken: v.optional(v.string()),
   })
     .index("by_status", ["status"])
     .index("by_subdomain", ["subdomain"]),
@@ -36,5 +38,7 @@ export default defineSchema({
     imagesFound: v.array(v.string()), // Array of R2 paths
     totalImages: v.optional(v.number()),
     processedImages: v.optional(v.number()),
+    // Optional Telegram chat id to notify results
+    telegramChatId: v.optional(v.string()),
   }).index("by_collection", ["collectionId"]),
 });

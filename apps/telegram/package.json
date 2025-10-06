@@ -1,0 +1,17 @@
+{
+  "name": "@FindPhotosOfMe/telegram",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "grammy": "^1.20.4",
+    "@grammyjs/auto-retry": "^1.1.0",
+    "@grammyjs/ratelimiter": "^1.2.0",
+    "convex": "^1.25.4",
+    "undici": "^6.19.2"
+  }
+}

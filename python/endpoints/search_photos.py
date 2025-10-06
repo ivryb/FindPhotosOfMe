@@ -172,6 +172,8 @@ async def search_photos(
             total_images=total_images,
             processed_images=total_images
         )
+
+        # Telegram delivery is handled by the Telegram bot handler (grammY).
         
         print(f"[{get_time()}] Search complete. Found {len(matches)} matches")
         
