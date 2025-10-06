@@ -115,7 +115,10 @@ const handleSetTelegram = async () => {
   isSettingTelegram.value = true;
   telegramError.value = null;
   try {
-    await setTelegramToken({ id: collection.value._id, token: formData.value.telegramBotToken });
+    await setTelegramToken({
+      id: collection.value._id,
+      token: formData.value.telegramBotToken,
+    });
     console.log("Telegram token updated and webhook scheduled");
   } catch (err: any) {
     console.error("Error setting Telegram token:", err);
@@ -131,6 +134,7 @@ const handleCancel = () => {
       subdomain: collection.value.subdomain,
       title: collection.value.title,
       description: collection.value.description,
+      telegramBotToken: collection.value.telegramBotToken || "",
     };
   }
   isEditing.value = false;
@@ -357,15 +361,24 @@ const handleDelete = async () => {
                 placeholder="e.g., 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
               />
               <div class="flex gap-2 items-center">
-                <Button @click="handleSetTelegram" :disabled="isSettingTelegram">
-                  <Loader2 v-if="isSettingTelegram" class="mr-2 h-4 w-4 animate-spin" />
+                <Button
+                  @click="handleSetTelegram"
+                  :disabled="isSettingTelegram"
+                >
+                  <Loader2
+                    v-if="isSettingTelegram"
+                    class="mr-2 h-4 w-4 animate-spin"
+                  />
                   <span v-if="isSettingTelegram">Saving...</span>
                   <span v-else>Save Telegram Token</span>
                 </Button>
-                <p v-if="telegramError" class="text-sm text-destructive">{{ telegramError }}</p>
+                <p v-if="telegramError" class="text-sm text-destructive">
+                  {{ telegramError }}
+                </p>
               </div>
               <p class="text-xs text-muted-foreground">
-                After saving, webhook will be set automatically for this collection bot.
+                After saving, webhook will be set automatically for this
+                collection bot.
               </p>
             </div>
             <div class="flex gap-2">

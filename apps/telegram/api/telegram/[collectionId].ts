@@ -3,7 +3,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { ConvexHttpClient } from "convex/browser";
-import { FormData, Blob } from "undici";
 
 const convexUrl = process.env.NUXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL;
 if (!convexUrl) {
@@ -31,14 +30,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const bot = new Bot(collection.telegramBotToken);
 
   // /start handler
-  bot.command("start", async (ctx) => {
+  bot.command("start", async (ctx: any) => {
     await ctx.reply(
       "Hi! Send me a clear photo of yourself to search this collection."
     );
   });
 
   // Photo handler
-  bot.on(":photo", async (ctx) => {
+  bot.on(":photo", async (ctx: any) => {
     const photos = ctx.message.photo;
     if (!Array.isArray(photos) || photos.length === 0) return;
 
@@ -74,11 +73,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const form = new FormData();
-    form.append("search_request_id", requestId as any);
+    const FormDataCtor = (globalThis as any).FormData;
+    const BlobCtor = (globalThis as any).Blob;
+    const form = new FormDataCtor();
+    // Ensure ID is sent as a plain string
+    form.append("search_request_id", String(requestId));
     const imgRes = await fetch(fileUrl);
+    if (!imgRes.ok) {
+      await ctx.reply("Failed to download the photo. Try again.");
+      return;
+    }
     const buf = Buffer.from(await imgRes.arrayBuffer());
-    form.append("reference_photo", new Blob([buf]), "photo.jpg");
+    // Use Blob with explicit content type and provide filename separately
+    const blob = new BlobCtor([buf], { type: "image/jpeg" });
+    form.append("reference_photo", blob, "photo.jpg");
 
     try {
       const resp = await fetch(`${apiUrl}/api/search-photos`, {
@@ -191,7 +199,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   // Errors
-  bot.catch((err) => {
+  bot.catch((err: any) => {
     const ctx = err.ctx;
     console.error(`Bot error while handling update ${ctx.update.update_id}:`);
     const e = err.error;

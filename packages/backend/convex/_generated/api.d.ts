@@ -16,6 +16,7 @@ import type {
 import type * as collections from "../collections.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as searchRequests from "../searchRequests.js";
+import type * as telegram from "../telegram.js";
 import type * as todos from "../todos.js";
 
 /**
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   collections: typeof collections;
   healthCheck: typeof healthCheck;
   searchRequests: typeof searchRequests;
+  telegram: typeof telegram;
   todos: typeof todos;
 }>;
 export declare const api: FilterApi<
