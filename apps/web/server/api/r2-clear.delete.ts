@@ -1,41 +1,35 @@
-import { defineEventHandler, createError } from "h3";
-import {
-  getR2Client,
-  assertBucket,
-  listAllObjects,
-  deleteObjects,
-} from "../utils/r2";
+import { useR2 } from "../utils/r2";
 
-export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event);
-  const bucket = assertBucket(config);
-
+export default defineEventHandler(async () => {
   console.log(
-    `[${new Date().toISOString()}] Starting R2 bucket clear operation for bucket: ${bucket}`
+    `[${new Date().toISOString()}] Starting R2 bucket clear operation`
   );
 
   try {
-    const client = getR2Client(config);
-    let totalDeleted = 0;
-    const keys = await listAllObjects(client, bucket);
+    const r2 = useR2();
+    const keys = await r2.listAllObjects();
 
     if (keys.length === 0) {
+      console.log(`[${new Date().toISOString()}] No objects found to delete`);
+      return {
+        success: true,
+        message: "Bucket is already empty.",
+        deletedCount: 0,
+      };
+    }
+
+    let totalDeleted = 0;
+    const batchSize = 1000;
+
+    for (let i = 0; i < keys.length; i += batchSize) {
+      const batch = keys.slice(i, i + batchSize);
+      const deletedCount = await r2.deleteObjects(batch);
+      totalDeleted += deletedCount;
       console.log(
-        `[${new Date().toISOString()}] No objects found to delete in bucket: ${bucket}`
+        `[${new Date().toISOString()}] Deleted ${deletedCount} objects (batch ${
+          i / batchSize + 1
+        }/${Math.ceil(keys.length / batchSize)})`
       );
-    } else {
-      // Delete in batches of 1000 (AWS S3 limit per request)
-      const batchSize = 1000;
-      for (let i = 0; i < keys.length; i += batchSize) {
-        const batch = keys.slice(i, i + batchSize);
-        const deletedCount = await deleteObjects(client, bucket, batch);
-        totalDeleted += deletedCount;
-        console.log(
-          `[${new Date().toISOString()}] Deleted ${deletedCount} objects (batch ${
-            i / batchSize + 1
-          }/${Math.ceil(keys.length / batchSize)})`
-        );
-      }
     }
 
     console.log(
