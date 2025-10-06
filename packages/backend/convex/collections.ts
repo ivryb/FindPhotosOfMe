@@ -24,6 +24,7 @@ export const get = query({
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
       telegramBotToken: v.optional(v.string()),
+      welcomeMessage: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -126,6 +127,7 @@ export const getAll = query({
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
       telegramBotToken: v.optional(v.string()),
+      welcomeMessage: v.optional(v.string()),
     })
   ),
   handler: async (ctx, args) => {
@@ -156,6 +158,7 @@ export const getBySubdomain = query({
       previewImages: v.optional(v.array(v.string())),
       createdBy: v.optional(v.string()),
       telegramBotToken: v.optional(v.string()),
+      welcomeMessage: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -183,6 +186,7 @@ export const update = mutation({
     subdomain: v.string(),
     title: v.string(),
     description: v.string(),
+    welcomeMessage: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -190,6 +194,7 @@ export const update = mutation({
       subdomain: args.subdomain,
       title: args.title,
       description: args.description,
+      welcomeMessage: args.welcomeMessage,
     });
     return null;
   },

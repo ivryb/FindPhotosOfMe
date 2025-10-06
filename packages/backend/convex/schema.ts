@@ -23,6 +23,8 @@ export default defineSchema({
     createdBy: v.optional(v.string()), // User ID or identifier
     // Optional Telegram bot token for this collection
     telegramBotToken: v.optional(v.string()),
+    // Custom welcome message for Telegram bot (supports {IMAGES_COUNT} template)
+    welcomeMessage: v.optional(v.string()),
   })
     .index("by_status", ["status"])
     .index("by_subdomain", ["subdomain"]),

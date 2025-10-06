@@ -65,6 +65,7 @@ const formData = ref({
   title: collection.value?.title || "",
   description: collection.value?.description || "",
   telegramBotToken: collection.value?.telegramBotToken || "",
+  welcomeMessage: collection.value?.welcomeMessage || "",
 });
 
 // Upload state
@@ -85,6 +86,7 @@ watch(
         title: newcollection.title,
         description: newcollection.description,
         telegramBotToken: newcollection.telegramBotToken || "",
+        welcomeMessage: newcollection.welcomeMessage || "",
       };
     }
   }
@@ -99,6 +101,7 @@ const handleSave = async () => {
       subdomain: formData.value.subdomain,
       title: formData.value.title,
       description: formData.value.description,
+      welcomeMessage: formData.value.welcomeMessage || undefined,
     });
     isEditing.value = false;
 
@@ -139,6 +142,7 @@ const handleCancel = () => {
       title: collection.value.title,
       description: collection.value.description,
       telegramBotToken: collection.value.telegramBotToken || "",
+      welcomeMessage: collection.value.welcomeMessage || "",
     };
   }
   isEditing.value = false;
@@ -383,6 +387,19 @@ const handleDelete = async () => {
               <p class="text-xs text-muted-foreground">
                 After saving, webhook will be set automatically for this
                 collection bot.
+              </p>
+            </div>
+            <div class="grid gap-2">
+              <Label for="welcome-message">Welcome Message</Label>
+              <Textarea
+                id="welcome-message"
+                v-model="formData.welcomeMessage"
+                placeholder="Hi! This bot will help you *find photos of yourself*..."
+                rows="8"
+              />
+              <p class="text-xs text-muted-foreground">
+                Custom welcome message for Telegram bot. Use {IMAGES_COUNT} to
+                show the number of photos. Supports MarkdownV2 formatting.
               </p>
             </div>
             <div class="flex gap-2">
