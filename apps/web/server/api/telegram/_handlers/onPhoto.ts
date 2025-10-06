@@ -1,4 +1,5 @@
 import type { Context } from "grammy";
+import type { Doc } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import type { TelegramInputMediaPhoto } from "../_utils/getPhotoFileUrl";
 import { waitUntil } from "@vercel/functions";
 import { ConvexHttpClient } from "convex/browser";
@@ -8,12 +9,11 @@ import { waitForSearch } from "../_utils/waitForSearch";
 import { useR2 } from "../../../utils/r2";
 
 export const createOnPhotoHandler = (
-  convexUrl: string,
-  collectionId: string,
-  botToken: string
+  botToken: string,
+  collection: Doc<"collections">
 ) => {
-  const httpClient = new ConvexHttpClient(convexUrl);
   const config = useRuntimeConfig();
+  const httpClient = new ConvexHttpClient(config.public.convexUrl);
 
   return async (ctx: Context) => {
     const photos = ctx.message?.photo;
@@ -43,7 +43,7 @@ export const createOnPhotoHandler = (
     const requestId = await httpClient.mutation(
       "searchRequests:create" as any,
       {
-        collectionId,
+        collectionId: collection._id,
         telegramChatId: String(ctx.chat?.id),
       }
     );
@@ -77,7 +77,7 @@ export const createOnPhotoHandler = (
     });
 
     const searchRequest = await waitForSearch(
-      convexUrl,
+      config.public.convexUrl,
       requestId as any,
       timeoutMs
     );
