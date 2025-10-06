@@ -10,10 +10,11 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"],
     "baseUrl": ".",
-    "paths": {
-      "@FindPhotosOfMe/*": ["../../packages/*"]
-    }
+    "rootDir": ".",
+    "outDir": "./dist",
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["**/*.ts"],
+  "include": ["server.ts", "src/**/*.ts"],
   "exclude": ["node_modules"]
 }

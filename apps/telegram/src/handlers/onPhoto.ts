@@ -1,15 +1,14 @@
 import type { Context } from "grammy";
-import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+// Use string references to avoid requiring convex codegen imports at runtime
 import { ConvexHttpClient } from "convex/browser";
-import { getPhotoFileUrl } from "../utils/telegram";
-import { log } from "../utils/log";
-import { waitForSearch } from "../utils/waitForSearch";
-import { sendPhotoResults } from "../utils/results";
+import { getPhotoFileUrl } from "../utils/telegram.ts";
+import { log } from "../utils/log.ts";
+import { waitForSearch } from "../utils/waitForSearch.ts";
+import { sendPhotoResults } from "../utils/results.ts";
 
 export const createOnPhotoHandler = (
   convexUrl: string,
-  collectionId: Id<"collections">,
+  collectionId: string,
   botToken: string
 ) => {
   const httpClient = new ConvexHttpClient(convexUrl);
@@ -23,10 +22,13 @@ export const createOnPhotoHandler = (
 
     await ctx.reply("Search started. I'll send results here when finished.");
 
-    const requestId = await httpClient.mutation(api.searchRequests.create, {
-      collectionId,
-      telegramChatId: String(ctx.chat?.id),
-    });
+    const requestId = await httpClient.mutation(
+      "searchRequests:create" as any,
+      {
+        collectionId,
+        telegramChatId: String(ctx.chat?.id),
+      }
+    );
 
     const fileUrl = await getPhotoFileUrl(botToken, fileId);
     if (!fileUrl) {
@@ -76,11 +78,7 @@ export const createOnPhotoHandler = (
     }
 
     log("Subscribing for search result", { requestId: String(requestId) });
-    const latest = await waitForSearch(
-      convexUrl,
-      requestId as Id<"searchRequests">,
-      timeoutMs
-    );
+    const latest = await waitForSearch(convexUrl, requestId as any, timeoutMs);
 
     if (!latest) {
       await ctx.reply("Timed out waiting for result. Please try again.");

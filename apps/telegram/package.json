@@ -1,17 +1,22 @@
 {
-  "name": "@FindPhotosOfMe/telegram",
+  "name": "telegram",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vercel dev --local-config vercel.json",
-    "start": "vercel dev --local-config vercel.json",
-    "build": "vercel build --local-config vercel.json"
+    "dev": "srvx ./server.ts",
+    "start": "srvx ./server.ts",
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@FindPhotosOfMe/backend": "workspace:*",
-    "@vercel/node": "^5.3.24",
     "convex": "^1.27.3",
-    "grammy": "^1.38.3"
+    "grammy": "^1.38.3",
+    "hono": "^4.8.10"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "srvx": "^0.8.7",
+    "typescript": "^5.8.3"
   }
 }

@@ -1,11 +1,10 @@
 import { ConvexClient } from "convex/browser";
-import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { log } from "./log";
+// Avoid importing convex codegen; use string reference
+import { log } from "./log.ts";
 
 export const waitForSearch = async (
   convexUrl: string,
-  requestId: Id<"searchRequests">,
+  requestId: string,
   timeoutMs: number
 ) => {
   const subClient = new ConvexClient(convexUrl);
@@ -23,8 +22,8 @@ export const waitForSearch = async (
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const maybeUnsub: any = (subClient as any).onUpdate(
-      api.searchRequests.get,
-      { id: requestId },
+      "searchRequests:get" as any,
+      { id: requestId as any },
       (doc: any) => {
         if (!doc) return;
         if (doc.status === "complete" || doc.status === "error") {
