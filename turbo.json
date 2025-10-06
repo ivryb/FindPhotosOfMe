@@ -5,12 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".output/**"]
-    },
-    "build:telegram": {
-      "dependsOn": ["^build:telegram"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**"]
+      "outputs": [".output/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]

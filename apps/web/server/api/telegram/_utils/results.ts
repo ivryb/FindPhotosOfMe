@@ -1,6 +1,6 @@
 import type { Context } from "grammy";
-import { log } from "./log.ts";
-import type { TelegramInputMediaPhoto } from "./telegram.ts";
+import { log } from "./log.js";
+import type { TelegramInputMediaPhoto } from "./telegram.js";
 
 export const sendPhotoResults = async (
   ctx: Context,

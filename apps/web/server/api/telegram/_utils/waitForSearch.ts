@@ -1,6 +1,6 @@
 import { ConvexClient } from "convex/browser";
 // Avoid importing convex codegen; use string reference
-import { log } from "./log.ts";
+import { log } from "./log.js";
 
 export const waitForSearch = async (
   convexUrl: string,
