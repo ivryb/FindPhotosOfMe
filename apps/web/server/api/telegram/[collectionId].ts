@@ -60,5 +60,9 @@ export default defineEventHandler(async (event) => {
     }
   });
 
-  return webhookCallback(bot, "https")(event.node.req, event.node.res);
+  const callback = webhookCallback(bot, "http");
+
+  const result = await callback(event.node.req, event.node.res);
+
+  return event.node.res;
 });
