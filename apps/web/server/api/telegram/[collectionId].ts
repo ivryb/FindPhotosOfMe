@@ -1,35 +1,43 @@
-import { Hono } from "hono";
 import { Bot, GrammyError, HttpError, webhookCallback } from "grammy";
 import { ConvexHttpClient } from "convex/browser";
-import { handleStart } from "./src/handlers/start.ts";
-import { createOnPhotoHandler } from "./src/handlers/onPhoto.ts";
-import { log } from "./src/utils/log.ts";
+import { handleStart } from "./_handlers/start";
+import { createOnPhotoHandler } from "./_handlers/onPhoto";
+import { log } from "./_utils/log";
 
-const app = new Hono();
+export default defineEventHandler(async (event) => {
+  const config = useRuntimeConfig(event);
+  const collectionId = getRouterParam(event, "collectionId");
 
-const convexUrl = process.env.CONVEX_URL;
-if (!convexUrl) {
-  throw new Error("CONVEX_URL is required");
-}
-
-const httpClient = new ConvexHttpClient(convexUrl);
-
-app.post("/api/telegram/:collectionId", async (c) => {
-  const collectionId = c.req.param("collectionId");
   if (!collectionId) {
-    return c.json({ ok: false, error: "Missing collectionId" }, 400);
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Missing collectionId",
+    });
   }
+
+  const convexUrl = config.public.convexUrl;
+
+  if (!convexUrl) {
+    throw new Error("CONVEX_URL is required");
+  }
+
+  const httpClient = new ConvexHttpClient(convexUrl as string);
 
   const collection = await httpClient.query("collections:get" as any, {
     id: collectionId,
   });
 
   if (!collection || !collection.telegramBotToken) {
-    return c.json({ ok: false, error: "Collection/token not found" }, 404);
+    throw createError({
+      statusCode: 404,
+      statusMessage: "Collection/token not found",
+    });
   }
 
   const bot = new Bot(collection.telegramBotToken);
+
   bot.command("start", handleStart);
+
   bot.on(
     ":photo",
     createOnPhotoHandler(
@@ -52,9 +60,5 @@ app.post("/api/telegram/:collectionId", async (c) => {
     }
   });
 
-  const handler = webhookCallback(bot, "std/http");
-  const res = await handler(c.req.raw);
-  return new Response(res.body, res);
+  return webhookCallback(bot, "https")(event.node.req, event.node.res);
 });
-
-export default app;

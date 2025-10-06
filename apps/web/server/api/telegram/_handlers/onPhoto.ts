@@ -1,10 +1,9 @@
 import type { Context } from "grammy";
-// Use string references to avoid requiring convex codegen imports at runtime
 import { ConvexHttpClient } from "convex/browser";
-import { getPhotoFileUrl } from "../../../../../telegram/src/utils/telegram.js";
-import { log } from "../../../../../telegram/src/utils/log.js";
-import { waitForSearch } from "../../../../../telegram/src/utils/waitForSearch.js";
-import { sendPhotoResults } from "../../../../../telegram/src/utils/results.js";
+import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
+import { log } from "../_utils/log";
+import { waitForSearch } from "../_utils/waitForSearch";
+import { sendPhotoResults } from "../_utils/sendPhotoResults";
 
 export const createOnPhotoHandler = (
   convexUrl: string,
