@@ -1,6 +1,5 @@
 import type { Context } from "grammy";
 import type { Doc } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import type { TelegramInputMediaPhoto } from "../_utils/getPhotoFileUrl";
 import { waitUntil } from "@vercel/functions";
 import { ConvexHttpClient } from "convex/browser";
 import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
@@ -152,6 +151,12 @@ async function sendPhotoToAPI(
   }
 }
 
+type TelegramInputMediaPhoto = {
+  type: "photo";
+  media: string;
+  caption?: string;
+};
+
 async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
   const chatId = ctx.chat?.id;
 
@@ -165,6 +170,10 @@ async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
     firstUrl: imageUrls[0],
   });
 
+  await ctx.reply(`Found *${imageUrls.length} matching photo\(s\)\!* 🥳`, {
+    parse_mode: "MarkdownV2",
+  });
+
   const chunkSize = 10;
   const chunks: string[][] = [];
   for (let i = 0; i < imageUrls.length; i += chunkSize) {
@@ -176,10 +185,6 @@ async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
     const media: TelegramInputMediaPhoto[] = group.map((url, idx) => ({
       type: "photo",
       media: url,
-      caption:
-        idx === 0 && groupIndex === 0
-          ? `Found ${imageUrls.length} matching photo(s)`
-          : undefined,
     }));
 
     try {

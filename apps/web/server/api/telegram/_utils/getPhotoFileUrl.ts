@@ -1,9 +1,3 @@
-export type TelegramInputMediaPhoto = {
-  type: "photo";
-  media: string;
-  caption?: string;
-};
-
 export const getPhotoFileUrl = async (
   botToken: string,
   fileId: string
