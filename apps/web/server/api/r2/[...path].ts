@@ -2,44 +2,44 @@ import { defineEventHandler, getRouterParam, setHeader, createError } from "h3";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Readable } from "node:stream";
 
-let s3Client: S3Client | null = null;
-
-function getS3Client(config: any): S3Client {
-  if (!s3Client) {
-    const accountId = config.r2AccountId as string | undefined;
-    const accessKeyId = config.r2AccessKeyId as string | undefined;
-    const secretAccessKey = config.r2SecretAccessKey as string | undefined;
-
-    if (!accountId || !accessKeyId || !secretAccessKey) {
-      throw createError({
-        statusCode: 500,
-        statusMessage:
-          "R2 credentials missing (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)",
-      });
-    }
-
-    const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
-
-    s3Client = new S3Client({
-      region: "auto",
-      endpoint,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-    });
-
-    console.log(
-      `[${new Date().toISOString()}] S3 client initialized for R2 bucket`
-    );
-  }
-
-  return s3Client;
-}
-
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event);
   const pathParam = getRouterParam(event, "path");
+
+  let s3Client: S3Client | null = null;
+
+  function getS3Client(config: any): S3Client {
+    if (!s3Client) {
+      const accountId = config.r2AccountId as string | undefined;
+      const accessKeyId = config.r2AccessKeyId as string | undefined;
+      const secretAccessKey = config.r2SecretAccessKey as string | undefined;
+
+      if (!accountId || !accessKeyId || !secretAccessKey) {
+        throw createError({
+          statusCode: 500,
+          statusMessage:
+            "R2 credentials missing (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)",
+        });
+      }
+
+      const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
+
+      s3Client = new S3Client({
+        region: "auto",
+        endpoint,
+        credentials: {
+          accessKeyId,
+          secretAccessKey,
+        },
+      });
+
+      console.log(
+        `[${new Date().toISOString()}] S3 client initialized for R2 bucket`
+      );
+    }
+
+    return s3Client;
+  }
 
   if (!pathParam) {
     throw createError({ statusCode: 400, statusMessage: "Missing path" });

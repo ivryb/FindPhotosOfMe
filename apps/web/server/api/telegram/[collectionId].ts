@@ -1,20 +1,12 @@
-import { Bot, GrammyError, HttpError, webhookCallback } from "grammy";
+import { Bot, webhookCallback } from "grammy";
 import { ConvexHttpClient } from "convex/browser";
 import { handleStart } from "./_handlers/start";
 import { createOnPhotoHandler } from "./_handlers/onPhoto";
 import { log } from "./_utils/log";
 
 export default defineEventHandler(async (event) => {
+  const collectionId = getRouterParam(event, "collectionId") as string;
   const config = useRuntimeConfig();
-  const collectionId = getRouterParam(event, "collectionId");
-
-  if (!collectionId) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "Missing collectionId",
-    });
-  }
-
   const convexUrl = config.public.convexUrl;
 
   if (!convexUrl) {
@@ -40,29 +32,16 @@ export default defineEventHandler(async (event) => {
 
   bot.on(
     ":photo",
-    createOnPhotoHandler(
-      convexUrl as string,
-      collectionId,
-      collection.telegramBotToken
-    )
+    createOnPhotoHandler(convexUrl, collectionId, collection.telegramBotToken)
   );
 
   bot.catch((err: any) => {
-    const ctx = err.ctx;
-    log(`Bot error while handling update ${ctx.update.update_id}`);
-    const e = err.error;
-    if (e instanceof GrammyError) {
-      log("Error in request", { description: e.description });
-    } else if (e instanceof HttpError) {
-      log("Could not contact Telegram", { error: String(e) });
-    } else {
-      log("Unknown error", { error: String(e) });
-    }
+    log(`Bot error while handling update ${err}`);
   });
 
   const callback = webhookCallback(bot, "http");
 
-  const result = await callback(event.node.req, event.node.res);
+  await callback(event.node.req, event.node.res);
 
   return event.node.res;
 });
