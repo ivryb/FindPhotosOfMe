@@ -14,14 +14,13 @@
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @FindPhotosOfMe/backend dev",
     "dev:setup": "turbo -F @FindPhotosOfMe/backend dev:setup",
-    "dev:telegram": "turbo -F @FindPhotosOfMe/telegram dev",
-    "start:telegram": "turbo -F @FindPhotosOfMe/telegram start",
-    "build:telegram": "turbo -F @FindPhotosOfMe/telegram build"
+    "dev:telegram": "turbo -F telegram dev",
+    "start:telegram": "turbo -F telegram start",
+    "build:telegram": "turbo -F telegram build"
   },
   "devDependencies": {
     "turbo": "^2.5.4",
-    "wrangler": "^4.42.0",
-    "vercel": "^33.0.0"
+    "wrangler": "^4.42.0"
   },
   "packageManager": "pnpm@10.12.4"
 }
