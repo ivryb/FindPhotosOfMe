@@ -1,7 +1,6 @@
 """Search photos endpoint - finds matching faces in a collection."""
 
 import json
-import threading
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
@@ -59,12 +58,8 @@ async def search_photos(
         
         print(f"[{get_time()}] Search request validated. Collection: {collection_id}")
         
-        # Update search request status to processing (non-blocking)
-        threading.Thread(
-            target=convex_service.update_search_request,
-            args=(search_request_id, "processing"),
-            daemon=True
-        ).start()
+        # Update search request status to processing
+        convex_service.update_search_request(search_request_id, "processing")
         
         # Validate collection exists and is complete
         collection = convex_service.get_collection(collection_id)
@@ -111,13 +106,13 @@ async def search_photos(
         
         print(f"[{get_time()}] Loaded embeddings for {len(embeddings_data)} images")
         
-        # Update search request with total (non-blocking)
-        threading.Thread(
-            target=convex_service.update_search_request,
-            args=(search_request_id, "processing"),
-            kwargs={"total_images": total_images, "processed_images": 0},
-            daemon=True
-        ).start()
+        # Update search request with total
+        convex_service.update_search_request(
+            search_request_id,
+            "processing",
+            total_images=total_images,
+            processed_images=0
+        )
         
         # Find matching faces with progress updates
         matches = []
@@ -144,12 +139,11 @@ async def search_photos(
 
             # Throttle progress updates to reduce load on Convex
             if (processed_count % 10 == 0) or (processed_count == len(embeddings_data)):
-                threading.Thread(
-                    target=convex_service.update_search_request,
-                    args=(search_request_id, "processing"),
-                    kwargs={"processed_images": processed_count},
-                    daemon=True
-                ).start()
+                convex_service.update_search_request(
+                    search_request_id,
+                    "processing",
+                    processed_images=processed_count
+                )
 
             if processed_count % 100 == 0:
                 print(f"[{get_time()}] Processed {processed_count}/{total_images} images, found {len(matches)} matches so far")

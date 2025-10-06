@@ -75,8 +75,6 @@ export const createOnPhotoHandler = (
       return;
     }
 
-    const timeoutMs = Number(process.env.TELEGRAM_SEARCH_TIMEOUT_MS || 60000);
-
     log("Subscribing for search result", {
       requestId: String(requestId),
     });
@@ -84,42 +82,36 @@ export const createOnPhotoHandler = (
     const chatId = ctx.chat?.id;
     let lastText: string | null = null;
 
-    const searchRequest = await waitForSearch(
-      requestId,
-      timeoutMs,
-      async (doc) => {
-        if (!chatId) return;
-        if (doc.status !== "processing") return;
+    const searchRequest = await waitForSearch(requestId, async (doc) => {
+      if (!chatId) return;
+      if (doc.status !== "processing") return;
 
-        log("Search request updated", {
-          requestId: String(requestId),
-          status: doc.status,
-          totalImages: doc.totalImages,
-          processedImages: doc.processedImages,
+      log("Search request updated", {
+        requestId: String(requestId),
+        status: doc.status,
+        totalImages: doc.totalImages,
+        processedImages: doc.processedImages,
+      });
+
+      const total = doc.totalImages ?? undefined;
+      const processed = doc.processedImages ?? 0;
+      const pct =
+        total && total > 0 ? Math.floor((processed / total) * 100) : undefined;
+      const text = total
+        ? `Scanned ${processed} of ${total} photos${pct !== undefined ? ` (${pct}%)` : ""}...`
+        : `Scanned ${processed} photos...`;
+
+      if (text === lastText) return;
+      lastText = text;
+      try {
+        await ctx.api.editMessageText(chatId, statusMessageId, text);
+      } catch (e) {
+        log("Failed to edit message text", {
+          error: String(e),
+          text,
         });
-
-        const total = doc.totalImages ?? undefined;
-        const processed = doc.processedImages ?? 0;
-        const pct =
-          total && total > 0
-            ? Math.floor((processed / total) * 100)
-            : undefined;
-        const text = total
-          ? `Scanned ${processed} of ${total} photos${pct !== undefined ? ` (${pct}%)` : ""}...`
-          : `Scanned ${processed} photos...`;
-
-        if (text === lastText) return;
-        lastText = text;
-        try {
-          await ctx.api.editMessageText(chatId, statusMessageId, text);
-        } catch (e) {
-          log("Failed to edit message text", {
-            error: String(e),
-            text,
-          });
-        }
       }
-    );
+    });
 
     if (!searchRequest) {
       try {
@@ -236,7 +228,7 @@ async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
     firstUrl: imageUrls[0],
   });
 
-  await ctx.reply(`Found *${imageUrls.length} matching photo(s)!* 🥳`, {
+  await ctx.reply(`Found *${imageUrls.length}* matching photo(s) 🥳`, {
     parse_mode: "Markdown",
   });
 

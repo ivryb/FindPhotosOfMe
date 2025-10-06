@@ -6,7 +6,6 @@ type SearchDoc = Doc<"searchRequests"> | null;
 
 export const waitForSearch = async (
   requestId: string,
-  timeoutMs: number,
   onUpdate?: (doc: NonNullable<SearchDoc>) => void | Promise<void>
 ) => {
   const config = useRuntimeConfig();
@@ -21,7 +20,7 @@ export const waitForSearch = async (
         subClient.close();
       } catch {}
       resolve(null);
-    }, timeoutMs);
+    }, 60000);
 
     const maybeUnsub = (subClient as any).onUpdate(
       "searchRequests:get",
@@ -29,7 +28,7 @@ export const waitForSearch = async (
       (doc: SearchDoc) => {
         if (!doc) return;
         try {
-          if (onUpdate) void onUpdate(doc);
+          if (onUpdate) onUpdate(doc);
         } catch {}
         if (doc.status === "complete" || doc.status === "error") {
           if (done) return;
