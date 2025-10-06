@@ -3,7 +3,7 @@ import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Readable } from "node:stream";
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event);
+  const config = useRuntimeConfig();
   const pathParam = getRouterParam(event, "path");
 
   let s3Client: S3Client | null = null;

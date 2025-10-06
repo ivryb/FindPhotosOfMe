@@ -13,10 +13,10 @@ export default defineNuxtConfig({
     url: process.env.NUXT_PUBLIC_CONVEX_URL,
   },
   runtimeConfig: {
-    r2AccountId: process.env.R2_ACCOUNT_ID,
-    r2BucketName: process.env.R2_BUCKET_NAME,
-    r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
-    r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    r2AccountId: process.env.NUXT_R2_ACCOUNT_ID,
+    r2BucketName: process.env.NUXT_R2_BUCKET_NAME,
+    r2AccessKeyId: process.env.NUXT_R2_ACCESS_KEY_ID,
+    r2SecretAccessKey: process.env.NUXT_R2_SECRET_ACCESS_KEY,
     public: {
       origin: process.env.NUXT_PUBLIC_ORIGIN,
       serverURL: process.env.NUXT_PUBLIC_SERVER_URL,
