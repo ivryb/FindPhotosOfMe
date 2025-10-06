@@ -5,6 +5,7 @@ import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
 import { log } from "../_utils/log";
 import { waitForSearch } from "../_utils/waitForSearch";
 import { sendPhotoResults } from "../_utils/sendPhotoResults";
+import { useR2 } from "../../../utils/r2";
 
 export const createOnPhotoHandler = (
   convexUrl: string,
@@ -79,9 +80,10 @@ export const createOnPhotoHandler = (
     }
 
     const timeoutMs = Number(process.env.TELEGRAM_SEARCH_TIMEOUT_MS || 60000);
-    const photoOrigin = `${config.public.origin}/api/r2`;
 
-    log("Subscribing for search result", { requestId: String(requestId) });
+    log("Subscribing for search result", {
+      requestId: String(requestId),
+    });
 
     const latest = await waitForSearch(convexUrl, requestId as any, timeoutMs);
 
@@ -94,10 +96,34 @@ export const createOnPhotoHandler = (
       return;
     }
 
-    const images: string[] = Array.isArray(latest.imagesFound)
+    const imagePaths: string[] = Array.isArray(latest.imagesFound)
       ? latest.imagesFound
       : [];
 
-    await sendPhotoResults(ctx, images, photoOrigin);
+    if (!imagePaths.length) {
+      await ctx.reply("No matching photos found.");
+      return;
+    }
+
+    // Generate signed URLs for all images
+    log("Generating signed URLs", { imageCount: imagePaths.length });
+    const r2 = useR2();
+    const imageUrls: string[] = [];
+
+    for (const path of imagePaths) {
+      try {
+        const signedUrl = await r2.getSignedUrl(path, 3600); // 1 hour expiry
+        imageUrls.push(signedUrl);
+      } catch (e) {
+        log("Failed to generate signed URL", { path, error: String(e) });
+      }
+    }
+
+    if (!imageUrls.length) {
+      await ctx.reply("Failed to generate image URLs. Please try again.");
+      return;
+    }
+
+    await sendPhotoResults(ctx, imageUrls);
   }
 };

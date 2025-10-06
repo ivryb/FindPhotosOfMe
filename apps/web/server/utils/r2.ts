@@ -5,6 +5,7 @@ import {
   ListObjectsV2Command,
   DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
 
 class R2Service {
@@ -135,6 +136,21 @@ class R2Service {
     });
     const deleteResponse = await this.client!.send(deleteCommand);
     return deleteResponse.Deleted?.length || 0;
+  }
+
+  async getSignedUrl(
+    objectKey: string,
+    expiresIn: number = 3600
+  ): Promise<string> {
+    this.initializeClient();
+    const bucket = this.getBucket();
+
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+    });
+
+    return await getSignedUrl(this.client!, command, { expiresIn });
   }
 }
 

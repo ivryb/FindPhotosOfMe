@@ -12,6 +12,7 @@
   "dependencies": {
     "@FindPhotosOfMe/backend": "workspace:*",
     "@aws-sdk/client-s3": "^3.901.0",
+    "@aws-sdk/s3-request-presigner": "^3.901.0",
     "@nuxt/content": "^3.7.1",
     "@nuxtjs/color-mode": "^3.5.2",
     "@nuxtjs/mdc": "^0.17.4",
