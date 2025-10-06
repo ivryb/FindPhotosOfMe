@@ -15,12 +15,21 @@ export const createOnPhotoHandler = (
 
   return async (ctx: Context) => {
     const photos = ctx.message?.photo;
+
     if (!Array.isArray(photos) || photos.length === 0) return;
 
-    const best = photos[photos.length - 1];
-    const fileId = best.file_id;
-
     await ctx.reply("Search started. I'll send results here when finished.");
+
+    continueSearch(ctx);
+  };
+
+  async function continueSearch(ctx: Context) {
+    const photos = ctx.message?.photo;
+
+    const best = photos?.[photos.length - 1];
+    const fileId = best?.file_id;
+
+    if (!fileId) return;
 
     const requestId = await httpClient.mutation(
       "searchRequests:create" as any,
@@ -89,5 +98,5 @@ export const createOnPhotoHandler = (
       : [];
 
     await sendPhotoResults(ctx, images, photoOrigin);
-  };
+  }
 };
