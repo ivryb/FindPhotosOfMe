@@ -91,6 +91,13 @@ export const createOnPhotoHandler = (
         if (!chatId) return;
         if (doc.status !== "processing") return;
 
+        log("Search request updated", {
+          requestId: String(requestId),
+          status: doc.status,
+          totalImages: doc.totalImages,
+          processedImages: doc.processedImages,
+        });
+
         const total = doc.totalImages ?? undefined;
         const processed = doc.processedImages ?? 0;
         const pct =
@@ -106,7 +113,10 @@ export const createOnPhotoHandler = (
         try {
           await ctx.api.editMessageText(chatId, statusMessageId, text);
         } catch (e) {
-          // Ignore edit errors (e.g., message not modified)
+          log("Failed to edit message text", {
+            error: String(e),
+            text,
+          });
         }
       }
     );
@@ -162,14 +172,6 @@ export const createOnPhotoHandler = (
 
       return;
     }
-
-    // try {
-    //   await ctx.api.editMessageText(
-    //     ctx.chat!.id,
-    //     statusMessageId,
-    //     `Found ${imageUrls.length} matching photo(s). Sending results...`
-    //   );
-    // } catch {}
 
     await sendPhotoResults(ctx, imageUrls);
   }
@@ -263,7 +265,9 @@ async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
         groupIndex,
         firstUrl: media[0]?.media,
       });
-      await ctx.reply("Failed to send some results.");
+      await ctx.reply(
+        "Failed to send some results 😔\nPlease try again later."
+      );
       break;
     }
   }
