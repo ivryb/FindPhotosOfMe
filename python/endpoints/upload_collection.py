@@ -175,7 +175,7 @@ async def upload_collection(
         convex_service.update_collection_status(
             collection_id,
             "complete",
-            existing_images_count + processed_count
+            len(merged_embeddings)
         )
         
         print(f"[{get_time()}] Upload complete. Processed {processed_count}/{total_images} images")
