@@ -1,6 +1,7 @@
 """Search photos endpoint - finds matching faces in a collection."""
 
 import json
+import time
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
@@ -117,6 +118,7 @@ async def search_photos(
         # Find matching faces with progress updates
         matches = []
         processed_count = 0
+        last_update_time = time.time()
         
         for filename, faces in embeddings_data.items():
             for face in faces:
@@ -137,15 +139,15 @@ async def search_photos(
             
             processed_count += 1
 
-            # Throttle progress updates to reduce load on Convex
-            if (processed_count % 10 == 0) or (processed_count == len(embeddings_data)):
+            # Time-based throttle: update every 500ms
+            current_time = time.time()
+            if current_time - last_update_time >= 0.5:
                 convex_service.update_search_request(
                     search_request_id,
                     "processing",
                     processed_images=processed_count
                 )
-
-            if processed_count % 100 == 0:
+                last_update_time = current_time
                 print(f"[{get_time()}] Processed {processed_count}/{total_images} images, found {len(matches)} matches so far")
         
         # Sort by similarity score (highest first)
