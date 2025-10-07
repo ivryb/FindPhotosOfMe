@@ -464,7 +464,7 @@ const handleDelete = async () => {
             </div>
           </div>
 
-          <!-- Upload Form -->
+          <!-- Upload Form (initial or after error) -->
           <div
             v-else-if="
               collection.status === 'not_started' ||
@@ -535,6 +535,51 @@ const handleDelete = async () => {
                 <p class="text-lg font-medium mt-2">
                   {{ collection.imagesCount }} images processed
                 </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upload More (after complete) -->
+          <div v-else-if="collection.status === 'complete'">
+            <div class="space-y-4">
+              <div class="grid gap-2">
+                <Label for="zip-file">Select Additional Zip Archive</Label>
+                <Input
+                  id="zip-file"
+                  type="file"
+                  accept=".zip"
+                  @change="handleFileSelect"
+                  :disabled="isUploading"
+                />
+                <p class="text-xs text-muted-foreground">
+                  You can upload more photos to append to this collection.
+                </p>
+              </div>
+
+              <div v-if="selectedFile" class="text-sm">
+                <span class="font-medium">Selected file:</span>
+                {{ selectedFile.name }} ({{
+                  formatFileSize(selectedFile.size)
+                }})
+              </div>
+
+              <Button
+                @click="handleUpload"
+                :disabled="!selectedFile || isUploading"
+                class="w-full"
+              >
+                <Loader2 v-if="isUploading" class="mr-2 h-4 w-4 animate-spin" />
+                <Upload v-else class="mr-2 h-4 w-4" />
+                <span v-if="isUploading">Uploading...</span>
+                <span v-else>Upload More Photos</span>
+              </Button>
+
+              <div
+                v-if="uploadError"
+                class="flex items-center gap-2 text-sm text-destructive"
+              >
+                <AlertCircle class="h-4 w-4" />
+                <span>{{ uploadError }}</span>
               </div>
             </div>
           </div>
