@@ -94,50 +94,56 @@ export const createOnPhotoHandler = (
       requestId: String(requestId),
     });
 
-    const unsubscribe = convexClient.onUpdate(
-      api.searchRequests.get,
-      { id: requestId },
-      async (searchRequest) => {
-        if (!searchRequest) {
-          return await updateStatusMessage(
-            "Oops, looks like search service is unreachable 😱\nPlease try again later."
-          );
-        }
-
-        if (searchRequest.status == "processing") {
-          const totalImages = collection.imagesCount;
-          const processedImages = searchRequest.processedImages ?? 0;
-
-          if (processedImages > 0) {
-            return await updateStatusMessage(
-              `🔍 Scanned ${processedImages} of ${totalImages} photos...`
+    await new Promise((resolve: any) => {
+      const unsubscribe = convexClient.onUpdate(
+        api.searchRequests.get,
+        { id: requestId },
+        async (searchRequest) => {
+          if (!searchRequest) {
+            await updateStatusMessage(
+              "Oops, looks like search service is unreachable 😱\nPlease try again later."
             );
+
+            return resolve();
+          }
+
+          if (searchRequest.status == "processing") {
+            const totalImages = collection.imagesCount;
+            const processedImages = searchRequest.processedImages ?? 0;
+
+            if (processedImages > 0) {
+              await updateStatusMessage(
+                `🔍 Scanned ${processedImages} of ${totalImages} photos...`
+              );
+
+              return resolve();
+            }
+          }
+
+          if (searchRequest.status == "complete") {
+            unsubscribe();
+
+            await handleSearchComplete(ctx, searchRequest, updateStatusMessage);
+
+            return resolve();
+          }
+
+          if (searchRequest.status == "error") {
+            unsubscribe();
+
+            log("Search request error!", {
+              requestId: String(requestId),
+            });
+
+            await updateStatusMessage(
+              "Oops, looks like there was an error during the search 😱\nPlease try again later."
+            );
+
+            return resolve();
           }
         }
-
-        if (searchRequest.status == "complete") {
-          unsubscribe();
-
-          return await handleSearchComplete(
-            ctx,
-            searchRequest,
-            updateStatusMessage
-          );
-        }
-
-        if (searchRequest.status == "error") {
-          unsubscribe();
-
-          log("Search request error!", {
-            requestId: String(requestId),
-          });
-
-          return await updateStatusMessage(
-            "Oops, looks like there was an error during the search 😱\nPlease try again later."
-          );
-        }
-      }
-    );
+      );
+    });
   }
 };
 
