@@ -1,10 +1,10 @@
 import type { Context } from "grammy";
+import { getConvexClient } from "../../../utils/convex";
 import type { Doc } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { waitUntil } from "@vercel/functions";
-import { ConvexHttpClient } from "convex/browser";
 import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
 import { log } from "../_utils/log";
-import { waitForSearch } from "../_utils/waitForSearch";
 import { useR2 } from "../../../utils/r2";
 
 export const createOnPhotoHandler = (
@@ -12,162 +12,165 @@ export const createOnPhotoHandler = (
   collection: Doc<"collections">
 ) => {
   const config = useRuntimeConfig();
-  const httpClient = new ConvexHttpClient(config.public.convexUrl);
+  const convexClient = getConvexClient();
+  const apiUrl = config.public.apiURL;
 
   return async (ctx: Context) => {
     const photos = ctx.message?.photo;
 
     if (!Array.isArray(photos) || photos.length === 0) return;
 
-    const initial = await ctx.reply("Starting search 🔍");
-
-    waitUntil(continueSearch(ctx, initial.message_id));
-  };
-
-  async function continueSearch(ctx: Context, statusMessageId: number) {
-    const photos = ctx.message?.photo;
-
-    const best = photos?.[photos.length - 1];
-    const fileId = best?.file_id;
-
-    if (!fileId) return;
-
-    const apiUrl = config.public.apiURL;
-
     if (!apiUrl) {
       await ctx.reply("Oops, search service not configured 😮");
       return;
     }
 
-    const requestId = await httpClient.mutation(
-      "searchRequests:create" as any,
-      {
-        collectionId: collection._id,
-        telegramChatId: String(ctx.chat?.id),
+    const initial = await ctx.reply("🔍 Starting search...");
+
+    const updateStatusMessage = async (text: string, options: any = {}) => {
+      try {
+        await ctx.api.editMessageText(
+          ctx.chat!.id,
+          initial.message_id,
+          text,
+          options
+        );
+      } catch (error) {
+        log("Failed to edit message text", {
+          text,
+          ctx,
+          error,
+        });
       }
-    );
+    };
+
+    waitUntil(continueSearch(ctx, updateStatusMessage));
+  };
+
+  async function continueSearch(
+    ctx: Context,
+    updateStatusMessage: (text: string, options?: any) => Promise<void>
+  ) {
+    const photos = ctx.message?.photo;
+    const chatId = ctx.chat?.id;
+
+    const best = photos?.[photos.length - 1];
+    const fileId = best?.file_id;
+
+    if (!chatId) return;
+
+    if (!fileId) return;
+
+    const requestId = await convexClient.mutation(api.searchRequests.create, {
+      collectionId: collection._id,
+      telegramChatId: String(ctx.chat?.id),
+    });
 
     const fileUrl = await getPhotoFileUrl(botToken, fileId);
 
     if (!fileUrl) {
-      await ctx.reply("Failed to download the photo, please try again 😣");
-      return;
+      return await updateStatusMessage(
+        "Failed to download the photo, please try again 😣"
+      );
     }
 
     const imgRes = await fetch(fileUrl);
 
     if (!imgRes.ok) {
-      await ctx.reply("Failed to download the photo, please try again 😣");
-      return;
+      return await updateStatusMessage(
+        "Failed to download the photo, please try again 😣"
+      );
     }
 
     try {
       await sendPhotoToAPI(imgRes, apiUrl, requestId);
     } catch (e) {
-      try {
-        await ctx.api.editMessageText(
-          ctx.chat!.id,
-          statusMessageId,
-          `Oops, looks like search service is unreachable 😱\nPlease try again later.`
-        );
-      } catch {}
-
-      return;
+      return await updateStatusMessage(
+        `Oops, looks like search service is unreachable 😱\nPlease try again later.`
+      );
     }
 
     log("Subscribing for search result", {
       requestId: String(requestId),
     });
 
-    const chatId = ctx.chat?.id;
-    let lastText: string | null = null;
+    const unsubscribe = convexClient.onUpdate(
+      api.searchRequests.get,
+      { id: requestId },
+      async (searchRequest) => {
+        if (!searchRequest) {
+          return await updateStatusMessage(
+            "Oops, looks like search service is unreachable 😱\nPlease try again later."
+          );
+        }
 
-    const searchRequest = await waitForSearch(requestId, async (doc) => {
-      if (!chatId) return;
-      if (doc.status !== "processing") return;
+        if (searchRequest.status == "processing") {
+          const totalImages = collection.imagesCount;
+          const processedImages = searchRequest.processedImages ?? 0;
 
-      log("Search request updated", {
-        requestId: String(requestId),
-        status: doc.status,
-        totalImages: doc.totalImages,
-        processedImages: doc.processedImages,
-      });
+          if (processedImages > 0) {
+            return await updateStatusMessage(
+              `🔍 Scanned ${processedImages} of ${totalImages} photos...`
+            );
+          }
+        }
 
-      const total = doc.totalImages ?? undefined;
-      const processed = doc.processedImages ?? 0;
-      const pct =
-        total && total > 0 ? Math.floor((processed / total) * 100) : undefined;
-      const text = total
-        ? `Scanned ${processed} of ${total} photos${pct !== undefined ? ` (${pct}%)` : ""}...`
-        : `Scanned ${processed} photos...`;
+        if (searchRequest.status == "complete") {
+          unsubscribe();
 
-      if (text === lastText) return;
-      lastText = text;
-      try {
-        await ctx.api.editMessageText(chatId, statusMessageId, text);
-      } catch (e) {
-        log("Failed to edit message text", {
-          error: String(e),
-          text,
-        });
+          return await handleSearchComplete(
+            ctx,
+            searchRequest,
+            updateStatusMessage
+          );
+        }
+
+        if (searchRequest.status == "error") {
+          unsubscribe();
+
+          log("Search request error!", {
+            requestId: String(requestId),
+          });
+
+          return await updateStatusMessage(
+            "Oops, looks like there was an error during the search 😱\nPlease try again later."
+          );
+        }
       }
-    });
-
-    if (!searchRequest) {
-      try {
-        await ctx.api.editMessageText(
-          ctx.chat!.id,
-          statusMessageId,
-          "Oops, looks like search service is unreachable 😱\nPlease try again later."
-        );
-      } catch {}
-      return;
-    }
-
-    if (searchRequest.status === "error") {
-      try {
-        await ctx.api.editMessageText(
-          ctx.chat!.id,
-          statusMessageId,
-          "Oops, looks like there was an error during the search 😱\nPlease try again later."
-        );
-      } catch {}
-      return;
-    }
-
-    const imagePaths: string[] = Array.isArray(searchRequest.imagesFound)
-      ? searchRequest.imagesFound
-      : [];
-
-    if (!imagePaths.length) {
-      try {
-        await ctx.api.editMessageText(
-          ctx.chat!.id,
-          statusMessageId,
-          "Oops, looks like no matching photos were found 😭\nPlease try again later."
-        );
-      } catch {}
-
-      return;
-    }
-
-    const imageUrls = await generateSignedUrls(imagePaths);
-
-    if (!imageUrls.length) {
-      try {
-        await ctx.api.editMessageText(
-          ctx.chat!.id,
-          statusMessageId,
-          "Couldn't access photos from cloud storage 😔\nPlease try again later."
-        );
-      } catch {}
-
-      return;
-    }
-
-    await sendPhotoResults(ctx, imageUrls);
+    );
   }
 };
+
+async function handleSearchComplete(
+  ctx: Context,
+  searchRequest: Doc<"searchRequests">,
+  updateStatusMessage: (text: string, options?: any) => Promise<void>
+) {
+  const imagePaths: string[] = Array.isArray(searchRequest.imagesFound)
+    ? searchRequest.imagesFound
+    : [];
+
+  if (!imagePaths.length) {
+    return await updateStatusMessage("No matching photos were found 😔");
+  }
+
+  const imageUrls = await generateSignedUrls(imagePaths);
+
+  if (!imageUrls.length) {
+    return await updateStatusMessage(
+      "Couldn't access photos from cloud storage 😔\nPlease try again later."
+    );
+  }
+
+  await updateStatusMessage(
+    `Found *${imageUrls.length}* matching photo(s) 🥳`,
+    {
+      parse_mode: "Markdown",
+    }
+  );
+
+  await sendGroupedPhotoResults(ctx, imageUrls);
+}
 
 async function generateSignedUrls(imagePaths: string[]) {
   log("Generating signed URLs", { imageCount: imagePaths.length });
@@ -178,6 +181,7 @@ async function generateSignedUrls(imagePaths: string[]) {
     const signedUrl = await r2.getSignedUrl(path, 3600);
     imageUrls.push(signedUrl);
   }
+
   return imageUrls;
 }
 
@@ -215,7 +219,7 @@ type TelegramInputMediaPhoto = {
   caption?: string;
 };
 
-async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
+async function sendGroupedPhotoResults(ctx: Context, imageUrls: string[]) {
   const chatId = ctx.chat?.id;
 
   if (!chatId) {
@@ -226,10 +230,6 @@ async function sendPhotoResults(ctx: Context, imageUrls: string[]) {
   log("Sending photo results", {
     imageCount: imageUrls.length,
     firstUrl: imageUrls[0],
-  });
-
-  await ctx.reply(`Found *${imageUrls.length}* matching photo(s) 🥳`, {
-    parse_mode: "Markdown",
   });
 
   const chunkSize = 10;
