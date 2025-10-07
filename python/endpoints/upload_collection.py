@@ -66,8 +66,12 @@ async def upload_collection(
         
         print(f"[{get_time()}] Collection validated: {collection_id}")
         
-        # Update status to processing
-        convex_service.update_collection_status(collection_id, "processing", 0)
+        # Determine existing counters/state
+        existing_images_count = int(collection.get("imagesCount", 0) or 0)
+        existing_preview_images = collection.get("previewImages", []) or []
+
+        # Update status to processing (preserve existing count)
+        convex_service.update_collection_status(collection_id, "processing", existing_images_count)
         
         # Read zip file
         zip_data = await file.read()
@@ -86,6 +90,22 @@ async def upload_collection(
         if total_images == 0:
             raise HTTPException(status_code=400, detail="No images found in zip archive")
         
+        # Prepare embeddings merge
+        embeddings_key = f"{collection_id}/embeddings.json"
+        existing_embeddings = {}
+        try:
+            # Check if embeddings.json exists and load it
+            objects = r2_service.list_objects(embeddings_key)
+            if objects:
+                existing_bytes = r2_service.download_file(embeddings_key)
+                if existing_bytes:
+                    existing_embeddings = json.loads(existing_bytes.decode('utf-8'))
+                    print(f"[{get_time()}] Existing embeddings.json found. Photos indexed: {len(existing_embeddings)}")
+            else:
+                print(f"[{get_time()}] No existing embeddings.json found. Starting fresh.")
+        except Exception as e:
+            print(f"[{get_time()}] Warning: failed to load existing embeddings.json: {e}")
+
         # Process each image
         embeddings_data = {}
         processed_count = 0
@@ -116,7 +136,7 @@ async def upload_collection(
                     # Update Convex with progress (non-blocking)
                     threading.Thread(
                         target=convex_service.update_collection_status,
-                        args=(collection_id, "processing", processed_count),
+                        args=(collection_id, "processing", existing_images_count + processed_count),
                         daemon=True
                     ).start()
                     
@@ -127,9 +147,9 @@ async def upload_collection(
                 print(f"[{get_time()}] Error processing {image_name}: {e}")
                 continue
         
-        # Save embeddings to R2
-        embeddings_json = json.dumps(embeddings_data, indent=2)
-        embeddings_key = f"{collection_id}/embeddings.json"
+        # Merge and save embeddings to R2
+        merged_embeddings = {**existing_embeddings, **embeddings_data}
+        embeddings_json = json.dumps(merged_embeddings, indent=2)
         r2_service.upload_file(
             embeddings_json.encode('utf-8'),
             embeddings_key,
@@ -140,7 +160,14 @@ async def upload_collection(
         
         # Save first 50 preview images to Convex
         try:
-            convex_service.set_collection_preview_images(collection_id, preview_image_keys)
+            # Merge existing preview images with new ones, keep order and uniqueness
+            combined = []
+            seen = set()
+            for key in list(existing_preview_images) + preview_image_keys:
+                if key not in seen:
+                    seen.add(key)
+                    combined.append(key)
+            convex_service.set_collection_preview_images(collection_id, combined[:50])
         except Exception as e:
             print(f"[{get_time()}] Warning: failed setting preview images: {e}")
 
@@ -148,7 +175,7 @@ async def upload_collection(
         convex_service.update_collection_status(
             collection_id,
             "complete",
-            processed_count
+            existing_images_count + processed_count
         )
         
         print(f"[{get_time()}] Upload complete. Processed {processed_count}/{total_images} images")

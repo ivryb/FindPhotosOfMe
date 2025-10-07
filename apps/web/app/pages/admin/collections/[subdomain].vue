@@ -468,7 +468,8 @@ const handleDelete = async () => {
           <div
             v-else-if="
               collection.status === 'not_started' ||
-              collection.status === 'error'
+              collection.status === 'error' ||
+              collection.status === 'complete'
             "
           >
             <div class="space-y-4">
@@ -538,6 +539,8 @@ const handleDelete = async () => {
               </div>
             </div>
           </div>
+
+          
         </CardContent>
       </Card>
     </div>
