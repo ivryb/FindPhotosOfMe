@@ -62,5 +62,7 @@ export default defineSchema({
     createdAt: v.number(),
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),
-  }).index("by_collection", ["collectionId"]),
+  })
+    .index("by_collection", ["collectionId"])
+    .index("by_collection_and_status", ["collectionId", "status"]),
 });

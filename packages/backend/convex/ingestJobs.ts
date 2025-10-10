@@ -194,3 +194,50 @@ export const listByCollection = query({
     return items;
   },
 });
+
+export const claimNextForCollection = mutation({
+  args: { collectionId: v.id("collections") },
+  returns: v.union(
+    v.object({
+      _id: v.id("ingestJobs"),
+      collectionId: v.id("collections"),
+      fileKey: v.string(),
+      filename: v.string(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    // If there's a running job for this collection, enforce sequential by returning null
+    const running = await ctx.db
+      .query("ingestJobs")
+      .withIndex("by_collection_and_status", (q) =>
+        q.eq("collectionId", args.collectionId).eq("status", "running")
+      )
+      .first();
+    if (running) return null;
+
+    // Find the oldest pending job
+    const nextPending = await ctx.db
+      .query("ingestJobs")
+      .withIndex("by_collection_and_status", (q) =>
+        q.eq("collectionId", args.collectionId).eq("status", "pending")
+      )
+      .order("asc")
+      .first();
+
+    if (!nextPending) return null;
+
+    await ctx.db.patch(nextPending._id, {
+      status: "running",
+      startedAt: Date.now(),
+      error: undefined,
+    });
+
+    return {
+      _id: nextPending._id,
+      collectionId: nextPending.collectionId,
+      fileKey: nextPending.fileKey,
+      filename: nextPending.filename,
+    } as any;
+  },
+});

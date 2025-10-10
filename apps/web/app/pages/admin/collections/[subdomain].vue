@@ -230,9 +230,10 @@ const handleUpload = async () => {
       })),
     });
 
-    // 3) Enqueue jobs for processing via Workpool
-    await convex.action(api.ingest.enqueueIngestJobs, {
-      jobs: jobIds.map((id: any) => ({ jobId: id })),
+    // 3) Kick off Python-led sequential processing for this collection
+    await $fetch(`${apiURL}/api/start-collection-ingest`, {
+      method: "POST",
+      body: { collection_id: collection.value!._id },
     });
 
     // Reset input

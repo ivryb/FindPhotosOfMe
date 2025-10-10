@@ -332,6 +332,117 @@ async def upload_collection(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def process_ingest_job_sync(
+    job_id: str,
+    collection_id: str,
+    file_key: str,
+    r2_service: R2StorageService,
+    face_service: FaceRecognitionService,
+    convex_service: ConvexService,
+):
+    """Run a single ingest job synchronously with progress updates and finalization."""
+    now = get_time()
+    print(f"[{now}] Ingest job started: job_id={job_id}, collection_id={collection_id}, key={file_key}")
+
+    # Validate collection
+    collection = convex_service.get_collection(collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
+
+    # Mark job as running
+    convex_service.update_ingest_progress(job_id, status="running")
+
+    # Download zip
+    print(f"[{get_time()}] Downloading zip for ingest: {file_key}")
+    zip_bytes = r2_service.download_file(file_key)
+    if zip_bytes is None:
+        raise HTTPException(status_code=404, detail=f"Zip not found in R2: {file_key}")
+
+    # Inspect zip - get total images early
+    zip_file, image_files = open_zip_and_list_images(zip_bytes)
+    total_images = len(image_files)
+    print(f"[{get_time()}] Ingest zip contains {total_images} images")
+    convex_service.update_ingest_progress(job_id, total_images=total_images)
+
+    # Load existing state
+    existing_images_count = int(collection.get("imagesCount", 0) or 0)
+    existing_preview_images = collection.get("previewImages", []) or []
+    convex_service.update_collection_status(collection_id, "processing", existing_images_count)
+
+    # Prepare embeddings merge
+    embeddings_key = f"{collection_id}/embeddings.json"
+    existing_embeddings: dict[str, Any] = {}
+    try:
+        objects = r2_service.list_objects(embeddings_key)
+        if objects:
+            existing_bytes = r2_service.download_file(embeddings_key)
+            if existing_bytes:
+                existing_embeddings = json.loads(existing_bytes.decode('utf-8'))
+                print(f"[{get_time()}] Existing embeddings.json found. Photos indexed: {len(existing_embeddings)}")
+        else:
+            print(f"[{get_time()}] No existing embeddings.json found. Starting fresh.")
+    except Exception as e:
+        print(f"[{get_time()}] Warning: failed to load existing embeddings.json: {e}")
+
+    # Process images (normalized filenames)
+    def on_progress(processed: int, _total: int) -> None:
+        convex_service.update_ingest_progress(job_id, processed_images=processed)
+        threading.Thread(
+            target=convex_service.update_collection_status,
+            args=(collection_id, "processing", existing_images_count + processed),
+            daemon=True,
+        ).start()
+
+    processed_count, embeddings_data, preview_image_keys = process_images(
+        collection_id=collection_id,
+        zip_file=zip_file,
+        image_files=image_files,
+        r2_service=r2_service,
+        face_service=face_service,
+        existing_images_count=existing_images_count,
+        on_progress=on_progress,
+    )
+
+    # Merge and save embeddings
+    merged_embeddings = {**existing_embeddings, **embeddings_data}
+    embeddings_json = json.dumps(merged_embeddings, indent=2)
+    r2_service.upload_file(
+        embeddings_json.encode('utf-8'),
+        embeddings_key,
+        'application/json'
+    )
+    print(f"[{get_time()}] Ingest saved embeddings.json to R2")
+
+    # Save preview images
+    try:
+        combined: list[str] = []
+        seen: set[str] = set()
+        for key in list(existing_preview_images) + preview_image_keys:
+            if key not in seen:
+                seen.add(key)
+                combined.append(key)
+        convex_service.set_collection_preview_images(collection_id, combined[:50])
+    except Exception as e:
+        print(f"[{get_time()}] Warning: failed setting preview images: {e}")
+
+    # Finalize counts, statuses
+    convex_service.update_collection_status(
+        collection_id,
+        "complete",
+        len(merged_embeddings)
+    )
+    convex_service.mark_ingest_completed(job_id, processed_count)
+
+    # Optionally delete zip
+    try:
+        deleted = r2_service.delete_file(file_key)
+        print(f"[{get_time()}] Deleted source zip from R2 ({file_key}): {deleted}")
+    except Exception as e:
+        print(f"[{get_time()}] Warning: failed to delete source zip {file_key}: {e}")
+
+    return {"ok": True, "processedImages": processed_count, "totalImages": total_images}
+
+
 @router.post("/process-ingest-job")
 async def process_ingest_job(request: Request):
     """Process an ingest job referenced by R2 key and collection id.
@@ -357,103 +468,10 @@ async def process_ingest_job(request: Request):
     convex_service = ConvexService()
 
     try:
-        # Validate collection
-        collection = convex_service.get_collection(collection_id)
-        if not collection:
-            raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
-
-        # Mark job as running
-        convex_service.update_ingest_progress(job_id, status="running")
-
-        # Download zip
-        print(f"[{get_time()}] Downloading zip for ingest: {file_key}")
-        zip_bytes = r2_service.download_file(file_key)
-        if zip_bytes is None:
-            raise HTTPException(status_code=404, detail=f"Zip not found in R2: {file_key}")
-
-        # Inspect zip - get total images early
-        zip_file, image_files = open_zip_and_list_images(zip_bytes)
-        total_images = len(image_files)
-        print(f"[{get_time()}] Ingest zip contains {total_images} images")
-        convex_service.update_ingest_progress(job_id, total_images=total_images)
-
-        # Load existing state
-        existing_images_count = int(collection.get("imagesCount", 0) or 0)
-        existing_preview_images = collection.get("previewImages", []) or []
-        convex_service.update_collection_status(collection_id, "processing", existing_images_count)
-
-        # Prepare embeddings merge
-        embeddings_key = f"{collection_id}/embeddings.json"
-        existing_embeddings: dict[str, Any] = {}
-        try:
-            objects = r2_service.list_objects(embeddings_key)
-            if objects:
-                existing_bytes = r2_service.download_file(embeddings_key)
-                if existing_bytes:
-                    existing_embeddings = json.loads(existing_bytes.decode('utf-8'))
-                    print(f"[{get_time()}] Existing embeddings.json found. Photos indexed: {len(existing_embeddings)}")
-            else:
-                print(f"[{get_time()}] No existing embeddings.json found. Starting fresh.")
-        except Exception as e:
-            print(f"[{get_time()}] Warning: failed to load existing embeddings.json: {e}")
-
-        # Process images (normalized filenames)
-        def on_progress(processed: int, _total: int) -> None:
-            convex_service.update_ingest_progress(job_id, processed_images=processed)
-            threading.Thread(
-                target=convex_service.update_collection_status,
-                args=(collection_id, "processing", existing_images_count + processed),
-                daemon=True,
-            ).start()
-
-        processed_count, embeddings_data, preview_image_keys = process_images(
-            collection_id=collection_id,
-            zip_file=zip_file,
-            image_files=image_files,
-            r2_service=r2_service,
-            face_service=face_service,
-            existing_images_count=existing_images_count,
-            on_progress=on_progress,
+        result = await process_ingest_job_sync(
+            job_id, collection_id, file_key, r2_service, face_service, convex_service
         )
-
-        # Merge and save embeddings
-        merged_embeddings = {**existing_embeddings, **embeddings_data}
-        embeddings_json = json.dumps(merged_embeddings, indent=2)
-        r2_service.upload_file(
-            embeddings_json.encode('utf-8'),
-            embeddings_key,
-            'application/json'
-        )
-        print(f"[{get_time()}] Ingest saved embeddings.json to R2")
-
-        # Save preview images
-        try:
-            combined: list[str] = []
-            seen: set[str] = set()
-            for key in list(existing_preview_images) + preview_image_keys:
-                if key not in seen:
-                    seen.add(key)
-                    combined.append(key)
-            convex_service.set_collection_preview_images(collection_id, combined[:50])
-        except Exception as e:
-            print(f"[{get_time()}] Warning: failed setting preview images: {e}")
-
-        # Finalize counts, statuses
-        convex_service.update_collection_status(
-            collection_id,
-            "complete",
-            len(merged_embeddings)
-        )
-        convex_service.mark_ingest_completed(job_id, processed_count)
-
-        # Optionally delete zip
-        try:
-            deleted = r2_service.delete_file(file_key)
-            print(f"[{get_time()}] Deleted source zip from R2 ({file_key}): {deleted}")
-        except Exception as e:
-            print(f"[{get_time()}] Warning: failed to delete source zip {file_key}: {e}")
-
-        return {"ok": True, "processedImages": processed_count, "totalImages": total_images}
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -464,4 +482,61 @@ async def process_ingest_job(request: Request):
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/start-collection-ingest")
+async def start_collection_ingest(request: Request):
+    """Kick off sequential ingest for a collection: claim next job and process until none left."""
+    data = await request.json()
+    collection_id = data.get("collection_id")
+    if not collection_id:
+        raise HTTPException(status_code=400, detail="collection_id is required")
+
+    print(f"[{get_time()}] Start ingest chain for collection: {collection_id}")
+
+    r2_service = R2StorageService()
+    face_service = FaceRecognitionService()
+    convex_service = ConvexService()
+
+    processed_jobs = 0
+    while True:
+        try:
+            claim = convex_service.client.mutation(
+                "ingestJobs:claimNextForCollection",
+                {"collectionId": collection_id},
+            )
+        except Exception as e:
+            print(f"[{get_time()}] Error claiming next job: {e}")
+            break
+
+        if not claim:
+            break
+
+        job_id = claim.get("_id")
+        file_key = claim.get("fileKey")
+        if not job_id or not file_key:
+            print(f"[{get_time()}] Invalid claim response: {claim}")
+            break
+
+        try:
+            await process_ingest_job_sync(
+                job_id,
+                collection_id,
+                file_key,
+                r2_service,
+                face_service,
+                convex_service,
+            )
+            processed_jobs += 1
+        except Exception as e:
+            # Mark job failed and continue with the next one
+            print(f"[{get_time()}] Job failed {job_id}: {e}")
+            try:
+                convex_service.mark_ingest_failed(job_id, str(e))
+            except Exception:
+                pass
+            continue
+
+    print(f"[{get_time()}] Ingest chain finished for {collection_id}. Jobs processed: {processed_jobs}")
+    return {"ok": True, "processedJobs": processed_jobs}
 
