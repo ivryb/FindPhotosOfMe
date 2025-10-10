@@ -66,13 +66,7 @@ async def search_photos(
         collection = convex_service.get_collection(collection_id)
         if not collection:
             raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
-        
-        if collection.get('status') != 'complete':
-            raise HTTPException(
-                status_code=400,
-                detail=f"Collection {collection_id} is not ready for searching"
-            )
-        
+                
         # Get total images from collection
         total_images = collection.get('imagesCount', 0)
         print(f"[{get_time()}] Collection has {total_images} images")
