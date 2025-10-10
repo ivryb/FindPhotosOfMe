@@ -71,6 +71,7 @@ const formData = ref({
 
 // Upload state
 const selectedFile = ref<File | null>(null);
+const fileInputRef = ref<any>(null);
 const isUploading = ref(false);
 const uploadError = ref<string | null>(null);
 const uploadProgress = ref(0);
@@ -221,34 +222,27 @@ const handleUpload = async () => {
       `[Upload] File uploaded to R2. Triggering processing in Python service...`
     );
 
-    // 3) Tell the Python service to process this uploaded zip by key
-    const processForm = new FormData();
-    processForm.append("collection_id", collection.value._id);
-    processForm.append("zip_key", r2Key);
-
-    const response = await fetch(`${apiURL}/api/upload-collection`, {
+    // 3) Tell the Python service to process this uploaded zip by key (JSON body)
+    const result = await $fetch<{
+      success: boolean;
+      message: string;
+      images_processed: number;
+    }>(`${apiURL}/api/upload-collection`, {
       method: "POST",
-      body: processForm,
+      body: {
+        collection_id: collection.value._id,
+        zip_key: r2Key,
+      },
     });
-
-    if (!response.ok) {
-      try {
-        const err = await response.json();
-        throw new Error(err.detail || `Processing failed (${response.status})`);
-      } catch (e) {
-        throw new Error(`Processing failed (${response.status})`);
-      }
-    }
-
-    const result = await response.json();
     console.log(`[Upload] Success: ${result.message}`);
     console.log(`[Upload] Images processed: ${result.images_processed}`);
 
     // Reset form
     selectedFile.value = null;
     uploadProgress.value = 0;
-    const fileInput = document.getElementById("zip-file") as HTMLInputElement;
-    if (fileInput) fileInput.value = "";
+    if (fileInputRef.value && fileInputRef.value.$el) {
+      fileInputRef.value.$el.value = "";
+    }
   } catch (error) {
     console.error("[Upload] Error:", error);
     uploadError.value =
@@ -522,6 +516,7 @@ const handleDelete = async () => {
                   id="zip-file"
                   type="file"
                   accept=".zip"
+                  ref="fileInputRef"
                   @change="handleFileSelect"
                   :disabled="isUploading"
                 />

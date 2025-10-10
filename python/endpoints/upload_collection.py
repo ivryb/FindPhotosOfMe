@@ -5,8 +5,8 @@ import zipfile
 import io
 import threading
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import List, Optional
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
+from typing import List, Optional, Dict, Any
 
 from services.r2_storage import R2StorageService
 from services.face_recognition_service import FaceRecognitionService
@@ -35,9 +35,10 @@ def get_content_type(filename: str) -> str:
 
 @router.post("/upload-collection", response_model=UploadResponse)
 async def upload_collection(
-    collection_id: str = Form(...),
+    collection_id: Optional[str] = Form(None),
     zip_key: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None)
+    file: Optional[UploadFile] = File(None),
+    json_body: Optional[Dict[str, Any]] = Body(None),
 ):
     """Upload and process a zip archive of photos for a collection.
     
@@ -53,6 +54,14 @@ async def upload_collection(
     Returns:
         UploadResponse with processing results
     """
+    # Support JSON payloads as well as multipart form-data
+    if json_body and isinstance(json_body, dict):
+        collection_id = json_body.get("collection_id", collection_id)
+        zip_key = json_body.get("zip_key", zip_key)
+
+    if not collection_id:
+        raise HTTPException(status_code=400, detail="'collection_id' is required")
+
     print(f"[{get_time()}] Starting upload for collection: {collection_id}")
     if zip_key:
         print(f"[{get_time()}] zip_key provided: {zip_key}")
