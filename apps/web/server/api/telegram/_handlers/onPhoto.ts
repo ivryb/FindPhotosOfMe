@@ -188,7 +188,10 @@ async function generateProxyUrls(imagePaths: string[]) {
       .split("/")
       .map((seg) => encodeURIComponent(seg))
       .join("/");
-    const url = `${config.public.origin}/api/r2/${encodedPath}`;
+    const url = `${config.public.origin}/api/r2/${encodedPath}`.replace(
+      "https://findphotosofme.com",
+      "https://cdn.findphotosofme.com"
+    );
     imageUrls.push(url);
   }
 
