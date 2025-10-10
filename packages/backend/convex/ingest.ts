@@ -26,10 +26,7 @@ export const enqueueIngestJobs = action({
       args.jobs.map((j) => ({ jobId: j.jobId })),
       {
         onComplete: internal.ingest.onJobComplete,
-        // Provide jobId into onComplete context for error fallback handling
-        context: ((workArgs: { jobId: string }) => ({
-          jobId: workArgs.jobId,
-        })) as any,
+        // no context; failures are handled inside processJob
       }
     );
     return null;
@@ -64,7 +61,10 @@ export const processJob = internalAction({
     if (!collection) throw new Error("Collection not found for job");
 
     // Call Python processing service
-    const apiUrl = process.env.API_URL;
+    const apiUrl =
+      process.env.PYTHON_API_URL ||
+      process.env.API_URL ||
+      process.env.NUXT_PUBLIC_API_URL;
     if (!apiUrl) throw new Error("API URL not configured");
 
     const payload = {
@@ -73,8 +73,9 @@ export const processJob = internalAction({
       file_key: jobDoc.fileKey,
     } as any;
 
-    console.log("Ingest process start", payload);
-    const res = await fetch(`${apiUrl}/api/process-ingest-job`, {
+    const url = `${apiUrl.replace(/\/$/, "")}/api/process-ingest-job`;
+    console.log("Ingest process start", { ...payload, url });
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -91,22 +92,9 @@ export const processJob = internalAction({
 });
 
 export const onJobComplete = ingestPool.defineOnComplete({
-  context: v.object({ jobId: v.id("ingestJobs") }),
-  handler: async (ctx, { workId, context, result }) => {
-    // If the action failed before Python handled it, persist error on the job
-    if (result.kind === "failed") {
-      await ctx.runMutation(api.ingestJobs.updateProgress, {
-        id: context.jobId,
-        status: "failed",
-        error: result.error,
-      });
-    }
-    if (result.kind === "canceled") {
-      await ctx.runMutation(api.ingestJobs.updateProgress, {
-        id: context.jobId,
-        status: "canceled",
-        error: "Canceled by system",
-      });
-    }
+  context: v.object({}),
+  handler: async (_ctx, { workId, context, result }) => {
+    // No-op: Python reports errors directly to Convex; Workpool failures will be retried or surfaced in logs
+    return;
   },
 });
