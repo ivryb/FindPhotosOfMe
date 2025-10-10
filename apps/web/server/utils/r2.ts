@@ -170,6 +170,44 @@ class R2Service {
 
     return await getSignedUrl(this.client!, command, { expiresIn });
   }
+
+  async getSignedUrlWithResponse(
+    objectKey: string,
+    opts?: {
+      filename?: string;
+      contentType?: string;
+      expiresIn?: number;
+      cacheSeconds?: number;
+      contentDisposition?: "inline" | "attachment";
+    }
+  ): Promise<string> {
+    this.initializeClient();
+    const bucket = this.getBucket();
+
+    const expiresIn = opts?.expiresIn ?? 300;
+    const contentType = opts?.contentType ?? "image/jpeg";
+    const filename =
+      opts?.filename ?? objectKey.split("/").pop() ?? "photo.jpg";
+    const disposition = opts?.contentDisposition ?? "inline";
+    const cacheControl =
+      typeof opts?.cacheSeconds === "number"
+        ? `public, max-age=${opts!.cacheSeconds}`
+        : undefined;
+
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      ResponseContentType: contentType,
+      ResponseContentDisposition: `${disposition}; filename="${filename}"`,
+      ...(cacheControl ? { ResponseCacheControl: cacheControl } : {}),
+    } as any);
+
+    const url = await getSignedUrl(this.client!, command, { expiresIn });
+    console.log(
+      `[${new Date().toISOString()}] Generated signed URL with response overrides (key: ${objectKey}, expiresIn: ${expiresIn}, disposition: ${disposition})`
+    );
+    return url;
+  }
 }
 
 let r2ServiceInstance: R2Service | null = null;

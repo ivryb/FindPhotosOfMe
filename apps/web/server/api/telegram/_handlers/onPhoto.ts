@@ -5,6 +5,7 @@ import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { waitUntil } from "@vercel/functions";
 import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
 import { log } from "../_utils/log";
+import { useR2 } from "../../../utils/r2";
 
 export const createOnPhotoHandler = (
   botToken: string,
@@ -178,24 +179,33 @@ async function handleSearchComplete(
 }
 
 async function generateProxyUrls(imagePaths: string[]) {
-  log("Generating proxy URLs", { imageCount: imagePaths.length });
+  log("Generating direct R2 signed URLs", { imageCount: imagePaths.length });
 
-  const config = useRuntimeConfig();
+  const r2 = useR2();
 
-  const imageUrls: string[] = [];
-  for (const path of imagePaths) {
-    const encodedPath = path
-      .split("/")
-      .map((seg) => encodeURIComponent(seg))
-      .join("/");
-    const url = `${config.public.origin}/api/r2/${encodedPath}`.replace(
-      "https://findphotosofme.com",
-      "https://cdn.findphotosofme.com"
-    );
-    imageUrls.push(url);
-  }
+  const urls = await Promise.all(
+    imagePaths.map(async (objectKey) => {
+      const filename = objectKey.split("/").pop() ?? "photo.jpg";
+      try {
+        const url = await r2.getSignedUrlWithResponse(objectKey, {
+          filename,
+          contentType: "image/jpeg",
+          expiresIn: 300,
+          contentDisposition: "inline",
+          cacheSeconds: 60,
+        });
+        return url;
+      } catch (e: any) {
+        log("Failed to sign R2 URL", {
+          objectKey,
+          error: String(e?.message || e),
+        });
+        return null;
+      }
+    })
+  );
 
-  return imageUrls;
+  return urls.filter(Boolean) as string[];
 }
 
 async function sendPhotoToAPI(
