@@ -40,7 +40,5 @@ EXPOSE 8000
 # Set default port
 ENV PORT=8000
 
-# Run the application with extended timeouts for large file uploads
-# --timeout-keep-alive: Keep connection alive for streaming uploads
-# --timeout-graceful-shutdown: Allow time for in-progress uploads to complete
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT} --loop asyncio --http h11 --timeout-keep-alive 300 --limit-max-requests 0"]
+# Run the application using JSON array format (prevents signal handling issues)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
