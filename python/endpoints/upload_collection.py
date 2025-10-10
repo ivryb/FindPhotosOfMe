@@ -3,10 +3,12 @@
 import json
 import zipfile
 import io
+import re
 import threading
+from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
-from typing import List, Optional, Dict, Any
+from typing import Callable, Optional, Dict, Any, List, Tuple, Set
 
 from services.r2_storage import R2StorageService
 from services.face_recognition_service import FaceRecognitionService
@@ -31,6 +33,116 @@ def get_content_type(filename: str) -> str:
         return 'image/png'
     else:
         return 'application/octet-stream'
+
+
+# -------- Shared helpers (deduplicated logic) --------
+def normalize_filename(filename: str, used_names: Set[str]) -> str:
+    """Flatten subfolders and sanitize names to ASCII-safe tokens.
+
+    - Keep only letters, numbers, dot, underscore, dash
+    - Remove any subfolder path; only the basename remains
+    - Ensure uniqueness within a zip by suffixing -1, -2, ... if needed
+    """
+    base_name = Path(filename).name
+    sanitized = re.sub(r"[^A-Za-z0-9._-]", "_", base_name)
+    if not sanitized:
+        sanitized = "file"
+
+    if sanitized not in used_names:
+        used_names.add(sanitized)
+        return sanitized
+
+    # Ensure uniqueness when duplicate sanitized names appear
+    stem = Path(sanitized).stem
+    ext = Path(sanitized).suffix
+    counter = 1
+    while True:
+        candidate = f"{stem}-{counter}{ext}"
+        if candidate not in used_names:
+            used_names.add(candidate)
+            return candidate
+        counter += 1
+
+
+def open_zip_and_list_images(zip_bytes: bytes) -> Tuple[zipfile.ZipFile, List[str]]:
+    """Open a zip from bytes and return image file entries (excluding macOS junk)."""
+    zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    image_extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
+    image_files = [
+        name for name in zf.namelist()
+        if name.lower().endswith(image_extensions) and not name.startswith('__MACOSX')
+    ]
+    return zf, image_files
+
+
+def load_existing_embeddings(r2_service: R2StorageService, embeddings_key: str) -> Dict[str, Any]:
+    """Load existing embeddings.json if present; return {} otherwise."""
+    try:
+        objects = r2_service.list_objects(embeddings_key)
+        if objects:
+            existing_bytes = r2_service.download_file(embeddings_key)
+            if existing_bytes:
+                return json.loads(existing_bytes.decode('utf-8'))
+    except Exception as e:
+        print(f"[{get_time()}] Warning: failed to load existing embeddings.json: {e}")
+    return {}
+
+
+def process_images(
+    *,
+    collection_id: str,
+    zip_file: zipfile.ZipFile,
+    image_files: List[str],
+    r2_service: R2StorageService,
+    face_service: FaceRecognitionService,
+    existing_images_count: int,
+    on_progress: Callable[[int, int], None],
+) -> Tuple[int, Dict[str, Any], List[str]]:
+    """Process images from zip and upload to R2 with flattened, sanitized names.
+
+    Returns (processed_count, embeddings_data, preview_image_keys).
+    """
+    embeddings_data: Dict[str, Any] = {}
+    processed_count = 0
+    preview_image_keys: List[str] = []
+    used_names: Set[str] = set()
+    total_images = len(image_files)
+
+    for member in image_files:
+        try:
+            # Extract image data
+            image_data = zip_file.read(member)
+
+            # Extract face embeddings
+            embeddings = face_service.extract_embeddings(image_data)
+            if not embeddings:
+                continue
+
+            # Normalize filename (flatten + sanitize + de-duplicate)
+            normalized_name = normalize_filename(member, used_names)
+            r2_key = f"{collection_id}/{normalized_name}"
+            content_type = get_content_type(normalized_name)
+
+            # Upload image to R2
+            r2_service.upload_file(image_data, r2_key, content_type)
+
+            # Save embeddings keyed by normalized filename
+            embeddings_data[normalized_name] = embeddings
+
+            processed_count += 1
+            if len(preview_image_keys) < 50:
+                preview_image_keys.append(r2_key)
+
+            # Report progress
+            on_progress(processed_count, total_images)
+
+            if processed_count % 10 == 0:
+                print(f"[{get_time()}] Processed {processed_count}/{total_images} images")
+        except Exception as e:
+            print(f"[{get_time()}] Error processing {member}: {e}")
+            continue
+
+    return processed_count, embeddings_data, preview_image_keys
 
 
 @router.post("/upload-collection", response_model=UploadResponse)
@@ -82,21 +194,21 @@ async def upload_collection(
         r2_service = R2StorageService()
         face_service = FaceRecognitionService()
         convex_service = ConvexService()
-        
+
         # Validate collection exists
         collection = convex_service.get_collection(collection_id)
         if not collection:
             raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
-        
+
         print(f"[{get_time()}] Collection validated: {collection_id}")
-        
+
         # Determine existing counters/state
         existing_images_count = int(collection.get("imagesCount", 0) or 0)
         existing_preview_images = collection.get("previewImages", []) or []
 
         # Update status to processing (preserve existing count)
         convex_service.update_collection_status(collection_id, "processing", existing_images_count)
-        
+
         # Load zip bytes either from R2 by key or from uploaded file
         zip_bytes: Optional[bytes] = None
         should_delete_r2_zip: bool = False
@@ -117,79 +229,41 @@ async def upload_collection(
         else:
             raise HTTPException(status_code=400, detail="Provide either 'zip_key' or 'file'")
 
-        # Open zip file
-        zip_file = zipfile.ZipFile(io.BytesIO(zip_bytes))
-        
-        # Get list of image files
-        image_extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
-        image_files = [
-            name for name in zip_file.namelist()
-            if name.lower().endswith(image_extensions) and not name.startswith('__MACOSX')
-        ]
-        
+        # Open zip and list images
+        zip_file, image_files = open_zip_and_list_images(zip_bytes)
         total_images = len(image_files)
         print(f"[{get_time()}] Found {total_images} images in zip archive")
-        
+
         if total_images == 0:
             raise HTTPException(status_code=400, detail="No images found in zip archive")
-        
+
         # Prepare embeddings merge
         embeddings_key = f"{collection_id}/embeddings.json"
-        existing_embeddings = {}
-        try:
-            # Check if embeddings.json exists and load it
-            objects = r2_service.list_objects(embeddings_key)
-            if objects:
-                existing_bytes = r2_service.download_file(embeddings_key)
-                if existing_bytes:
-                    existing_embeddings = json.loads(existing_bytes.decode('utf-8'))
-                    print(f"[{get_time()}] Existing embeddings.json found. Photos indexed: {len(existing_embeddings)}")
-            else:
-                print(f"[{get_time()}] No existing embeddings.json found. Starting fresh.")
-        except Exception as e:
-            print(f"[{get_time()}] Warning: failed to load existing embeddings.json: {e}")
+        existing_embeddings = load_existing_embeddings(r2_service, embeddings_key)
+        if existing_embeddings:
+            print(f"[{get_time()}] Existing embeddings.json found. Photos indexed: {len(existing_embeddings)}")
+        else:
+            print(f"[{get_time()}] No existing embeddings.json found. Starting fresh.")
 
-        # Process each image
-        embeddings_data = {}
-        processed_count = 0
-        preview_image_keys: list[str] = []
-        
-        for image_name in image_files:
-            try:
-                # Extract image data
-                image_data = zip_file.read(image_name)
-                
-                # Extract face embeddings
-                embeddings = face_service.extract_embeddings(image_data)
-                
-                if embeddings:
-                    # Store embeddings for this image
-                    embeddings_data[image_name] = embeddings
-                    
-                    # Upload image to R2
-                    r2_key = f"{collection_id}/{image_name}"
-                    content_type = get_content_type(image_name)
-                    r2_service.upload_file(image_data, r2_key, content_type)
-                    
-                    processed_count += 1
-                    # Collect first 50 keys for previews
-                    if len(preview_image_keys) < 50:
-                        preview_image_keys.append(r2_key)
-                    
-                    # Update Convex with progress (non-blocking)
-                    threading.Thread(
-                        target=convex_service.update_collection_status,
-                        args=(collection_id, "processing", existing_images_count + processed_count),
-                        daemon=True
-                    ).start()
-                    
-                    if processed_count % 10 == 0:
-                        print(f"[{get_time()}] Processed {processed_count}/{total_images} images")
-                
-            except Exception as e:
-                print(f"[{get_time()}] Error processing {image_name}: {e}")
-                continue
-        
+        # Progress updater for collection count
+        def on_progress(processed: int, _total: int) -> None:
+            threading.Thread(
+                target=convex_service.update_collection_status,
+                args=(collection_id, "processing", existing_images_count + processed),
+                daemon=True,
+            ).start()
+
+        # Process images (normalized filenames)
+        processed_count, embeddings_data, preview_image_keys = process_images(
+            collection_id=collection_id,
+            zip_file=zip_file,
+            image_files=image_files,
+            r2_service=r2_service,
+            face_service=face_service,
+            existing_images_count=existing_images_count,
+            on_progress=on_progress,
+        )
+
         # Merge and save embeddings to R2
         merged_embeddings = {**existing_embeddings, **embeddings_data}
         embeddings_json = json.dumps(merged_embeddings, indent=2)
@@ -198,12 +272,11 @@ async def upload_collection(
             embeddings_key,
             'application/json'
         )
-        
+
         print(f"[{get_time()}] Saved embeddings.json to R2")
-        
+
         # Save first 50 preview images to Convex
         try:
-            # Merge existing preview images with new ones, keep order and uniqueness
             combined = []
             seen = set()
             for key in list(existing_preview_images) + preview_image_keys:
@@ -220,9 +293,9 @@ async def upload_collection(
             "complete",
             len(merged_embeddings)
         )
-        
+
         print(f"[{get_time()}] Upload complete. Processed {processed_count}/{total_images} images")
-        
+
         # Remove uploaded zip from R2 if applicable
         if zip_key and should_delete_r2_zip:
             try:
@@ -230,7 +303,7 @@ async def upload_collection(
                 print(f"[{get_time()}] Deleted source zip from R2 ({zip_key}): {deleted}")
             except Exception as e:
                 print(f"[{get_time()}] Warning: failed to delete source zip {zip_key}: {e}")
-        
+
         return UploadResponse(
             success=True,
             message=f"Successfully processed {processed_count} images",
@@ -299,12 +372,7 @@ async def process_ingest_job(request: Request):
             raise HTTPException(status_code=404, detail=f"Zip not found in R2: {file_key}")
 
         # Inspect zip - get total images early
-        zip_file = zipfile.ZipFile(io.BytesIO(zip_bytes))
-        image_extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
-        image_files = [
-            name for name in zip_file.namelist()
-            if name.lower().endswith(image_extensions) and not name.startswith('__MACOSX')
-        ]
+        zip_file, image_files = open_zip_and_list_images(zip_bytes)
         total_images = len(image_files)
         print(f"[{get_time()}] Ingest zip contains {total_images} images")
         convex_service.update_ingest_progress(job_id, total_images=total_images)
@@ -329,41 +397,24 @@ async def process_ingest_job(request: Request):
         except Exception as e:
             print(f"[{get_time()}] Warning: failed to load existing embeddings.json: {e}")
 
-        # Process each image
-        embeddings_data: dict[str, Any] = {}
-        processed_count = 0
-        preview_image_keys: list[str] = []
+        # Process images (normalized filenames)
+        def on_progress(processed: int, _total: int) -> None:
+            convex_service.update_ingest_progress(job_id, processed_images=processed)
+            threading.Thread(
+                target=convex_service.update_collection_status,
+                args=(collection_id, "processing", existing_images_count + processed),
+                daemon=True,
+            ).start()
 
-        for image_name in image_files:
-            try:
-                image_data = zip_file.read(image_name)
-                embeddings = face_service.extract_embeddings(image_data)
-                if embeddings:
-                    embeddings_data[image_name] = embeddings
-                    r2_key = f"{collection_id}/{image_name}"
-                    content_type = get_content_type(image_name)
-                    r2_service.upload_file(image_data, r2_key, content_type)
-
-                    processed_count += 1
-                    if len(preview_image_keys) < 50:
-                        preview_image_keys.append(r2_key)
-
-                    # Job progress + collection progress
-                    convex_service.update_ingest_progress(
-                        job_id,
-                        processed_images=processed_count,
-                    )
-                    threading.Thread(
-                        target=convex_service.update_collection_status,
-                        args=(collection_id, "processing", existing_images_count + processed_count),
-                        daemon=True,
-                    ).start()
-
-                    if processed_count % 10 == 0:
-                        print(f"[{get_time()}] Ingest progress: {processed_count}/{total_images}")
-            except Exception as e:
-                print(f"[{get_time()}] Error processing {image_name}: {e}")
-                continue
+        processed_count, embeddings_data, preview_image_keys = process_images(
+            collection_id=collection_id,
+            zip_file=zip_file,
+            image_files=image_files,
+            r2_service=r2_service,
+            face_service=face_service,
+            existing_images_count=existing_images_count,
+            on_progress=on_progress,
+        )
 
         # Merge and save embeddings
         merged_embeddings = {**existing_embeddings, **embeddings_data}
