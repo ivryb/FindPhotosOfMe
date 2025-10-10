@@ -69,8 +69,8 @@ const formData = ref({
   welcomeMessage: collection.value?.welcomeMessage || "",
 });
 
-// Upload state
-const selectedFile = ref<File | null>(null);
+// Upload state (multi-file)
+const selectedFiles = ref<File[]>([]);
 const fileInputRef = ref<any>(null);
 const isUploading = ref(false);
 const uploadError = ref<string | null>(null);
@@ -173,21 +173,18 @@ const handleCancel = () => {
 
 const handleFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-
-  if (file) {
-    if (!file.name.endsWith(".zip")) {
-      uploadError.value = "Please select a valid zip file";
-      selectedFile.value = null;
-      return;
-    }
-    selectedFile.value = file;
+  const files = target.files ? Array.from(target.files) : [];
+  const zips = files.filter((f) => f.name.toLowerCase().endsWith(".zip"));
+  if (zips.length !== files.length) {
+    uploadError.value = "Only .zip files are allowed";
+  } else {
     uploadError.value = null;
   }
+  selectedFiles.value = zips;
 };
 
 const handleUpload = async () => {
-  if (!selectedFile.value || !collection.value) return;
+  if (!collection.value || selectedFiles.value.length === 0) return;
 
   isUploading.value = true;
   uploadError.value = null;
@@ -203,64 +200,53 @@ const handleUpload = async () => {
     }
 
     const contentType = "application/zip";
-    const sanitizedName = selectedFile.value.name.replace(
-      /[^a-zA-Z0-9_.-]/g,
-      "_"
-    );
-    const r2Key = `uploads/${collection.value._id}/${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 10)}-${sanitizedName}`;
+    const jobs: { filename: string; fileKey: string }[] = [];
 
-    console.log(
-      `[Upload] Preparing presigned upload for key: ${r2Key} (size: ${formatFileSize(
-        selectedFile.value.size
-      )})`
-    );
+    // 1) Upload each file to R2
+    for (const file of selectedFiles.value) {
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9_.-]/g, "_");
+      const r2Key = `uploads/${collection.value._id}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 10)}-${sanitizedName}`;
 
-    // 1) Ask our server for a presigned URL
-    const presign = await $fetch<{
-      success: boolean;
-      url: string;
-      headers: Record<string, string>;
-      key: string;
-    }>("/api/r2/presign-upload", {
-      method: "POST",
-      body: { key: r2Key, contentType },
-    });
+      const presign = await $fetch<{
+        success: boolean;
+        url: string;
+        headers: Record<string, string>;
+        key: string;
+      }>("/api/r2/presign-upload", {
+        method: "POST",
+        body: { key: r2Key, contentType },
+      });
 
-    // 2) Upload directly to R2 using $fetch
-    await $fetch(presign.url, {
-      method: "PUT",
-      body: selectedFile.value,
-      headers: {
-        "Content-Type": contentType,
-      },
-      // R2 PUT typically returns empty body; avoid JSON parsing
-      responseType: "text",
-    });
+      await $fetch(presign.url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": contentType },
+        responseType: "text",
+      });
 
-    console.log(
-      `[Upload] File uploaded to R2. Triggering processing in Python service...`
-    );
+      jobs.push({ filename: sanitizedName, fileKey: r2Key });
+    }
+
     uploadStage.value = "starting";
 
-    // 3) Tell the Python service to process this uploaded zip by key (JSON body)
-    const result = await $fetch<{
-      success: boolean;
-      message: string;
-      images_processed: number;
-    }>(`${apiURL}/api/upload-collection`, {
-      method: "POST",
-      body: {
-        collection_id: collection.value._id,
-        zip_key: r2Key,
-      },
+    // 2) Create ingest jobs in Convex
+    const jobIds = await convex.mutation(api.ingestJobs.createBatch, {
+      jobs: jobs.map((j) => ({
+        collectionId: collection.value!._id as Id<"collections">,
+        filename: j.filename,
+        fileKey: j.fileKey,
+      })),
     });
-    console.log(`[Upload] Success: ${result.message}`);
-    console.log(`[Upload] Images processed: ${result.images_processed}`);
 
-    // Reset form
-    selectedFile.value = null;
+    // 3) Enqueue jobs for processing via Workpool
+    await convex.action(api.ingest.enqueueIngestJobs, {
+      jobs: jobIds.map((id: any) => ({ jobId: id })),
+    });
+
+    // Reset input
+    selectedFiles.value = [];
     uploadProgress.value = 0;
     if (fileInputRef.value && fileInputRef.value.$el) {
       fileInputRef.value.$el.value = "";
@@ -268,7 +254,7 @@ const handleUpload = async () => {
   } catch (error) {
     console.error("[Upload] Error:", error);
     uploadError.value =
-      error instanceof Error ? error.message : "Failed to upload file";
+      error instanceof Error ? error.message : "Failed to upload files";
     uploadProgress.value = 0;
   } finally {
     isUploading.value = false;
@@ -535,25 +521,30 @@ const handleDelete = async () => {
           <div v-else>
             <div class="space-y-4">
               <div class="grid gap-2">
-                <Label for="zip-file">Select Zip Archive</Label>
+                <Label for="zip-file">Select Zip Archives</Label>
                 <Input
                   id="zip-file"
                   type="file"
                   accept=".zip"
+                  multiple
                   ref="fileInputRef"
                   @change="handleFileSelect"
                   :disabled="isUploading"
                 />
                 <p class="text-xs text-muted-foreground">
-                  Upload a zip file containing photos (.jpg, .jpeg, .png)
+                  Select one or more .zip files to append into this collection
                 </p>
               </div>
 
-              <div v-if="selectedFile" class="text-sm">
-                <span class="font-medium">Selected file:</span>
-                {{ selectedFile.name }} ({{
-                  formatFileSize(selectedFile.size)
-                }})
+              <div v-if="selectedFiles.length > 0" class="text-sm space-y-1">
+                <span class="font-medium">Selected files:</span>
+                <div
+                  v-for="f in selectedFiles"
+                  :key="f.name"
+                  class="text-muted-foreground"
+                >
+                  {{ f.name }} ({{ formatFileSize(f.size) }})
+                </div>
               </div>
 
               <!-- Upload Progress -->
@@ -567,13 +558,13 @@ const handleDelete = async () => {
 
               <Button
                 @click="handleUpload"
-                :disabled="!selectedFile || isUploading"
+                :disabled="selectedFiles.length === 0 || isUploading"
                 class="w-full"
               >
                 <Loader2 v-if="isUploading" class="mr-2 h-4 w-4 animate-spin" />
                 <Upload v-else class="mr-2 h-4 w-4" />
                 <span v-if="isUploading">Uploading...</span>
-                <span v-else>Upload and Process</span>
+                <span v-else>Upload and Queue</span>
               </Button>
 
               <div
@@ -585,6 +576,19 @@ const handleDelete = async () => {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <!-- Ingest jobs list -->
+      <Card class="mt-6">
+        <CardHeader>
+          <CardTitle>Ingest Jobs</CardTitle>
+          <CardDescription
+            >Queued uploads and their processing status</CardDescription
+          >
+        </CardHeader>
+        <CardContent>
+          <IngestJobsTable :collection-id="collection._id" />
         </CardContent>
       </Card>
     </div>

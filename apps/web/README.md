@@ -294,8 +294,8 @@ const subdomain = useSubdomain();
 
 Access via `useRuntimeConfig()`:
 
+- `config.public.origin` - nuxt instance url
 - `config.public.apiURL` - Python service URL
-- `config.public.serverURL` - R2/static file server URL
 - `config.public.convexUrl` - Convex deployment URL
 
 ## Visual Effects

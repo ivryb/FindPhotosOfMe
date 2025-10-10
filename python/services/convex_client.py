@@ -112,6 +112,67 @@ class ConvexService:
         except Exception as e:
             print(f"[{self._get_time()}] Error setting preview images: {e}")
             return False
+
+    def update_ingest_progress(
+        self,
+        job_id: str,
+        *,
+        total_images: int | None = None,
+        processed_images: int | None = None,
+        status: str | None = None,
+        error: str | None = None,
+    ) -> bool:
+        """Update ingest job progress in Convex.
+
+        Args:
+            job_id: Ingest job ID
+            total_images: Total images in zip (optional)
+            processed_images: Processed images count (optional)
+            status: One of pending|running|failed|completed|canceled (optional)
+            error: Error message (optional)
+        """
+        try:
+            args: dict[str, Any] = {"id": job_id}
+            if total_images is not None:
+                args["totalImages"] = int(total_images)
+            if processed_images is not None:
+                args["processedImages"] = int(processed_images)
+            if status is not None:
+                args["status"] = status
+            if error is not None:
+                args["error"] = error
+
+            self.client.mutation("ingestJobs:updateProgress", args)
+            print(f"[{self._get_time()}] Ingest job updated: {job_id} -> {args}")
+            return True
+        except Exception as e:
+            print(f"[{self._get_time()}] Error updating ingest job: {e}")
+            return False
+
+    def mark_ingest_failed(self, job_id: str, error: str) -> bool:
+        """Mark ingest job as failed."""
+        try:
+            self.client.mutation(
+                "ingestJobs:markFailed", {"id": job_id, "error": error}
+            )
+            print(f"[{self._get_time()}] Ingest job failed: {job_id}")
+            return True
+        except Exception as e:
+            print(f"[{self._get_time()}] Error marking ingest failed: {e}")
+            return False
+
+    def mark_ingest_completed(self, job_id: str, processed_images: int) -> bool:
+        """Mark ingest job as completed."""
+        try:
+            self.client.mutation(
+                "ingestJobs:markCompleted",
+                {"id": job_id, "processedImages": int(processed_images)},
+            )
+            print(f"[{self._get_time()}] Ingest job completed: {job_id}")
+            return True
+        except Exception as e:
+            print(f"[{self._get_time()}] Error marking ingest completed: {e}")
+            return False
     
     def get_search_request(self, search_request_id: str) -> Optional[dict]:
         """Get search request by ID.

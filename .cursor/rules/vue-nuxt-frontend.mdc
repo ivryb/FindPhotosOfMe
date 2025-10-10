@@ -97,7 +97,6 @@ Access environment variables:
 ```typescript
 const config = useRuntimeConfig();
 const apiUrl = config.public.apiURL;
-const serverUrl = config.public.serverURL;
 ```
 
 ## File Naming

@@ -136,6 +136,9 @@ importers:
 
   packages/backend:
     dependencies:
+      '@convex-dev/workpool':
+        specifier: ^0.2.18
+        version: 0.2.18(convex-helpers@0.1.104(@standard-schema/spec@1.0.0)(convex@1.27.3)(hono@4.9.10)(typescript@5.9.2)(zod@4.1.11))(convex@1.27.3)
       convex:
         specifier: ^1.25.4
         version: 1.27.3
@@ -479,6 +482,12 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
+
+  '@convex-dev/workpool@0.2.18':
+    resolution: {integrity: sha512-tfRfBCukaRiybxwy4/W3rLWpIRhPivFH9tC5++d0XE1sV627vw2mAwOM9SnpY1k+BWVoNrHrHrxBheklSbuAag==}
+    peerDependencies:
+      convex: '>=1.25.0 <1.35.0'
+      convex-helpers: ^0.1.94
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -2588,6 +2597,28 @@ packages:
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
+
+  convex-helpers@0.1.104:
+    resolution: {integrity: sha512-7CYvx7T3K6n+McDTK4ZQaQNNGBzq5aWezpjzsKbOxPXx7oNcTP9wrpef3JxeXWFzkByJv5hRCjseh9B7eNJ7Ig==}
+    hasBin: true
+    peerDependencies:
+      '@standard-schema/spec': ^1.0.0
+      convex: ^1.24.0
+      hono: ^4.0.5
+      react: ^17.0.2 || ^18.0.0 || ^19.0.0
+      typescript: ^5.5
+      zod: ^3.22.4 || ^4.0.15
+    peerDependenciesMeta:
+      '@standard-schema/spec':
+        optional: true
+      hono:
+        optional: true
+      react:
+        optional: true
+      typescript:
+        optional: true
+      zod:
+        optional: true
 
   convex-nuxt@0.1.5:
     resolution: {integrity: sha512-Sz1nzXPPFomSs7M8qzAldE8SOpqQI/8AUV2UUHqoTUbqynRAoM1J0uHrLlLm0LDfJD5RlDhM4Kv0q6JWx7zwag==}
@@ -5756,6 +5787,11 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20251001.0':
     optional: true
 
+  '@convex-dev/workpool@0.2.18(convex-helpers@0.1.104(@standard-schema/spec@1.0.0)(convex@1.27.3)(hono@4.9.10)(typescript@5.9.2)(zod@4.1.11))(convex@1.27.3)':
+    dependencies:
+      convex: 1.27.3
+      convex-helpers: 0.1.104(@standard-schema/spec@1.0.0)(convex@1.27.3)(hono@4.9.10)(typescript@5.9.2)(zod@4.1.11)
+
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
@@ -7919,6 +7955,15 @@ snapshots:
   consola@3.4.2: {}
 
   convert-source-map@2.0.0: {}
+
+  convex-helpers@0.1.104(@standard-schema/spec@1.0.0)(convex@1.27.3)(hono@4.9.10)(typescript@5.9.2)(zod@4.1.11):
+    dependencies:
+      convex: 1.27.3
+    optionalDependencies:
+      '@standard-schema/spec': 1.0.0
+      hono: 4.9.10
+      typescript: 5.9.2
+      zod: 4.1.11
 
   convex-nuxt@0.1.5(convex-vue@0.1.5(convex@1.27.3)(vue@3.5.22(typescript@5.9.2)))(magicast@0.3.5):
     dependencies:
