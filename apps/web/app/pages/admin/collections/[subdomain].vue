@@ -173,10 +173,6 @@ const handleUpload = async () => {
   uploadProgress.value = 0;
 
   try {
-    const formData = new FormData();
-    formData.append("collection_id", collection.value._id);
-    formData.append("file", selectedFile.value);
-
     const apiURL = config.public.apiURL;
     if (!apiURL) {
       throw new Error(
@@ -184,59 +180,67 @@ const handleUpload = async () => {
       );
     }
 
-    console.log(
-      `[Upload] Starting upload for collection: ${collection.value._id}`
+    const contentType = "application/zip";
+    const sanitizedName = selectedFile.value.name.replace(
+      /[^a-zA-Z0-9_.-]/g,
+      "_"
     );
+    const r2Key = `uploads/${collection.value._id}/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}-${sanitizedName}`;
+
     console.log(
-      `[Upload] File: ${selectedFile.value.name} (${formatFileSize(selectedFile.value.size)})`
+      `[Upload] Preparing presigned upload for key: ${r2Key} (size: ${formatFileSize(
+        selectedFile.value.size
+      )})`
     );
-    console.log(`[Upload] API URL: ${apiURL}`);
 
-    // Use XMLHttpRequest for upload progress tracking
-    const result = await new Promise<any>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      // Track upload progress
-      xhr.upload.addEventListener("progress", (e) => {
-        if (e.lengthComputable) {
-          uploadProgress.value = Math.round((e.loaded / e.total) * 100);
-          console.log(`[Upload] Progress: ${uploadProgress.value}%`);
-        }
-      });
-
-      // Handle completion
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            resolve(response);
-          } catch (e) {
-            reject(new Error("Invalid response format"));
-          }
-        } else {
-          try {
-            const error = JSON.parse(xhr.responseText);
-            reject(new Error(error.detail || `Upload failed (${xhr.status})`));
-          } catch (e) {
-            reject(new Error(`Upload failed (${xhr.status})`));
-          }
-        }
-      });
-
-      // Handle errors
-      xhr.addEventListener("error", () => {
-        reject(new Error("Network error during upload"));
-      });
-
-      xhr.addEventListener("abort", () => {
-        reject(new Error("Upload cancelled"));
-      });
-
-      // Send request
-      xhr.open("POST", `${apiURL}/api/upload-collection`);
-      xhr.send(formData);
+    // 1) Ask our server for a presigned URL
+    const presign = await $fetch<{
+      success: boolean;
+      url: string;
+      headers: Record<string, string>;
+      key: string;
+    }>("/api/r2/presign-upload", {
+      method: "POST",
+      body: { key: r2Key, contentType },
     });
 
+    // 2) Upload directly to R2 using $fetch
+    await $fetch(presign.url, {
+      method: "PUT",
+      body: selectedFile.value,
+      headers: {
+        "Content-Type": contentType,
+      },
+      // R2 PUT typically returns empty body; avoid JSON parsing
+      responseType: "text",
+    });
+
+    console.log(
+      `[Upload] File uploaded to R2. Triggering processing in Python service...`
+    );
+
+    // 3) Tell the Python service to process this uploaded zip by key
+    const processForm = new FormData();
+    processForm.append("collection_id", collection.value._id);
+    processForm.append("zip_key", r2Key);
+
+    const response = await fetch(`${apiURL}/api/upload-collection`, {
+      method: "POST",
+      body: processForm,
+    });
+
+    if (!response.ok) {
+      try {
+        const err = await response.json();
+        throw new Error(err.detail || `Processing failed (${response.status})`);
+      } catch (e) {
+        throw new Error(`Processing failed (${response.status})`);
+      }
+    }
+
+    const result = await response.json();
     console.log(`[Upload] Success: ${result.message}`);
     console.log(`[Upload] Images processed: ${result.images_processed}`);
 

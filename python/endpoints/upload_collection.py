@@ -6,7 +6,7 @@ import io
 import threading
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import List
+from typing import List, Optional
 
 from services.r2_storage import R2StorageService
 from services.face_recognition_service import FaceRecognitionService
@@ -36,24 +36,30 @@ def get_content_type(filename: str) -> str:
 @router.post("/upload-collection", response_model=UploadResponse)
 async def upload_collection(
     collection_id: str = Form(...),
-    file: UploadFile = File(...)
+    zip_key: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None)
 ):
     """Upload and process a zip archive of photos for a collection.
     
-    This endpoint supports streaming uploads to bypass Cloud Run's 32MB limit.
+    Supports two input modes:
+    - Direct R2 reference via `zip_key` (preferred; avoids Cloud Run 32MB limit)
+    - Direct file upload via multipart `file` (legacy)
     
     Args:
         collection_id: ID of the collection
-        file: Zip archive containing photos (streamed)
+        zip_key: R2 object key for the uploaded zip archive
+        file: Zip archive containing photos (multipart)
         
     Returns:
         UploadResponse with processing results
     """
     print(f"[{get_time()}] Starting upload for collection: {collection_id}")
-    
-    # Validate zip file
-    if not file.filename or not file.filename.endswith('.zip'):
-        raise HTTPException(status_code=400, detail="File must be a zip archive")
+    if zip_key:
+        print(f"[{get_time()}] zip_key provided: {zip_key}")
+    elif file is not None:
+        print(f"[{get_time()}] Multipart file provided: {getattr(file, 'filename', 'unknown')}")
+    else:
+        raise HTTPException(status_code=400, detail="Provide either 'zip_key' or 'file'")
     
     try:
         # Initialize services
@@ -75,27 +81,28 @@ async def upload_collection(
         # Update status to processing (preserve existing count)
         convex_service.update_collection_status(collection_id, "processing", existing_images_count)
         
-        # Stream file data in chunks to avoid memory issues with large files
-        print(f"[{get_time()}] Streaming zip file...")
-        zip_data = bytearray()
-        chunk_size = 1024 * 1024  # 1MB chunks
-        total_bytes = 0
-        
-        while True:
-            chunk = await file.read(chunk_size)
-            if not chunk:
-                break
-            zip_data.extend(chunk)
-            total_bytes += len(chunk)
-            
-            # Log progress for large files
-            if total_bytes % (10 * 1024 * 1024) == 0:  # Every 10MB
-                print(f"[{get_time()}] Received {total_bytes // (1024 * 1024)}MB...")
-        
-        print(f"[{get_time()}] Received {total_bytes // (1024 * 1024)}MB total")
-        
+        # Load zip bytes either from R2 by key or from uploaded file
+        zip_bytes: Optional[bytes] = None
+        should_delete_r2_zip: bool = False
+
+        if zip_key:
+            print(f"[{get_time()}] Downloading zip from R2: {zip_key}")
+            zip_bytes = r2_service.download_file(zip_key)
+            if zip_bytes is None:
+                raise HTTPException(status_code=404, detail=f"Zip not found in R2: {zip_key}")
+            should_delete_r2_zip = True
+            print(f"[{get_time()}] Downloaded {len(zip_bytes)} bytes from R2 for {zip_key}")
+        elif file is not None:
+            if not file.filename or not file.filename.endswith('.zip'):
+                raise HTTPException(status_code=400, detail="File must be a zip archive")
+            print(f"[{get_time()}] Reading uploaded zip file into memory...")
+            zip_bytes = await file.read()
+            print(f"[{get_time()}] Received {(len(zip_bytes) // (1024 * 1024))}MB total from multipart upload")
+        else:
+            raise HTTPException(status_code=400, detail="Provide either 'zip_key' or 'file'")
+
         # Open zip file
-        zip_file = zipfile.ZipFile(io.BytesIO(zip_data))
+        zip_file = zipfile.ZipFile(io.BytesIO(zip_bytes))
         
         # Get list of image files
         image_extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
@@ -200,6 +207,14 @@ async def upload_collection(
         
         print(f"[{get_time()}] Upload complete. Processed {processed_count}/{total_images} images")
         
+        # Remove uploaded zip from R2 if applicable
+        if zip_key and should_delete_r2_zip:
+            try:
+                deleted = r2_service.delete_file(zip_key)
+                print(f"[{get_time()}] Deleted source zip from R2 ({zip_key}): {deleted}")
+            except Exception as e:
+                print(f"[{get_time()}] Warning: failed to delete source zip {zip_key}: {e}")
+        
         return UploadResponse(
             success=True,
             message=f"Successfully processed {processed_count} images",
@@ -215,6 +230,14 @@ async def upload_collection(
         try:
             convex_service.update_collection_status(collection_id, "error")
         except:
+            pass
+        
+        # Attempt to delete R2 zip on failure as well
+        try:
+            if zip_key:
+                r2_service.delete_file(zip_key)
+                print(f"[{get_time()}] Deleted source zip after error: {zip_key}")
+        except Exception:
             pass
         
         raise HTTPException(status_code=500, detail=str(e))

@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   ListObjectsV2Command,
   DeleteObjectsCommand,
+  PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
@@ -148,6 +149,23 @@ class R2Service {
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: objectKey,
+    });
+
+    return await getSignedUrl(this.client!, command, { expiresIn });
+  }
+
+  async getUploadSignedUrl(
+    objectKey: string,
+    contentType: string,
+    expiresIn: number = 3600
+  ): Promise<string> {
+    this.initializeClient();
+    const bucket = this.getBucket();
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      ContentType: contentType,
     });
 
     return await getSignedUrl(this.client!, command, { expiresIn });
