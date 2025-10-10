@@ -26,7 +26,10 @@ export const enqueueIngestJobs = action({
       args.jobs.map((j) => ({ jobId: j.jobId })),
       {
         onComplete: internal.ingest.onJobComplete,
-        context: {},
+        // Provide jobId into onComplete context for error fallback handling
+        context: ((workArgs: { jobId: string }) => ({
+          jobId: workArgs.jobId,
+        })) as any,
       }
     );
     return null;
@@ -88,9 +91,22 @@ export const processJob = internalAction({
 });
 
 export const onJobComplete = ingestPool.defineOnComplete({
-  context: v.object({}),
-  handler: async (_ctx, { workId, context, result }) => {
-    // Python updates job status directly; keep a log for observability
-    console.log("Work complete", { workId, result: result.kind });
+  context: v.object({ jobId: v.id("ingestJobs") }),
+  handler: async (ctx, { workId, context, result }) => {
+    // If the action failed before Python handled it, persist error on the job
+    if (result.kind === "failed") {
+      await ctx.runMutation(api.ingestJobs.updateProgress, {
+        id: context.jobId,
+        status: "failed",
+        error: result.error,
+      });
+    }
+    if (result.kind === "canceled") {
+      await ctx.runMutation(api.ingestJobs.updateProgress, {
+        id: context.jobId,
+        status: "canceled",
+        error: "Canceled by system",
+      });
+    }
   },
 });
