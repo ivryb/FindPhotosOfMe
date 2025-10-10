@@ -75,9 +75,29 @@ const fileInputRef = ref<any>(null);
 const isUploading = ref(false);
 const uploadError = ref<string | null>(null);
 const uploadProgress = ref(0);
-const isWarmingUp = computed(() => {
-  // Show "warming up" state when upload started but collection hasn't started processing yet
-  return isUploading.value && collection.value?.status === "not_started";
+const uploadStage = ref<"idle" | "uploading" | "starting">("idle");
+const processedCount = computed(() => collection.value?.imagesCount ?? 0);
+const processedTotal = computed(() =>
+  collection.value?.status === "complete" ? collection.value.imagesCount : null
+);
+const showLoader = computed(
+  () =>
+    uploadStage.value !== "idle" || collection.value?.status === "processing"
+);
+const loaderTitle = computed(() => {
+  if (uploadStage.value === "uploading") return "Uploading...";
+  if (uploadStage.value === "starting") return "Starting processing...";
+  if (collection.value?.status === "processing") return "Processing...";
+  return "";
+});
+const loaderDescription = computed(() => {
+  if (uploadStage.value === "uploading")
+    return "Sending your archive to cloud storage";
+  if (uploadStage.value === "starting")
+    return "Initializing face recognition on the server";
+  if (collection.value?.status === "processing")
+    return "Extracting face embeddings and uploading to storage";
+  return "";
 });
 
 watch(
@@ -172,6 +192,7 @@ const handleUpload = async () => {
   isUploading.value = true;
   uploadError.value = null;
   uploadProgress.value = 0;
+  uploadStage.value = "uploading";
 
   try {
     const apiURL = config.public.apiURL;
@@ -221,6 +242,7 @@ const handleUpload = async () => {
     console.log(
       `[Upload] File uploaded to R2. Triggering processing in Python service...`
     );
+    uploadStage.value = "starting";
 
     // 3) Tell the Python service to process this uploaded zip by key (JSON body)
     const result = await $fetch<{
@@ -250,6 +272,7 @@ const handleUpload = async () => {
     uploadProgress.value = 0;
   } finally {
     isUploading.value = false;
+    uploadStage.value = "idle";
   }
 };
 
@@ -481,8 +504,8 @@ const handleDelete = async () => {
             </div>
           </div>
 
-          <!-- Warming Up State -->
-          <div v-if="isWarmingUp" class="text-center py-8">
+          <!-- Unified Loader State -->
+          <div v-if="showLoader" class="text-center py-8">
             <div class="space-y-4">
               <div
                 class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 border-2 border-primary/20"
@@ -490,25 +513,26 @@ const handleDelete = async () => {
                 <Loader2 class="h-8 w-8 text-primary animate-spin" />
               </div>
               <div>
-                <h3 class="text-lg font-semibold">Warming up the engine...</h3>
-                <p class="text-muted-foreground">
-                  Initializing face recognition models
-                </p>
+                <h3 class="text-lg font-semibold">{{ loaderTitle }}</h3>
                 <p class="text-sm text-muted-foreground mt-1">
-                  This may take a minute on the first request
+                  {{ loaderDescription }}
+                </p>
+                <p
+                  v-if="collection.status === 'processing'"
+                  class="text-lg font-medium mt-2"
+                >
+                  Processed {{ processedCount
+                  }}<template v-if="processedTotal !== null">
+                    of {{ processedTotal }}</template
+                  >
+                  images...
                 </p>
               </div>
             </div>
           </div>
 
-          <!-- Upload Form -->
-          <div
-            v-else-if="
-              collection.status === 'not_started' ||
-              collection.status === 'error' ||
-              collection.status === 'complete'
-            "
-          >
+          <!-- Upload Form or Idle -->
+          <div v-else>
             <div class="space-y-4">
               <div class="grid gap-2">
                 <Label for="zip-file">Select Zip Archive</Label>
@@ -558,31 +582,6 @@ const handleDelete = async () => {
               >
                 <AlertCircle class="h-4 w-4" />
                 <span>{{ uploadError }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Processing State -->
-          <div
-            v-else-if="collection.status === 'processing'"
-            class="text-center py-8"
-          >
-            <div class="space-y-4">
-              <div
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-secondary/20 border-2 border-secondary"
-              >
-                <Loader2
-                  class="h-8 w-8 text-secondary-foreground animate-spin"
-                />
-              </div>
-              <div>
-                <h3 class="text-lg font-semibold">Processing Photos</h3>
-                <p class="text-muted-foreground">
-                  Extracting face embeddings and uploading to storage...
-                </p>
-                <p class="text-lg font-medium mt-2">
-                  {{ collection.imagesCount }} images processed
-                </p>
               </div>
             </div>
           </div>

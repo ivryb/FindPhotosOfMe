@@ -5,7 +5,6 @@ import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { waitUntil } from "@vercel/functions";
 import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
 import { log } from "../_utils/log";
-import { useR2 } from "../../../utils/r2";
 
 export const createOnPhotoHandler = (
   botToken: string,
@@ -160,7 +159,7 @@ async function handleSearchComplete(
     return await updateStatusMessage("No matching photos were found 😔");
   }
 
-  const imageUrls = await generateSignedUrls(imagePaths);
+  const imageUrls = await generateProxyUrls(imagePaths);
 
   if (!imageUrls.length) {
     return await updateStatusMessage(
@@ -178,14 +177,20 @@ async function handleSearchComplete(
   await sendGroupedPhotoResults(ctx, imageUrls);
 }
 
-async function generateSignedUrls(imagePaths: string[]) {
-  log("Generating signed URLs", { imageCount: imagePaths.length });
+async function generateProxyUrls(imagePaths: string[]) {
+  log("Generating proxy URLs", { imageCount: imagePaths.length });
 
-  const r2 = useR2();
+  const config = useRuntimeConfig();
+  const serverUrl = config.public.serverURL;
+
   const imageUrls: string[] = [];
   for (const path of imagePaths) {
-    const signedUrl = await r2.getSignedUrl(path, 3600);
-    imageUrls.push(signedUrl);
+    const encodedPath = path
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+    const url = `${serverUrl}/api/r2/${encodedPath}`;
+    imageUrls.push(url);
   }
 
   return imageUrls;
@@ -257,10 +262,14 @@ async function sendGroupedPhotoResults(ctx: Context, imageUrls: string[]) {
         groupIndex,
         photoCount: group.length,
       });
-    } catch (e) {
+    } catch (e: any) {
       log("Failed to send media group", {
-        error: String(e),
+        error: String(e?.message || e),
+        errorCode: (e && (e.error_code || e.code)) || undefined,
+        description: e?.description,
+        parameters: e?.parameters,
         groupIndex,
+        photoCount: group.length,
         firstUrl: media[0]?.media,
       });
       await ctx.reply(

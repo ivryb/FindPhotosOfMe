@@ -15,8 +15,13 @@ export default cachedEventHandler(
     }
 
     const objectKey = Array.isArray(pathParam)
-      ? pathParam.join("/")
-      : pathParam;
+      ? pathParam.map((seg) => decodeURIComponent(seg)).join("/")
+      : decodeURIComponent(pathParam);
+
+    console.log(
+      `[${new Date().toISOString()}] R2 resolved object key:`,
+      objectKey
+    );
 
     try {
       const r2 = useR2();
@@ -73,8 +78,8 @@ export default cachedEventHandler(
     getKey: (event) => {
       const pathParam = getRouterParam(event, "path");
       const objectKey = Array.isArray(pathParam)
-        ? pathParam.join("/")
-        : pathParam;
+        ? pathParam.map((seg) => decodeURIComponent(seg)).join("/")
+        : decodeURIComponent(pathParam as string);
       return `r2:${objectKey}`;
     },
   }
