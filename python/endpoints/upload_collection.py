@@ -5,7 +5,7 @@ import zipfile
 import io
 import threading
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from typing import List, Optional, Dict, Any
 
 from services.r2_storage import R2StorageService
@@ -35,10 +35,10 @@ def get_content_type(filename: str) -> str:
 
 @router.post("/upload-collection", response_model=UploadResponse)
 async def upload_collection(
+    request: Request,
     collection_id: Optional[str] = Form(None),
     zip_key: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
-    json_body: Optional[Dict[str, Any]] = Body(None),
 ):
     """Upload and process a zip archive of photos for a collection.
     
@@ -55,9 +55,16 @@ async def upload_collection(
         UploadResponse with processing results
     """
     # Support JSON payloads as well as multipart form-data
-    if json_body and isinstance(json_body, dict):
-        collection_id = json_body.get("collection_id", collection_id)
-        zip_key = json_body.get("zip_key", zip_key)
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            data = await request.json()
+            if isinstance(data, dict):
+                collection_id = data.get("collection_id", collection_id)
+                zip_key = data.get("zip_key", zip_key)
+            print(f"[{get_time()}] Parsed JSON body for upload: collection_id={collection_id}, zip_key={zip_key}")
+        except Exception as e:
+            print(f"[{get_time()}] Warning: failed to parse JSON body: {e}")
 
     if not collection_id:
         raise HTTPException(status_code=400, detail="'collection_id' is required")
