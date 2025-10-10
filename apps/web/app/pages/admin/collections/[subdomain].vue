@@ -76,18 +76,10 @@ const isUploading = ref(false);
 const uploadError = ref<string | null>(null);
 const uploadProgress = ref(0);
 const uploadStage = ref<"idle" | "uploading" | "starting">("idle");
-const processedCount = computed(() => collection.value?.imagesCount ?? 0);
-const processedTotal = computed(() =>
-  collection.value?.status === "complete" ? collection.value.imagesCount : null
-);
-const showLoader = computed(
-  () =>
-    uploadStage.value !== "idle" || collection.value?.status === "processing"
-);
+const showLoader = computed(() => uploadStage.value !== "idle");
 const loaderTitle = computed(() => {
   if (uploadStage.value === "uploading") return "Uploading...";
   if (uploadStage.value === "starting") return "Starting processing...";
-  if (collection.value?.status === "processing") return "Processing...";
   return "";
 });
 const loaderDescription = computed(() => {
@@ -95,8 +87,6 @@ const loaderDescription = computed(() => {
     return "Sending your archive to cloud storage";
   if (uploadStage.value === "starting")
     return "Initializing face recognition on the server";
-  if (collection.value?.status === "processing")
-    return "Extracting face embeddings and uploading to storage";
   return "";
 });
 
@@ -502,16 +492,6 @@ const handleDelete = async () => {
                 <h3 class="text-lg font-semibold">{{ loaderTitle }}</h3>
                 <p class="text-sm text-muted-foreground mt-1">
                   {{ loaderDescription }}
-                </p>
-                <p
-                  v-if="collection.status === 'processing'"
-                  class="text-lg font-medium mt-2"
-                >
-                  Processed {{ processedCount
-                  }}<template v-if="processedTotal !== null">
-                    of {{ processedTotal }}</template
-                  >
-                  images...
                 </p>
               </div>
             </div>
