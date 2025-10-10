@@ -181,7 +181,6 @@ async function generateProxyUrls(imagePaths: string[]) {
   log("Generating proxy URLs", { imageCount: imagePaths.length });
 
   const config = useRuntimeConfig();
-  const serverUrl = config.public.serverURL;
 
   const imageUrls: string[] = [];
   for (const path of imagePaths) {
@@ -189,7 +188,7 @@ async function generateProxyUrls(imagePaths: string[]) {
       .split("/")
       .map((seg) => encodeURIComponent(seg))
       .join("/");
-    const url = `${serverUrl}/api/r2/${encodedPath}`;
+    const url = `${config.public.origin}/api/r2/${encodedPath}`;
     imageUrls.push(url);
   }
 
