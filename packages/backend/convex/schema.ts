@@ -43,4 +43,24 @@ export default defineSchema({
     // Optional Telegram chat id to notify results
     telegramChatId: v.optional(v.string()),
   }).index("by_collection", ["collectionId"]),
+
+  ingestJobs: defineTable({
+    collectionId: v.id("collections"),
+    fileKey: v.string(),
+    filename: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("running"),
+      v.literal("failed"),
+      v.literal("completed"),
+      v.literal("canceled")
+    ),
+    totalImages: v.optional(v.number()),
+    processedImages: v.number(),
+    error: v.optional(v.string()),
+    workId: v.optional(v.string()),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+  }).index("by_collection", ["collectionId"]),
 });
