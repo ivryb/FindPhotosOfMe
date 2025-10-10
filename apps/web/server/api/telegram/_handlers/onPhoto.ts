@@ -268,8 +268,7 @@ async function sendGroupedPhotoResults(ctx: Context, imageUrls: string[]) {
         description: e?.description,
         parameters: e?.parameters,
         groupIndex,
-        photoCount: group.length,
-        firstUrl: media[0]?.media,
+        images: group,
       });
       await ctx.reply(
         "Failed to send some results 😔\nPlease try again later."

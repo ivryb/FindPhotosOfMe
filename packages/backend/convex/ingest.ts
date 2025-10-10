@@ -41,7 +41,7 @@ export const dispatchNextForCollection = action({
     // Fire-and-forget start; Python runs the job and reports progress to Convex
     const url = `${apiUrl.replace(/\/$/, "")}/api/process-ingest-job`;
     console.log("[Ingest] Dispatching job to Python", { url, payload });
-    fetch(url, {
+    await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

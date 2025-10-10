@@ -231,7 +231,7 @@ const handleUpload = async () => {
     });
 
     // 3) Ask Convex to dispatch the next job for this collection (per-job request to Python)
-    await convex.action(api.ingest.dispatchNextForCollection, {
+    convex.action(api.ingest.dispatchNextForCollection, {
       collectionId: collection.value!._id as Id<"collections">,
     });
 
