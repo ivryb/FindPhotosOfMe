@@ -3,10 +3,14 @@ import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { computed } from "vue";
 import { useConvexSSRQuery } from "@/composables/useConvexSSRQuery";
+import { useConvexClient } from "convex-vue";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const props = defineProps<{ collectionId: Id<"collections"> }>();
+
+const convex = useConvexClient();
 
 const { data: jobs } = await useConvexSSRQuery(
   api.ingestJobs.listByCollection,
@@ -21,6 +25,10 @@ const pct = (processed?: number, total?: number) => {
   if (!processed || !total || total === 0) return 0;
   return Math.round((processed / total) * 100);
 };
+
+async function retry(jobId: Id<"ingestJobs">) {
+  await convex.mutation(api.ingestJobs.retry, { id: jobId });
+}
 </script>
 
 <template>
@@ -54,6 +62,11 @@ const pct = (processed?: number, total?: number) => {
           >
           <span v-if="job.finishedAt">
             · Finished: {{ new Date(job.finishedAt).toLocaleString() }}</span
+          >
+        </div>
+        <div v-if="job.status === 'failed'" class="flex justify-end">
+          <Button size="sm" variant="outline" @click="retry(job._id)"
+            >Retry</Button
           >
         </div>
         <div class="flex items-center justify-between text-sm">

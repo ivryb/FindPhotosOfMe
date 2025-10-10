@@ -256,3 +256,28 @@ export const claimNextForCollection = mutation({
     } as any;
   },
 });
+
+export const retry = mutation({
+  args: { id: v.id("ingestJobs") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.id);
+    if (!job) return null;
+    // Only allow retry from failed or canceled states
+    if (job.status !== "failed" && job.status !== "canceled") return null;
+
+    await ctx.db.patch(args.id, {
+      status: "pending",
+      error: undefined,
+      processedImages: 0,
+      startedAt: undefined,
+      finishedAt: undefined,
+    });
+
+    // Immediately schedule dispatch for this collection
+    await ctx.scheduler.runAfter(0, api.ingest.dispatchNextForCollection, {
+      collectionId: job.collectionId,
+    });
+    return null;
+  },
+});

@@ -39,28 +39,14 @@ export const dispatchNextForCollection = action({
     } as const;
 
     // Fire-and-forget start; Python runs the job and reports progress to Convex
-    const url = `${apiUrl.replace(/\/$/, "")}/api/process-ingest-job-start`;
+    const url = `${apiUrl.replace(/\/$/, "")}/api/process-ingest-job`;
     console.log("[Ingest] Dispatching job to Python", { url, payload });
-    const res = await fetch(url, {
+    fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.log("[Ingest] Python start failed", { status: res.status, text });
-      // Revert job to pending for retry
-      await ctx.runMutation(api.ingestJobs.updateProgress, {
-        id: claim._id,
-        status: "pending",
-        processedImages: 0,
-        error: `Dispatch failed: ${res.status}`,
-      });
-      return { dispatched: false } as const;
-    }
-
-    console.log("[Ingest] Job dispatched", { jobId: claim._id });
     return { dispatched: true, jobId: claim._id } as const;
   },
 });
