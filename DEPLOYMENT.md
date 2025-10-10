@@ -12,16 +12,30 @@ Configure your Railway service with:
 
 ### Google Cloud Run Deployment
 
-Use the following command:
+**Important**: For large file uploads (>32MB), Cloud Run requires specific configuration:
 
 ```bash
 gcloud run deploy find-photos-of-me \
   --source . \
   --dockerfile Dockerfile.python \
   --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
+  --region europe-west1 \
+  --allow-unauthenticated \
+  --timeout=3600 \
+  --memory=2Gi \
+  --cpu=2 \
+  --max-instances=10 \
+  --request-timeout=3600s
 ```
+
+**Key Flags for Large Uploads:**
+
+- `--timeout=3600`: Request timeout (1 hour) for processing large collections
+- `--memory=2Gi`: Sufficient memory for face recognition processing
+- `--cpu=2`: Faster processing with 2 vCPUs
+- `--request-timeout=3600s`: Allow long-running requests for streaming uploads
+
+**Note**: The 32MB limit applies only to non-streaming requests. The updated endpoint uses streaming, which bypasses this limit.
 
 Or if using `cloudbuild.yaml`:
 

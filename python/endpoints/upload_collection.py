@@ -40,9 +40,11 @@ async def upload_collection(
 ):
     """Upload and process a zip archive of photos for a collection.
     
+    This endpoint supports streaming uploads to bypass Cloud Run's 32MB limit.
+    
     Args:
         collection_id: ID of the collection
-        file: Zip archive containing photos
+        file: Zip archive containing photos (streamed)
         
     Returns:
         UploadResponse with processing results
@@ -73,8 +75,26 @@ async def upload_collection(
         # Update status to processing (preserve existing count)
         convex_service.update_collection_status(collection_id, "processing", existing_images_count)
         
-        # Read zip file
-        zip_data = await file.read()
+        # Stream file data in chunks to avoid memory issues with large files
+        print(f"[{get_time()}] Streaming zip file...")
+        zip_data = bytearray()
+        chunk_size = 1024 * 1024  # 1MB chunks
+        total_bytes = 0
+        
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            zip_data.extend(chunk)
+            total_bytes += len(chunk)
+            
+            # Log progress for large files
+            if total_bytes % (10 * 1024 * 1024) == 0:  # Every 10MB
+                print(f"[{get_time()}] Received {total_bytes // (1024 * 1024)}MB...")
+        
+        print(f"[{get_time()}] Received {total_bytes // (1024 * 1024)}MB total")
+        
+        # Open zip file
         zip_file = zipfile.ZipFile(io.BytesIO(zip_data))
         
         # Get list of image files

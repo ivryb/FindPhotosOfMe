@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -72,6 +73,7 @@ const formData = ref({
 const selectedFile = ref<File | null>(null);
 const isUploading = ref(false);
 const uploadError = ref<string | null>(null);
+const uploadProgress = ref(0);
 const isWarmingUp = computed(() => {
   // Show "warming up" state when upload started but collection hasn't started processing yet
   return isUploading.value && collection.value?.status === "not_started";
@@ -168,6 +170,7 @@ const handleUpload = async () => {
 
   isUploading.value = true;
   uploadError.value = null;
+  uploadProgress.value = 0;
 
   try {
     const formData = new FormData();
@@ -189,28 +192,64 @@ const handleUpload = async () => {
     );
     console.log(`[Upload] API URL: ${apiURL}`);
 
-    const response = await fetch(`${apiURL}/api/upload-collection`, {
-      method: "POST",
-      body: formData,
+    // Use XMLHttpRequest for upload progress tracking
+    const result = await new Promise<any>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          uploadProgress.value = Math.round((e.loaded / e.total) * 100);
+          console.log(`[Upload] Progress: ${uploadProgress.value}%`);
+        }
+      });
+
+      // Handle completion
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (e) {
+            reject(new Error("Invalid response format"));
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(error.detail || `Upload failed (${xhr.status})`));
+          } catch (e) {
+            reject(new Error(`Upload failed (${xhr.status})`));
+          }
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener("error", () => {
+        reject(new Error("Network error during upload"));
+      });
+
+      xhr.addEventListener("abort", () => {
+        reject(new Error("Upload cancelled"));
+      });
+
+      // Send request
+      xhr.open("POST", `${apiURL}/api/upload-collection`);
+      xhr.send(formData);
     });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.detail || "Upload failed");
-    }
 
     console.log(`[Upload] Success: ${result.message}`);
     console.log(`[Upload] Images processed: ${result.images_processed}`);
 
     // Reset form
     selectedFile.value = null;
+    uploadProgress.value = 0;
     const fileInput = document.getElementById("zip-file") as HTMLInputElement;
     if (fileInput) fileInput.value = "";
   } catch (error) {
     console.error("[Upload] Error:", error);
     uploadError.value =
       error instanceof Error ? error.message : "Failed to upload file";
+    uploadProgress.value = 0;
   } finally {
     isUploading.value = false;
   }
@@ -492,6 +531,15 @@ const handleDelete = async () => {
                 {{ selectedFile.name }} ({{
                   formatFileSize(selectedFile.size)
                 }})
+              </div>
+
+              <!-- Upload Progress -->
+              <div v-if="isUploading && uploadProgress > 0" class="space-y-2">
+                <div class="flex justify-between text-sm">
+                  <span class="text-muted-foreground">Uploading file...</span>
+                  <span class="font-medium">{{ uploadProgress }}%</span>
+                </div>
+                <Progress :model-value="uploadProgress" class="w-full" />
               </div>
 
               <Button
