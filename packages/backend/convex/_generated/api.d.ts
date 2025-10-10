@@ -10,6 +10,7 @@
 
 import type * as collections from "../collections.js";
 import type * as healthCheck from "../healthCheck.js";
+import type * as ingest from "../ingest.js";
 import type * as ingestJobs from "../ingestJobs.js";
 import type * as searchRequests from "../searchRequests.js";
 import type * as todos from "../todos.js";
@@ -31,6 +32,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   collections: typeof collections;
   healthCheck: typeof healthCheck;
+  ingest: typeof ingest;
   ingestJobs: typeof ingestJobs;
   searchRequests: typeof searchRequests;
   todos: typeof todos;

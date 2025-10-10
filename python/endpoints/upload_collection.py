@@ -484,59 +484,32 @@ async def process_ingest_job(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/start-collection-ingest")
-async def start_collection_ingest(request: Request):
-    """Kick off sequential ingest for a collection: claim next job and process until none left."""
+@router.post("/process-ingest-job-start")
+async def process_ingest_job_start(request: Request):
+    """Start processing a single job (fire-and-forget entry point from Convex)."""
     data = await request.json()
+    job_id = data.get("job_id")
     collection_id = data.get("collection_id")
-    if not collection_id:
-        raise HTTPException(status_code=400, detail="collection_id is required")
+    file_key = data.get("file_key")
+    if not job_id or not collection_id or not file_key:
+        raise HTTPException(status_code=400, detail="job_id, collection_id, and file_key are required")
 
-    print(f"[{get_time()}] Start ingest chain for collection: {collection_id}")
+    print(f"[{get_time()}] Start request received for job {job_id} (collection {collection_id})")
 
     r2_service = R2StorageService()
     face_service = FaceRecognitionService()
     convex_service = ConvexService()
 
-    processed_jobs = 0
-    while True:
+    try:
+        await process_ingest_job_sync(
+            job_id, collection_id, file_key, r2_service, face_service, convex_service
+        )
+        return {"ok": True}
+    except Exception as e:
+        print(f"[{get_time()}] Start request failed for job {job_id}: {e}")
         try:
-            claim = convex_service.client.mutation(
-                "ingestJobs:claimNextForCollection",
-                {"collectionId": collection_id},
-            )
-        except Exception as e:
-            print(f"[{get_time()}] Error claiming next job: {e}")
-            break
-
-        if not claim:
-            break
-
-        job_id = claim.get("_id")
-        file_key = claim.get("fileKey")
-        if not job_id or not file_key:
-            print(f"[{get_time()}] Invalid claim response: {claim}")
-            break
-
-        try:
-            await process_ingest_job_sync(
-                job_id,
-                collection_id,
-                file_key,
-                r2_service,
-                face_service,
-                convex_service,
-            )
-            processed_jobs += 1
-        except Exception as e:
-            # Mark job failed and continue with the next one
-            print(f"[{get_time()}] Job failed {job_id}: {e}")
-            try:
-                convex_service.mark_ingest_failed(job_id, str(e))
-            except Exception:
-                pass
-            continue
-
-    print(f"[{get_time()}] Ingest chain finished for {collection_id}. Jobs processed: {processed_jobs}")
-    return {"ok": True, "processedJobs": processed_jobs}
+            convex_service.mark_ingest_failed(job_id, str(e))
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
 

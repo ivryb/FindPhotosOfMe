@@ -1,4 +1,5 @@
 import { query, mutation } from "./_generated/server";
+import { api } from "./_generated/api";
 import { v } from "convex/values";
 
 export const get = query({
@@ -141,6 +142,13 @@ export const markFailed = mutation({
       error: args.error,
       finishedAt: Date.now(),
     });
+    const job = await ctx.db.get(args.id);
+    if (job) {
+      // Schedule next job dispatch for this collection
+      await ctx.scheduler.runAfter(0, api.ingest.dispatchNextForCollection, {
+        collectionId: job.collectionId,
+      });
+    }
     return null;
   },
 });
@@ -154,6 +162,13 @@ export const markCompleted = mutation({
       processedImages: args.processedImages,
       finishedAt: Date.now(),
     });
+    const job = await ctx.db.get(args.id);
+    if (job) {
+      // Schedule next job dispatch for this collection
+      await ctx.scheduler.runAfter(0, api.ingest.dispatchNextForCollection, {
+        collectionId: job.collectionId,
+      });
+    }
     return null;
   },
 });

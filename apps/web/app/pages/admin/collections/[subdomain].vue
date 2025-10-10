@@ -230,10 +230,9 @@ const handleUpload = async () => {
       })),
     });
 
-    // 3) Kick off Python-led sequential processing for this collection
-    await $fetch(`${apiURL}/api/start-collection-ingest`, {
-      method: "POST",
-      body: { collection_id: collection.value!._id },
+    // 3) Ask Convex to dispatch the next job for this collection (per-job request to Python)
+    await convex.action(api.ingest.dispatchNextForCollection, {
+      collectionId: collection.value!._id as Id<"collections">,
     });
 
     // Reset input
