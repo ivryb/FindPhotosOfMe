@@ -5,7 +5,6 @@ import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { waitUntil } from "@vercel/functions";
 import { getPhotoFileUrl } from "../_utils/getPhotoFileUrl";
 import { log } from "../_utils/log";
-import { useR2 } from "../../../utils/r2";
 
 export const createOnPhotoHandler = (
   botToken: string,
@@ -179,33 +178,24 @@ async function handleSearchComplete(
 }
 
 async function generateProxyUrls(imagePaths: string[]) {
-  log("Generating direct R2 signed URLs", { imageCount: imagePaths.length });
+  log("Generating proxy URLs", { imageCount: imagePaths.length });
 
-  const r2 = useR2();
+  const config = useRuntimeConfig();
 
-  const urls = await Promise.all(
-    imagePaths.map(async (objectKey) => {
-      const filename = objectKey.split("/").pop() ?? "photo.jpg";
-      try {
-        const url = await r2.getSignedUrlWithResponse(objectKey, {
-          filename,
-          contentType: "image/jpeg",
-          expiresIn: 300,
-          contentDisposition: "inline",
-          cacheSeconds: 60,
-        });
-        return url;
-      } catch (e: any) {
-        log("Failed to sign R2 URL", {
-          objectKey,
-          error: String(e?.message || e),
-        });
-        return null;
-      }
-    })
-  );
+  const imageUrls: string[] = [];
+  for (const path of imagePaths) {
+    const encodedPath = path
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+    const url = `${config.public.origin}/api/r2/${encodedPath}`.replace(
+      "https://findphotosofme.com",
+      "https://cdn.findphotosofme.com"
+    );
+    imageUrls.push(url);
+  }
 
-  return urls.filter(Boolean) as string[];
+  return imageUrls;
 }
 
 async function sendPhotoToAPI(
@@ -283,10 +273,24 @@ async function sendGroupedPhotoResults(ctx: Context, imageUrls: string[]) {
         groupIndex,
         images: group,
       });
-      await ctx.reply(
-        "Failed to send some results 😔\nPlease try again later."
-      );
-      break;
+      // Fallback: try sending each photo individually
+      for (const url of group) {
+        try {
+          await ctx.api.sendPhoto(chatId, url);
+        } catch (e2: any) {
+          log("Failed to send individual photo", {
+            url,
+            error: String(e2?.message || e2),
+            errorCode: (e2 && (e2.error_code || e2.code)) || undefined,
+            description: e2?.description,
+            parameters: e2?.parameters,
+          });
+          await ctx.reply(
+            `Couldn't upload photo to Telegram 😮\n Try opening the direct link: ${url}`
+          );
+        }
+      }
+      // Continue to next group
     }
   }
 }
