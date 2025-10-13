@@ -103,6 +103,8 @@ export const createOnPhotoHandler = (
               "Oops, looks like search service is unreachable 😱\nPlease try again later."
             );
 
+            unsubscribe();
+
             return resolve();
           }
 
@@ -159,13 +161,7 @@ async function handleSearchComplete(
     return await updateStatusMessage("No matching photos were found 😔");
   }
 
-  const imageUrls = await generateProxyUrls(imagePaths);
-
-  if (!imageUrls.length) {
-    return await updateStatusMessage(
-      "Couldn't access photos from cloud storage 😔\nPlease try again later."
-    );
-  }
+  const imageUrls = generateProxyUrls(imagePaths);
 
   await updateStatusMessage(
     `Found *${imageUrls.length}* matching photo(s) 🥳`,
@@ -177,25 +173,24 @@ async function handleSearchComplete(
   await sendGroupedPhotoResults(ctx, imageUrls);
 }
 
-async function generateProxyUrls(imagePaths: string[]) {
+function generateProxyUrls(imagePaths: string[]) {
   log("Generating proxy URLs", { imageCount: imagePaths.length });
 
   const config = useRuntimeConfig();
 
-  const imageUrls: string[] = [];
-  for (const path of imagePaths) {
+  const origin = config.public.origin.replace(
+    "//findphotosofme.com",
+    "//cdn.findphotosofme.com"
+  );
+
+  return imagePaths.map((path) => {
     const encodedPath = path
       .split("/")
       .map((seg) => encodeURIComponent(seg))
       .join("/");
-    const url = `${config.public.origin}/api/r2/${encodedPath}`.replace(
-      "https://findphotosofme.com",
-      "https://cdn.findphotosofme.com"
-    );
-    imageUrls.push(url);
-  }
 
-  return imageUrls;
+    return `${origin}/api/r2/${encodedPath}`;
+  });
 }
 
 async function sendPhotoToAPI(
@@ -209,21 +204,10 @@ async function sendPhotoToAPI(
   const blob = new Blob([buf], { type: "image/jpeg" });
   form.append("reference_photo", blob, "photo.jpg");
 
-  const resp = await fetch(`${apiUrl}/api/search-photos`, {
+  fetch(`${apiUrl}/api/search-photos`, {
     method: "POST",
     body: form,
   });
-
-  if (!resp.ok) {
-    const text = await resp.text();
-
-    log("Failed to start search", {
-      requestId,
-      error: text,
-    });
-
-    throw new Error(text);
-  }
 }
 
 type TelegramInputMediaPhoto = {
@@ -286,11 +270,10 @@ async function sendGroupedPhotoResults(ctx: Context, imageUrls: string[]) {
             parameters: e2?.parameters,
           });
           await ctx.reply(
-            `Couldn't upload photo to Telegram 😮\n Try opening the direct link: ${url}`
+            `Telegram didn't accept a photo 😮\nTry opening the direct link: ${url}`
           );
         }
       }
-      // Continue to next group
     }
   }
 }
