@@ -204,7 +204,7 @@ async function sendPhotoToAPI(
   const blob = new Blob([buf], { type: "image/jpeg" });
   form.append("reference_photo", blob, "photo.jpg");
 
-  fetch(`${apiUrl}/api/search-photos`, {
+  await fetch(`${apiUrl}/api/search-photos`, {
     method: "POST",
     body: form,
   });
