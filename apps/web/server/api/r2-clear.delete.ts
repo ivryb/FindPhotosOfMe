@@ -1,6 +1,8 @@
 import { useR2 } from "../utils/r2";
+import { requireAdminAuth } from "../utils/auth";
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
+  requireAdminAuth(event);
   console.log(
     `[${new Date().toISOString()}] Starting R2 bucket clear operation`
   );

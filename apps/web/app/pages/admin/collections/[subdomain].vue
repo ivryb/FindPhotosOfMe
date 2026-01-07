@@ -36,6 +36,7 @@ import {
 const route = useRoute();
 const config = useRuntimeConfig();
 const subdomain = computed(() => route.params.subdomain as string);
+const adminPassword = useCookie("admin-password");
 
 const { data: collection } = await useConvexSSRQuery(
   api.collections.getBySubdomain,
@@ -207,6 +208,7 @@ const handleUpload = async () => {
       }>("/api/r2/presign-upload", {
         method: "POST",
         body: { key: r2Key, contentType },
+        headers: { "x-admin-password": adminPassword.value || "" },
       });
 
       await $fetch(presign.url, {

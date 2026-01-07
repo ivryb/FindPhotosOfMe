@@ -1,6 +1,8 @@
 import { useR2 } from "../../utils/r2";
+import { requireAdminAuth } from "../../utils/auth";
 
 export default defineEventHandler(async (event) => {
+  requireAdminAuth(event);
   const now = new Date().toISOString();
   try {
     const body = await readBody<{

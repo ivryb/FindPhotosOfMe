@@ -2,6 +2,8 @@
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { useConvexMutation } from "convex-vue";
 import { ref } from "vue";
+
+const adminPassword = useCookie("admin-password");
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -92,6 +94,7 @@ const handleClearBucket = async () => {
   try {
     const response = await $fetch("/api/r2-clear", {
       method: "DELETE",
+      headers: { "x-admin-password": adminPassword.value || "" },
     });
 
     alert(`✓ ${response.message}`);
