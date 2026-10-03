@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FindPhotosOfMe — Three landing page directions</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #24343b; background: #f6f8fa; font-family: system-ui, sans-serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 72px 28px; }
+    .brand { font-weight: 650; margin: 0 0 48px; }
+    h1 { font-size: clamp(36px, 5vw, 60px); letter-spacing: -.045em; line-height: 1.08; max-width: 760px; margin: 0 0 24px; }
+    .intro { max-width: 670px; font-size: 19px; line-height: 1.6; }
+    .concepts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 48px 0; }
+    .concept { background: white; border: 1px solid #dce3e7; border-radius: 16px; overflow: hidden; color: inherit; text-decoration: none; }
+    .swatch { min-height: 220px; padding: 32px 26px; display: flex; align-items: center; font-size: 35px; line-height: 1.08; letter-spacing: -.035em; }
+    .gather { background: #eaf3f0; color: #196657; font-weight: 650; }
+    .spotlight { background: #2449d8; color: white; font-family: Impact, 'Arial Narrow', sans-serif; font-size: 46px; }
+    .keepsake { background: #f5f2fa; color: #4a245d; font-family: Georgia, serif; }
+    .description { padding: 26px; }
+    h2 { font-size: 24px; margin: 0 0 12px; }
+    .description p { font-size: 16px; line-height: 1.6; margin: 0 0 20px; }
+    .open { font-weight: 650; text-decoration: underline; text-underline-offset: 5px; }
+    a:focus-visible { outline: 3px solid #2449d8; outline-offset: 5px; }
+    .notes { max-width: 760px; font-size: 16px; line-height: 1.65; }
+    .notes a { color: #2449d8; }
+    @media (max-width: 780px) { main { padding: 40px 20px; } .concepts { grid-template-columns: 1fr; } .swatch { min-height: 170px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="brand">FindPhotosOfMe</p>
+    <h1>One useful idea.<br>Three ways to tell its story.</h1>
+    <p class="intro">Landing page concepts for a better event photo handoff. Each direction explores a complete page, its typography, and an illustrative attendee experience.</p>
+    <div class="concepts">
+      <a class="concept" href="gather/">
+        <div class="swatch gather">Your event.<br>Their photos.<br>One selfie away.</div>
+        <div class="description"><h2>Gather</h2><p>Clear, bright, and approachable. A calm product story for conference and community organizers.</p><span class="open">Explore Gather</span></div>
+      </a>
+      <a class="concept" href="spotlight/">
+        <div class="swatch spotlight">The whole event.<br>Just your moments.</div>
+        <div class="description"><h2>Spotlight</h2><p>Bold conference typography, cobalt, and the energy of a shared event. The strongest visual statement.</p><span class="open">Explore Spotlight</span></div>
+      </a>
+      <a class="concept" href="keepsake/">
+        <div class="swatch keepsake">You were there.<br>Find the photos<br>to keep.</div>
+        <div class="description"><h2>Keepsake</h2><p>Expressive serif typography and a quiet, personal tone. Built around the moments attendees take home.</p><span class="open">Explore Keepsake</span></div>
+      </a>
+    </div>
+    <div class="notes">
+      <p>These are local design previews created by Claude Code from a shared copy and design brief. Sample interactions do not upload photos, run recognition, create accounts, or take payments.</p>
+      <p>Compare the clarity of the offer, the way each page explains the product, and the experience on a phone. Pricing and launch policies remain provisional.</p>
+    </div>
+  </main>
+</body>
+</html>

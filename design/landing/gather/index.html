@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FindPhotosOfMe: selfie search for event photos (Gather design preview)</title>
+  <meta name="description" content="Give attendees an easier way to find themselves in your event photos. Design preview.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap site-header__inner">
+      <a class="brand" href="#top" aria-label="FindPhotosOfMe, back to top">
+        <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="1" y="1" width="6" height="6" rx="1.5" fill="#BFD6CF"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="#BFD6CF"/><rect x="17" y="1" width="6" height="6" rx="1.5" fill="#BFD6CF"/>
+          <rect x="1" y="9" width="6" height="6" rx="1.5" fill="#BFD6CF"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="#F4DC79" stroke="#172C30" stroke-width="1.2"/><rect x="17" y="9" width="6" height="6" rx="1.5" fill="#BFD6CF"/>
+          <rect x="1" y="17" width="6" height="6" rx="1.5" fill="#BFD6CF"/><rect x="9" y="17" width="6" height="6" rx="1.5" fill="#BFD6CF"/><rect x="17" y="17" width="6" height="6" rx="1.5" fill="#BFD6CF"/>
+        </svg>
+        FindPhotosOfMe
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>Menu</button>
+      <nav class="site-nav" id="site-nav" aria-label="Page sections">
+        <a href="#how">How it works</a>
+        <a href="#who">Who it’s for</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#questions">Questions</a>
+        <button class="btn btn--primary btn--sm" type="button" data-explore>Explore the demo</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 1. Hero and demo -->
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="wrap hero__grid">
+        <div class="hero__copy">
+          <h1 id="hero-title" class="hero__title">
+            <span>Your event.</span>
+            <span>Their photos.</span>
+            <span>One selfie away.</span>
+          </h1>
+          <p class="lede">Give attendees an easier way to find themselves in your event photos. Upload your collection, share one link, and let a selfie start the search.</p>
+          <div class="actions">
+            <button class="btn btn--primary" type="button" data-explore>Explore the demo</button>
+            <a class="btn btn--quiet" href="#how">See how it works</a>
+          </div>
+          <p class="hero__for">Built for conference hosts, community organizers, and event photographers.</p>
+        </div>
+
+        <div class="demo" id="demo" role="group" aria-labelledby="demo-title">
+          <div class="demo__bar">
+            <div>
+              <p class="demo__event" id="demo-title">Northline Product Day</p>
+              <p class="demo__meta">A made-up event with 24 illustrated photos</p>
+            </div>
+            <span class="tag">Illustrative demo</span>
+          </div>
+          <div class="demo__selfie">
+            <div class="selfie" data-selfie></div>
+            <div>
+              <p class="demo__who">Mira’s sample selfie</p>
+              <p class="demo__note">Mira is an illustrated attendee. No real face search runs here.</p>
+            </div>
+            <button class="btn btn--primary btn--sm" type="button" data-search aria-pressed="false">Search with this selfie</button>
+          </div>
+          <div class="sheet" data-sheet role="list" aria-label="Sample event photos">
+            <noscript><p class="sheet__fallback">The illustrated demo needs JavaScript to draw its sample photos.</p></noscript>
+          </div>
+          <p class="demo__status" data-status aria-live="polite">24 illustrated sample photos. Choose “Search with this selfie” to narrow them.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. The familiar problem -->
+    <section class="section section--mist" aria-labelledby="problem-title">
+      <div class="wrap split split--problem">
+        <div>
+          <h2 id="problem-title">The event was great. The photo hunt takes longer.</h2>
+          <ul class="beats">
+            <li>The photographer sends the gallery.</li>
+            <li>You share the link.</li>
+            <li>Then everyone starts the same search: scrolling past unfamiliar faces, opening group shots, and wondering whether they missed their own.</li>
+          </ul>
+          <p class="closing">Give them a place to start with themselves.</p>
+        </div>
+        <figure class="album">
+          <div class="album__bar">
+            <span class="album__title">Shared album</span>
+            <span class="album__count">40 sample photos</span>
+          </div>
+          <div class="album__grid" data-album tabindex="0" role="region" aria-label="Scrollable sample shared album with 40 illustrated event photos"></div>
+          <figcaption>Sample data. Scroll the album and try to spot Mira, the attendee from the demo.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 3. Organizer process -->
+    <section class="section" id="how" aria-labelledby="how-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="how-title">From photo collection to attendee link.</h2>
+          <p>Three steps for the organizer. Then attendees take it from there.</p>
+        </div>
+        <ol class="route">
+          <li class="route__step">
+            <svg class="route__icon" viewBox="0 0 64 48" aria-hidden="true"><rect x="5" y="15" width="30" height="24" rx="3" fill="#EAF3F0" stroke="#196657" stroke-width="2"/><rect x="13" y="8" width="30" height="24" rx="3" fill="#fff" stroke="#196657" stroke-width="2"/><path d="M19 27l6-7 5 5 4-3 5 5" fill="none" stroke="#196657" stroke-width="2" stroke-linejoin="round"/><path d="M54 32V12m-6 6 6-6 6 6" stroke="#196657" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h3><span class="route__num">1</span>Upload your event photos.</h3>
+            <p>Create your event and add the photographs you want attendees to search.</p>
+          </li>
+          <li class="route__step">
+            <svg class="route__icon" viewBox="0 0 64 48" aria-hidden="true"><g stroke="#196657" stroke-width="2"><rect x="6" y="6" width="14" height="11" rx="2" fill="#196657"/><rect x="25" y="6" width="14" height="11" rx="2" fill="#196657"/><rect x="44" y="6" width="14" height="11" rx="2" fill="#196657"/><rect x="6" y="21" width="14" height="11" rx="2" fill="#196657"/><rect x="25" y="21" width="14" height="11" rx="2" fill="#EAF3F0"/><rect x="44" y="21" width="14" height="11" rx="2" fill="#EAF3F0"/></g><rect x="6" y="38" width="52" height="5" rx="2.5" fill="#EAF3F0"/><rect x="6" y="38" width="34" height="5" rx="2.5" fill="#196657"/></svg>
+            <h3><span class="route__num">2</span>Let the collection prepare.</h3>
+            <p>FindPhotosOfMe processes the photographs for face matching. Share it once it is ready.</p>
+          </li>
+          <li class="route__step">
+            <svg class="route__icon" viewBox="0 0 64 48" aria-hidden="true"><path d="M6 10a4 4 0 0 1 4-4h44a4 4 0 0 1 4 4v22a4 4 0 0 1-4 4H22l-10 8v-8h-2a4 4 0 0 1-4-4z" fill="#EAF3F0" stroke="#196657" stroke-width="2"/><rect x="14" y="15" width="36" height="12" rx="6" fill="#fff" stroke="#196657" stroke-width="2"/><path d="M21 21h10" stroke="#196657" stroke-width="2.5" stroke-linecap="round"/></svg>
+            <h3><span class="route__num">3</span>Share your event link.</h3>
+            <p>Put it in your follow-up email, event chat, or event website so attendees can start their search.</p>
+          </li>
+        </ol>
+        <p class="route__note">Photos are prepared after you upload them, not live while the photographer is shooting.</p>
+      </div>
+    </section>
+
+    <!-- 4. Attendee result at phone size -->
+    <section class="section section--mist" aria-labelledby="attendee-title">
+      <div class="wrap split split--attendee">
+        <div>
+          <h2 id="attendee-title">Start with a selfie. Find your part of the day.</h2>
+          <p class="section__lede">Open the event link, sign in, and add a clear photo of your face. Browse the likely matches, then download the photographs you want to keep.</p>
+          <ol class="steps">
+            <li>Open the event link your organizer shared.</li>
+            <li>Sign in to search the event.</li>
+            <li>Add a clear, well-lit photo with one face.</li>
+            <li>Review the likely matches and download the ones you want.</li>
+          </ol>
+          <fieldset class="switch">
+            <legend>Preview the attendee screen</legend>
+            <label><input type="radio" name="phone-state" value="matches" checked> Matches found</label>
+            <label><input type="radio" name="phone-state" value="empty"> No matches yet</label>
+          </fieldset>
+        </div>
+        <div class="phone-wrap">
+          <div class="phone" role="group" aria-label="Illustrative attendee screen">
+            <div class="phone__head">
+              <p class="phone__event">Northline Product Day</p>
+              <p class="phone__account">Signed in as Mira (sample account)</p>
+            </div>
+            <div class="phone__ref">
+              <div class="selfie selfie--sm" data-selfie></div>
+              <div>
+                <p class="phone__label">Your reference photo</p>
+                <p class="phone__tip">Use a clear, well-lit photo with one face.</p>
+              </div>
+            </div>
+            <div data-phone="matches">
+              <p class="phone__count">5 likely matches in this sample</p>
+              <div class="results" data-results></div>
+              <p class="phone__tip">Matches can be imperfect. Review the results before downloading.</p>
+            </div>
+            <div class="phone__empty" data-phone="empty" hidden>
+              <svg viewBox="0 0 80 60" aria-hidden="true"><rect x="8" y="10" width="64" height="44" rx="6" fill="#EAF3F0"/><rect x="18" y="20" width="18" height="14" rx="2" fill="#fff"/><rect x="44" y="20" width="18" height="14" rx="2" fill="#fff"/><rect x="18" y="38" width="44" height="4" rx="2" fill="#C3D5CF"/></svg>
+              <p class="phone__empty-title">No matches yet?</p>
+              <p>Try a clearer selfie or check back when more photos are available.</p>
+              <button class="btn btn--quiet btn--sm" type="button" data-preview="retry">Try another photo</button>
+            </div>
+          </div>
+          <p class="phone-wrap__label">Illustrative demo. Mira and her photos are drawn samples.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Organizer value -->
+    <section class="section" aria-labelledby="organizer-title">
+      <div class="wrap">
+        <div class="split split--organizer">
+          <div class="dash" role="group" aria-label="Illustrative organizer view">
+            <div class="dash__top">
+              <p class="dash__crumb">Your events</p>
+              <span class="tag">Illustrative</span>
+            </div>
+            <div class="dash__event">
+              <div class="dash__thumbs">
+                <div data-scene="stage" data-seed="31"></div>
+                <div data-scene="talk" data-seed="32"></div>
+                <div data-scene="group" data-seed="33"></div>
+              </div>
+              <div>
+                <h3 class="dash__title">Northline Product Day</h3>
+                <p class="dash__desc">Talks, workshops, and the closing group photo. Find yourself with a selfie.</p>
+              </div>
+            </div>
+            <dl class="dash__facts">
+              <div><dt>Photos</dt><dd>240 sample photos</dd></div>
+              <div><dt>Status</dt><dd><span class="pill" data-dash-status>Preparing photos</span></dd></div>
+            </dl>
+            <div class="dash__panel" data-dash="preparing">
+              <div class="bar" role="img" aria-label="Sample progress: 150 of 240 photos prepared"><span style="width:62%"></span></div>
+              <p>150 of 240 sample photos prepared. Share the link once the collection is ready.</p>
+            </div>
+            <div class="dash__panel" data-dash="ready" hidden>
+              <label class="dash__link-label" for="share-link">Sample event link</label>
+              <div class="dash__link">
+                <input id="share-link" type="text" readonly value="https://example.com/e/northline-product-day">
+                <button class="btn btn--primary btn--sm" type="button" data-copy>Copy sample link</button>
+              </div>
+              <p class="dash__copied" data-copy-status aria-live="polite"></p>
+            </div>
+            <fieldset class="switch switch--dash">
+              <legend>Preview state</legend>
+              <label><input type="radio" name="dash-state" value="preparing" checked> Preparing photos</label>
+              <label><input type="radio" name="dash-state" value="ready"> Ready to share</label>
+            </fieldset>
+          </div>
+          <div>
+            <h2 id="organizer-title">A better answer to ‘Can you find my photos?’</h2>
+            <p class="section__lede">Give everyone the same event link and a search that starts with their own selfie. Your team can share the collection without becoming a photo-finding help desk.</p>
+            <ul class="ticks">
+              <li>An event title and description that make the link recognizable.</li>
+              <li>A clear status while your photos are being prepared.</li>
+              <li>A ready-to-share link once the collection is ready.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="photographer">
+          <h3>Help your photographs find their people.</h3>
+          <p>You already captured the conversations, the stage moments, and the group shots. Make it easier for attendees to discover the photographs they are part of. It works alongside your shoot and editing, and it is not a photo-sales marketplace.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Use cases -->
+    <section class="section section--tight-top" id="who" aria-labelledby="who-title">
+      <div class="wrap">
+        <div class="feature">
+          <div class="feature__media" data-scene="stage" data-seed="52" data-label="Illustration: a speaker on stage in front of a conference audience"></div>
+          <div class="feature__copy">
+            <h2 id="who-title">For the people who make a conference happen.</h2>
+            <p>Speakers on stage. Attendees between sessions. The group photo at the end. Give the people in your conference photographs a direct place to look for themselves.</p>
+          </div>
+        </div>
+        <ul class="uses">
+          <li>
+            <div class="uses__media" data-scene="workshop" data-seed="61"></div>
+            <h3>Small gathering. Photos worth finding.</h3>
+            <p>Meetups, workshops, and community days deserve a thoughtful photo handoff too. Share one collection with the people who made it happen.</p>
+          </li>
+          <li>
+            <div class="uses__media" data-scene="group" data-seed="62"></div>
+            <h3>From the first pitch to the final group shot.</h3>
+            <p>Hackathons and demo days fill a collection fast. Teams can look for their own moments instead of scrolling the whole stream.</p>
+          </li>
+          <li>
+            <div class="uses__media" data-scene="race" data-seed="63"></div>
+            <h3>After the finish line, find the moment. <span class="tag tag--inline">Exploratory pilot</span></h3>
+            <p>Races can produce more photos than any participant wants to scroll through. Selfie search could help runners find their moments among them. It still needs testing with real race photos, and there is no bib-number search.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 7. Alternatives -->
+    <section class="section section--mist" aria-labelledby="compare-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="compare-title">Keep the whole collection. Make it easier to search.</h2>
+          <p>A full album is still useful. Selfie search sits beside it for the moment someone asks, “Did you get any photos of me?”</p>
+        </div>
+        <table class="compare">
+          <caption class="visually-hidden">Ways to hand off event photos</caption>
+          <thead>
+            <tr><th scope="col">Handoff</th><th scope="col">What the attendee does</th><th scope="col">Where it fits</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">ZIP archive</th><td data-label="What the attendee does">Downloads the collection and browses files</td><td data-label="Where it fits">Delivering the complete shoot</td></tr>
+            <tr><th scope="row">Shared photo album</th><td data-label="What the attendee does">Opens the album and browses photographs</td><td data-label="Where it fits">Viewing the event as a whole</td></tr>
+            <tr class="compare__ours"><th scope="row">FindPhotosOfMe</th><td data-label="What the attendee does">Opens the event link, signs in, and searches with a selfie</td><td data-label="Where it fits">Finding likely photographs of one person</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 8. Founder story -->
+    <section class="section" aria-labelledby="founder-title">
+      <div class="wrap split split--founder">
+        <figure class="chat">
+          <div class="chat__window">
+            <div class="bubble bubble--me"><div class="bubble__selfie" data-selfie></div><span>Here’s my selfie</span></div>
+            <div class="bubble">Searching this event’s photos.</div>
+            <div class="bubble bubble--photos">
+              <div data-scene="talk" data-seed="2" data-mira></div>
+              <div data-scene="stage" data-seed="7" data-mira></div>
+              <div data-scene="group" data-seed="21" data-mira></div>
+            </div>
+          </div>
+          <figcaption>Illustration of the original chat-bot flow. Not a screenshot or photos from the conference.</figcaption>
+        </figure>
+        <div class="founder">
+          <h2 id="founder-title">It started with one conference photo collection.</h2>
+          <p class="founder__story">I built FindPhotosOfMe after working with photographs from an IT Arena conference in Ukraine. People could send a selfie to a Telegram bot and find photographs of themselves. Now I’m turning that practical tool into something more organizers can use.</p>
+          <p class="founder__by"><strong>Ivan</strong>, creator of FindPhotosOfMe</p>
+          <p class="founder__note">This is Ivan’s own account. It is not a customer testimonial or an endorsement from the event.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. Pricing model -->
+    <section class="section section--tight-top" id="pricing" aria-labelledby="pricing-title">
+      <div class="wrap split split--pricing">
+        <div>
+          <h2 id="pricing-title">One event. One payment. Free for attendees.</h2>
+          <p class="section__lede">In the planned model, organizers pay to host and process the event collection. Attendees can search without buying a photo-search plan.</p>
+        </div>
+        <div class="ticket">
+          <div class="ticket__main">
+            <h3>Event collection</h3>
+            <dl>
+              <div><dt>Who pays</dt><dd>The organizer, once per event</dd></div>
+              <div><dt>What it covers</dt><dd>Hosting and processing your event photos</dd></div>
+              <div><dt>Attendees</dt><dd>Search free, with no photo-search plan</dd></div>
+              <div><dt>Subscription</dt><dd>None planned</dd></div>
+            </dl>
+          </div>
+          <div class="ticket__stub">
+            <p class="ticket__price-label">Price</p>
+            <p class="ticket__price">Launch pricing is being finalized.</p>
+            <button class="btn btn--light btn--sm" type="button" data-preview="setup">Preview event setup</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. Trust and expectations -->
+    <section class="section section--mist" aria-labelledby="trust-title">
+      <div class="wrap">
+        <div class="section__head">
+          <h2 id="trust-title">Know what happens before you upload.</h2>
+          <p>Selfie search compares a reference photo with faces in the selected event collection. Matches can be imperfect. Review the results before downloading.</p>
+        </div>
+        <div class="trust">
+          <div class="trust__col">
+            <h3>What to expect</h3>
+            <ul class="ticks">
+              <li>Clear faces and good lighting help.</li>
+              <li>Distance, motion, face coverings, and unusual angles can affect results.</li>
+              <li>Face matching is not proof of identity. It helps people find likely photos; it is not a way to control who sees them.</li>
+            </ul>
+          </div>
+          <div class="trust__col trust__col--open">
+            <h3>Answered in plain language before launch</h3>
+            <p>Each answer will reflect the final policies and how the product actually works:</p>
+            <ul class="open-list">
+              <li>Consent from the people in the photos</li>
+              <li>How selfies are stored and deleted</li>
+              <li>What face data is derived and kept</li>
+              <li>How long event photos stay available</li>
+              <li>How to request deletion</li>
+              <li>Who can access an event collection</li>
+              <li>Which service providers are involved</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11. FAQ -->
+    <section class="section" id="questions" aria-labelledby="faq-title">
+      <div class="wrap split split--faq">
+        <div class="faq__head">
+          <h2 id="faq-title">Questions</h2>
+          <p>Answers marked as a preview note depend on launch decisions that are not final.</p>
+        </div>
+        <div class="faq">
+          <details>
+            <summary>Who is FindPhotosOfMe for?</summary>
+            <p>Conference hosts, community organizers, and photographers who want to help attendees find themselves in an event collection.</p>
+          </details>
+          <details>
+            <summary>How do attendees find their photos?</summary>
+            <p>They open the event link, sign in, and upload a clear selfie. The service looks for likely matches in that event’s photographs.</p>
+          </details>
+          <details>
+            <summary>Do attendees pay?</summary>
+            <p>The planned model keeps attendee search free. The organizer pays for the event collection.</p>
+          </details>
+          <details>
+            <summary>Do attendees need an app?</summary>
+            <p>They can use the event’s web page in a browser. The original version also used Telegram; availability for a given event should be confirmed.</p>
+          </details>
+          <details>
+            <summary>Will it find every photograph?</summary>
+            <p>No face-matching system is perfect. Clear faces and good lighting help; distance, motion, face coverings, and unusual angles can affect results.</p>
+          </details>
+          <details>
+            <summary>Can I use an ordinary photo instead of taking a new selfie?</summary>
+            <p>A clear photo with one visible face can serve as the reference photo.</p>
+          </details>
+          <details>
+            <summary>How long does processing take?</summary>
+            <p>It depends on the collection and the service workload. Wait until the event is ready before sharing the search link. Timing guidance will be published after benchmarking.</p>
+          </details>
+          <details>
+            <summary>What happens to my selfie?</summary>
+            <p><strong>Preview note:</strong> the release will explain how selfies are stored, processed, and deleted before it collects any. This preview does not collect photos.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12. Final invitation -->
+    <section class="final" aria-labelledby="final-title">
+      <div class="wrap final__inner">
+        <h2 id="final-title">Make finding the photos part of a great event.</h2>
+        <p>Give attendees a simple place to look for the moments they were part of.</p>
+        <div class="actions">
+          <button class="btn btn--light" type="button" data-explore>Explore the demo</button>
+          <a class="btn btn--outline-light" href="#how">See how it works</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div>
+        <p class="footer__brand">FindPhotosOfMe</p>
+        <p>Selfie search for event photos.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="#how">How it works</a>
+        <a href="#who">Who it’s for</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#questions">Questions</a>
+      </nav>
+      <p class="footer__note">Design preview. Nothing on this page uploads photos, creates accounts, or takes payments. Contact details, privacy policy, terms, and refund policy will be published before launch.</p>
+    </div>
+  </footer>
+
+  <dialog class="dialog" id="preview-dialog" aria-labelledby="dialog-title">
+    <form method="dialog">
+      <h2 id="dialog-title">This is a design preview</h2>
+      <p data-dialog-msg></p>
+      <button class="btn btn--primary" value="close">Close</button>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
