@@ -29,3 +29,4 @@ models/
 *.zip
 ref.jpg
 test_*.py
+!tests/test_*.py

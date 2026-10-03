@@ -1,5 +1,8 @@
 """Face recognition service for analyzing photos and extracting embeddings."""
 
+import os
+from functools import lru_cache
+
 import numpy as np
 import cv2
 from insightface.app import FaceAnalysis
@@ -19,7 +22,7 @@ class FaceRecognitionService:
         print(f"[{self._get_time()}] Initializing face recognition model...")
         self.app = FaceAnalysis(
             name='buffalo_l',
-            root='.',
+            root=os.getenv('INSIGHTFACE_ROOT', '.'),
             providers=['CPUExecutionProvider']
         )
         self.app.prepare(ctx_id=0, det_size=(640, 640))
@@ -141,3 +144,8 @@ class FaceRecognitionService:
         
         return matches
 
+
+@lru_cache(maxsize=1)
+def get_face_service() -> FaceRecognitionService:
+    """Modal workers accept one input at a time and reuse the loaded model."""
+    return FaceRecognitionService()

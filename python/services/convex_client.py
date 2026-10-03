@@ -1,231 +1,70 @@
-"""Convex client service for database operations."""
+"""Service-authenticated Convex operations. Failed writes must fail the job."""
 
 import os
 from convex import ConvexClient
-from datetime import datetime
-from typing import Optional, Any
 
 
 class ConvexService:
-    """Manages interactions with Convex database."""
-    
     def __init__(self):
-        """Initialize Convex client."""
-        convex_url = os.getenv('CONVEX_URL')
-        if not convex_url:
-            raise ValueError("Missing CONVEX_URL environment variable")
-        
-        self.client = ConvexClient(convex_url)
-        print(f"[{self._get_time()}] Convex client initialized")
-    
-    def _get_time(self) -> str:
-        """Get current time as formatted string."""
-        return datetime.now().strftime("%H:%M:%S")
-    
-    def get_collection(self, collection_id: str) -> Optional[dict]:
-        """Get collection by ID.
-        
-        Args:
-            collection_id: Collection ID
-            
-        Returns:
-            Collection data or None if not found
-        """
-        try:
-            result = self.client.query("collections:get", {"id": collection_id})
-            return result
-        except Exception as e:
-            print(f"[{self._get_time()}] Error getting collection {collection_id}: {e}")
-            return None
-    
-    def update_collection_status(
-        self, 
-        collection_id: str, 
-        status: str,
-        images_count: Optional[int] = None
-    ) -> bool:
-        """Update collection status and optionally image count.
-        
-        Args:
-            collection_id: Collection ID
-            status: New status (not_started, processing, complete)
-            images_count: Optional image count to update
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            args = {
-                "id": collection_id,
-                "status": status
-            }
-            if images_count is not None:
-                args["imagesCount"] = images_count
-            
-            self.client.mutation("collections:updateStatus", args)
-            print(f"[{self._get_time()}] Updated collection {collection_id} status to {status}")
-            return True
-        except Exception as e:
-            print(f"[{self._get_time()}] Error updating collection: {e}")
-            return False
-    
-    def increment_collection_images(self, collection_id: str, increment: int = 1) -> bool:
-        """Increment collection image count.
-        
-        Args:
-            collection_id: Collection ID
-            increment: Amount to increment by
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            self.client.mutation("collections:incrementImages", {
-                "id": collection_id,
-                "increment": increment
-            })
-            return True
-        except Exception as e:
-            print(f"[{self._get_time()}] Error incrementing collection images: {e}")
-            return False
+        self.client = ConvexClient(os.environ["CONVEX_URL"])
+        self.service_token = os.environ["SERVICE_TOKEN"]
 
-    def set_collection_preview_images(self, collection_id: str, preview_images: list[str]) -> bool:
-        """Set first N preview image keys for a collection.
-        
-        Args:
-            collection_id: Collection ID
-            preview_images: List of R2 object keys (e.g., "<collection>/<filename>")
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            self.client.mutation(
-                "collections:setPreviewImages",
-                {
-                    "id": collection_id,
-                    "previewImages": preview_images[:50],
-                },
-            )
-            print(f"[{self._get_time()}] Set {len(preview_images[:50])} preview images for collection {collection_id}")
-            return True
-        except Exception as e:
-            print(f"[{self._get_time()}] Error setting preview images: {e}")
-            return False
+    def get_collection(self, collection_id: str) -> dict | None:
+        return self.client.query("collections:getForService", {
+            "id": collection_id, "serviceToken": self.service_token,
+        })
 
-    def update_ingest_progress(
-        self,
-        job_id: str,
-        *,
-        total_images: int | None = None,
-        processed_images: int | None = None,
-        status: str | None = None,
-        error: str | None = None,
-    ) -> bool:
-        """Update ingest job progress in Convex.
+    def get_ingest_job(self, job_id: str) -> dict | None:
+        return self.client.query("ingestJobs:getForService", {
+            "id": job_id, "serviceToken": self.service_token,
+        })
 
-        Args:
-            job_id: Ingest job ID
-            total_images: Total images in zip (optional)
-            processed_images: Processed images count (optional)
-            status: One of pending|running|failed|completed|canceled (optional)
-            error: Error message (optional)
-        """
-        try:
-            args: dict[str, Any] = {"id": job_id}
-            if total_images is not None:
-                args["totalImages"] = int(total_images)
-            if processed_images is not None:
-                args["processedImages"] = int(processed_images)
-            if status is not None:
-                args["status"] = status
-            if error is not None:
-                args["error"] = error
+    def update_collection_status(self, collection_id: str, status: str, images_count: int | None = None):
+        args = {"id": collection_id, "status": status, "serviceToken": self.service_token}
+        if images_count is not None:
+            args["imagesCount"] = images_count
+        self.client.mutation("collections:updateStatusForService", args)
 
-            self.client.mutation("ingestJobs:updateProgress", args)
-            print(f"[{self._get_time()}] Ingest job updated: {job_id} -> {args}")
-            return True
-        except Exception as e:
-            print(f"[{self._get_time()}] Error updating ingest job: {e}")
-            return False
+    def set_collection_preview_images(self, collection_id: str, preview_images: list[str]):
+        self.client.mutation("collections:setPreviewImagesForService", {
+            "id": collection_id, "previewImages": preview_images[:50],
+            "serviceToken": self.service_token,
+        })
 
-    def mark_ingest_failed(self, job_id: str, error: str) -> bool:
-        """Mark ingest job as failed."""
-        try:
-            self.client.mutation(
-                "ingestJobs:markFailed", {"id": job_id, "error": error}
-            )
-            print(f"[{self._get_time()}] Ingest job failed: {job_id}")
-            return True
-        except Exception as e:
-            print(f"[{self._get_time()}] Error marking ingest failed: {e}")
-            return False
+    def update_ingest_progress(self, job_id: str, *, total_images: int | None = None,
+                               processed_images: int | None = None, status: str | None = None):
+        args = {"id": job_id, "serviceToken": self.service_token}
+        if total_images is not None:
+            args["totalImages"] = total_images
+        if processed_images is not None:
+            args["processedImages"] = processed_images
+        if status is not None:
+            args["status"] = status
+        self.client.mutation("ingestJobs:updateProgress", args)
 
-    def mark_ingest_completed(self, job_id: str, processed_images: int) -> bool:
-        """Mark ingest job as completed."""
-        try:
-            self.client.mutation(
-                "ingestJobs:markCompleted",
-                {"id": job_id, "processedImages": int(processed_images)},
-            )
-            print(f"[{self._get_time()}] Ingest job completed: {job_id}")
-            return True
-        except Exception as e:
-            print(f"[{self._get_time()}] Error marking ingest completed: {e}")
-            return False
-    
-    def get_search_request(self, search_request_id: str) -> Optional[dict]:
-        """Get search request by ID.
-        
-        Args:
-            search_request_id: Search request ID
-            
-        Returns:
-            Search request data or None if not found
-        """
-        try:
-            result = self.client.query("searchRequests:get", {"id": search_request_id})
-            return result
-        except Exception as e:
-            print(f"[{self._get_time()}] Error getting search request {search_request_id}: {e}")
-            return None
-    
-    def update_search_request(
-        self,
-        search_request_id: str,
-        status: str,
-        images_found: Optional[list] = None,
-        total_images: Optional[int] = None,
-        processed_images: Optional[int] = None
-    ) -> bool:
-        """Update search request with progress and results.
-        
-        Args:
-            search_request_id: Search request ID
-            status: Status (processing, complete, error)
-            images_found: List of image paths found
-            total_images: Total number of images to process
-            processed_images: Number of images processed so far
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            args = {
-                "id": search_request_id,
-                "status": status
-            }
-            if images_found is not None:
-                args["imagesFound"] = images_found
-            if total_images is not None:
-                args["totalImages"] = total_images
-            if processed_images is not None:
-                args["processedImages"] = processed_images
-            
-            self.client.mutation("searchRequests:update", args)
-            print(f"[{self._get_time()}] Updated search request {search_request_id}")
-            return True
-        except Exception as e:
-            print(f"[{self._get_time()}] Error updating search request: {e}")
-            return False
+    def mark_ingest_failed(self, job_id: str, error: str):
+        self.client.mutation("ingestJobs:markFailed", {
+            "id": job_id, "error": error, "serviceToken": self.service_token,
+        })
 
+    def mark_ingest_completed(self, job_id: str, processed_images: int):
+        self.client.mutation("ingestJobs:markCompleted", {
+            "id": job_id, "processedImages": processed_images, "serviceToken": self.service_token,
+        })
+
+    def get_search_request(self, search_request_id: str) -> dict | None:
+        return self.client.query("searchRequests:getForService", {
+            "id": search_request_id, "serviceToken": self.service_token,
+        })
+
+    def update_search_request(self, search_request_id: str, status: str, *,
+                              images_found: list[str] | None = None,
+                              total_images: int | None = None, processed_images: int | None = None):
+        args = {"id": search_request_id, "status": status, "serviceToken": self.service_token}
+        if images_found is not None:
+            args["imagesFound"] = images_found
+        if total_images is not None:
+            args["totalImages"] = total_images
+        if processed_images is not None:
+            args["processedImages"] = processed_images
+        self.client.mutation("searchRequests:updateForService", args)

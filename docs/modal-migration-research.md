@@ -1,0 +1,33 @@
+# Modal migration research
+
+Checked 3 October 2026. Hosting-only proposal: preserve the current face model, Convex, R2, Nuxt and Telegram behavior. No implementation, account changes or deployment performed.
+
+## Fit and cost
+
+Modal Starter has no subscription fee, includes $30/month compute credits, and charges subsequent usage without prepaid credits or minimum reservation. CPU is $0.0000131/physical-core-second (one physical core is roughly two conventional vCPUs); memory is $0.00000222/GiB-second. Charges use the greater of requested or consumed resources, with per-container minima of 0.125 CPU and 128 MiB. Starter includes 1 TiB/month egress; subsequent egress is $0.04/GiB. Custom domains are excluded, but the generated backend URL is adequate here. [Pricing](https://modal.com/pricing).
+
+A payment method is required even on Starter. Set a Workspace budget and, if desired, a separate net spend limit; the usage budget is measured before credits. [Billing](https://modal.com/docs/guide/billing), [budgets](https://modal.com/docs/guide/budgets).
+
+For illustration, one physical core plus 4 GiB for 20 aggregate billable container-hours costs approximately $1.58 before credits; this is a resource scenario, not a prediction of photo-processing throughput. Initialization and retained warm containers also cost money. Default maximum idle retention is 60 seconds, configurable from 2 to 1,200 seconds; `min_containers=0` permits scaling to zero. Cold initialization still delays the next request. [Pricing](https://modal.com/pricing), [cold starts](https://modal.com/docs/guide/cold-start).
+
+## Required application changes
+
+1. **Add a small Modal deployment adapter.** The active [Dockerfile](../Dockerfile.python) starts FastAPI in [python/main.py](../python/main.py), not the legacy Flask app. Expose the existing FastAPI application with `@modal.asgi_app`; Flask/WSGI is also supported but irrelevant to this entrypoint. Preserve Python 3.11 and native dependencies. Modal can build from a Dockerfile, though its builder differs and does not implement commands such as `EXPOSE`; translating the short dependency/image definition may be simpler. [Web Functions](https://modal.com/docs/guide/webhooks), [existing images](https://modal.com/docs/guide/existing-images).
+
+2. **Load the model once per container and stop downloading it at request time.** Bake the existing model files into the image and use an explicit absolute cache path. Modal also supports a shared Volume and recommends it for flexible model management, but documents comparable performance; an image is sufficient for this one fixed model. Initialize using FastAPI lifespan or `@modal.enter`. Current search and ingest construct the recognition service repeatedly. [Model storage and lifecycle](https://modal.com/docs/guide/model-weights), [ASGI lifespan](https://modal.com/docs/guide/webhooks), [local service](../python/services/face_recognition_service.py).
+
+3. **Make ingestion a separate Modal job.** Preserve the authenticated `/api/process-ingest-job` path, but have it submit the long-running function via `await process_job.spawn.aio(...)` and acknowledge promptly. Reuse Convex job status/progress and collection serialization. Do not replace this with in-process FastAPI background work. Modal Web Functions have a 150-second HTTP window followed by 303 continuation redirects; native functions have a default five-minute execution timeout configurable up to 24 hours. Set an explicit measured ingestion timeout rather than relying on HTTP or caller timeouts. [HTTP timeouts](https://modal.com/docs/guide/webhook-timeouts), [job processing](https://modal.com/docs/guide/job-queue), [function timeouts](https://modal.com/docs/guide/timeouts).
+
+4. **Bound memory and concurrency.** Current upload code reads an entire ZIP into bytes and `BytesIO`, with limits allowing 2 GiB compressed archives. Download to temporary disk instead. Start CPU-only, with bounded containers and one ingest per worker; size memory from a representative run. Separate ingest execution lets attendee searches use other containers. Test cold search against the actual Nuxt/Vercel and Telegram invocation budgets: Modal's own timeout is not the only limit. [Local ingestion implementation](../python/endpoints/upload_collection.py), [earlier code assessment](python-hosting-options.md).
+
+5. **Verify restart and completion behavior.** Modal may replay an input after preemption or container crash even without configured application-error retries. Check duplicate job submission, partial photo writes, completion failures and source-ZIP cleanup against existing job records; add no new workflow framework. CPU jobs can use `nonpreemptible=True` on Starter at 3x CPU/memory pricing (about $0.237/hour for the illustrative shape above), but this does not prevent crashes. [Preemption](https://modal.com/docs/guide/preemption), [crash handling](https://modal.com/docs/guide/retries), [plan availability](https://modal.com/pricing).
+
+## Account, secrets and cutover
+
+Create/use a Modal account, install the SDK/CLI, and authenticate with `modal setup`. Deployment uses `modal deploy`; `modal serve` creates a temporary cloud deployment for development. These commands are future steps, not actions performed during this research. [Setup](https://modal.com/docs/guide/getting-started), [deployment](https://modal.com/docs/guide/webhooks).
+
+Create a Modal Secret containing `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `CONVEX_URL`, and `SERVICE_TOKEN`. Secrets are injected as environment variables. Preserve the service's bearer-token checks. Modal Web Functions are public by default; optionally enable `requires_proxy_auth=True` and send Modal proxy credentials from trusted server callers, but that is additional authentication, not required to preserve the existing guard. [Secrets](https://modal.com/docs/guide/secrets), [proxy authentication](https://modal.com/docs/guide/webhook-proxy-auth).
+
+After a test deployment passes cold/warm search, upload-to-completion, concurrent search/ingest, wrong-token and interrupted-job checks, switch `NUXT_PYTHON_API_URL` in Nuxt and `PYTHON_API_URL` in Convex. Existing R2 photographs/embeddings and Convex records need no data migration. Retain the old endpoint for rollback initially. Google Artifact Registry cleanup is a later explicit action: moving the API does not delete billed stored images. [Local architecture assessment](python-hosting-options.md).
+
+Sizing, real cold-start duration, dependency compatibility and end-to-end cost remain unmeasured. The source code inspected is the current local working tree, not verified deployed production state.

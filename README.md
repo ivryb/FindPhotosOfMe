@@ -111,7 +111,7 @@ R2_ACCESS_KEY_ID=your_r2_access_key_id
 R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
 R2_BUCKET_NAME=your_bucket_name
 CONVEX_URL=https://your-deployment.convex.cloud
-CORS_ORIGINS=*
+SERVICE_TOKEN=shared-server-token
 ```
 
 ### Convex (set via Convex dashboard or CLI)
@@ -154,7 +154,9 @@ Tests are not currently implemented. When adding tests:
 
 ### Python Service
 
-Uses Docker with Cloud Run/similar container platforms. Models (~400MB) are cached in persistent volume.
+Runs on Modal with separate CPU workers for ingestion and search, scaling to zero
+when idle. Model files are included in the deployment image; R2 and Convex retain
+the application data. See [Python deployment instructions](python/README.md).
 
 ### Frontend + Backend
 

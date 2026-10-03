@@ -1,189 +1,68 @@
-"""Search photos endpoint - finds matching faces in a collection."""
+"""Selfie submission and face matching, with results stored in Convex."""
 
 import json
 import time
-from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
-from services.r2_storage import R2StorageService
-from services.face_recognition_service import FaceRecognitionService
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
+
+from schemas.types import SearchResponse
+from security import require_service_token
 from services.convex_client import ConvexService
-from schemas.types import SearchResponse, ErrorResponse
+from services.r2_storage import R2StorageService
+
+router = APIRouter(dependencies=[Depends(require_service_token)])
+MAX_PHOTO_BYTES = 10 * 1024**2
+PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
-router = APIRouter()
-
-
-def get_time() -> str:
-    """Get current time as formatted string."""
-    return datetime.now().strftime("%H:%M:%S")
+def process_search(search_request_id: str, reference_data: bytes) -> dict:
+    convex = ConvexService()
+    search = convex.get_search_request(search_request_id)
+    if not search:
+        raise ValueError("Search request not found")
+    if search["status"] == "complete":
+        return {"ok": True, "matches": len(search["imagesFound"])}
+    try:
+        collection_id = search["collectionId"]
+        collection = convex.get_collection(collection_id)
+        if not collection or collection["status"] != "complete":
+            raise ValueError("Event is not ready")
+        if collection.get("paymentStatus") == "refunded" or collection.get("expiresAt", float("inf")) <= time.time() * 1000:
+            raise ValueError("Event is no longer active")
+        convex.update_search_request(search_request_id, "processing")
+        from services.face_recognition_service import get_face_service
+        face_service = get_face_service()
+        faces = face_service.extract_embeddings(reference_data)
+        if not faces:
+            raise ValueError("No face detected in reference photo")
+        data = R2StorageService().download_file(f"{collection_id}/embeddings.json")
+        if data is None:
+            raise ValueError("Face index not found")
+        embeddings = json.loads(data)
+        matches = face_service.find_matching_faces(faces[0]["embedding"], faces[0]["gender"], embeddings)
+        convex.update_search_request(
+            search_request_id, "complete",
+            images_found=[f"{collection_id}/{filename}" for filename, _ in matches],
+            total_images=len(embeddings), processed_images=len(embeddings),
+        )
+        return {"ok": True, "matches": len(matches)}
+    except Exception:
+        convex.update_search_request(search_request_id, "error")
+        raise
 
 
 @router.post("/search-photos", response_model=SearchResponse)
-async def search_photos(
-    search_request_id: str = Form(...),
-    reference_photo: UploadFile = File(...)
-):
-    """Search for matching faces in a collection.
-    
-    Args:
-        search_request_id: ID of the search request (created in Convex)
-        reference_photo: Reference photo to match against
-        
-    Returns:
-        SearchResponse with search results
-    """
-    print(f"[{get_time()}] Starting search for request: {search_request_id}")
-    
-    # Validate image file
-    if not reference_photo.content_type or not reference_photo.content_type.startswith('image/'):
-        raise HTTPException(status_code=400, detail="File must be an image")
-    
-    try:
-        # Initialize services
-        r2_service = R2StorageService()
-        face_service = FaceRecognitionService()
-        convex_service = ConvexService()
-        
-        # Get search request from Convex
-        search_request = convex_service.get_search_request(search_request_id)
-        if not search_request:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Search request {search_request_id} not found"
-            )
-        
-        collection_id = search_request.get('collectionId')
-        if not collection_id:
-            raise HTTPException(status_code=400, detail="Search request missing collectionId")
-        
-        print(f"[{get_time()}] Search request validated. Collection: {collection_id}")
-        
-        # Update search request status to processing
-        convex_service.update_search_request(search_request_id, "processing")
-        
-        # Validate collection exists and is complete
-        collection = convex_service.get_collection(collection_id)
-        if not collection:
-            raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
-                
-        # Get total images from collection
-        total_images = collection.get('imagesCount', 0)
-        print(f"[{get_time()}] Collection has {total_images} images")
-        
-        # Extract face embeddings from reference photo
-        reference_data = await reference_photo.read()
-        reference_embeddings = face_service.extract_embeddings(reference_data)
-        
-        if not reference_embeddings:
-            raise HTTPException(
-                status_code=400,
-                detail="No face detected in reference photo"
-            )
-        
-        # Use the first detected face
-        ref_embedding = reference_embeddings[0]['embedding']
-        ref_gender = reference_embeddings[0]['gender']
-        
-        print(f"[{get_time()}] Reference face extracted. Gender: {'male' if ref_gender == 1 else 'female'}")
-        
-        # Download embeddings.json from R2
-        embeddings_key = f"{collection_id}/embeddings.json"
-        embeddings_data_bytes = r2_service.download_file(embeddings_key)
-        
-        if not embeddings_data_bytes:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Embeddings not found for collection {collection_id}"
-            )
-        
-        embeddings_data = json.loads(embeddings_data_bytes.decode('utf-8'))
-        
-        print(f"[{get_time()}] Loaded embeddings for {len(embeddings_data)} images")
-        
-        # Update search request with total
-        convex_service.update_search_request(
-            search_request_id,
-            "processing",
-            total_images=total_images,
-            processed_images=0
-        )
-        
-        # Find matching faces with progress updates
-        matches = []
-        processed_count = 0
-        last_update_time = time.time()
-        
-        for filename, faces in embeddings_data.items():
-            for face in faces:
-                # Check gender match
-                if face.get('gender') != ref_gender:
-                    continue
-                
-                # Compare embeddings
-                is_match, similarity = face_service.compare_embeddings(
-                    ref_embedding,
-                    face['embedding'],
-                    threshold=0.6
-                )
-                
-                if is_match:
-                    matches.append((filename, similarity))
-                    break  # Only need one match per photo
-            
-            processed_count += 1
-
-            # Time-based throttle: update every 500ms
-            current_time = time.time()
-            if current_time - last_update_time >= 0.5:
-                convex_service.update_search_request(
-                    search_request_id,
-                    "processing",
-                    processed_images=processed_count
-                )
-                last_update_time = current_time
-                print(f"[{get_time()}] Processed {processed_count}/{total_images} images, found {len(matches)} matches so far")
-        
-        # Sort by similarity score (highest first)
-        matches.sort(key=lambda x: x[1], reverse=True)
-        
-        print(f"[{get_time()}] Found {len(matches)} matching images")
-        
-        # Build image paths for R2
-        images_found = []
-        for filename, similarity in matches:
-            image_path = f"{collection_id}/{filename}"
-            images_found.append(image_path)
-        
-        # Update search request with results
-        convex_service.update_search_request(
-            search_request_id,
-            "complete",
-            images_found=images_found,
-            total_images=total_images,
-            processed_images=total_images
-        )
-
-        # Telegram delivery is handled by the Telegram bot handler (grammY).
-        
-        print(f"[{get_time()}] Search complete. Found {len(matches)} matches")
-        
-        return SearchResponse(
-            success=True,
-            message=f"Found {len(matches)} matching photos",
-            search_request_id=search_request_id
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[{get_time()}] Error in search_photos: {e}")
-        
-        # Update search request status to error
-        try:
-            convex_service.update_search_request(search_request_id, "error")
-        except:
-            pass
-        
-        raise HTTPException(status_code=500, detail=str(e))
-
+async def search_photos(request: Request, search_request_id: str = Form(...),
+                        reference_photo: UploadFile = File(...)):
+    if reference_photo.content_type not in PHOTO_TYPES:
+        raise HTTPException(status_code=400, detail="A JPEG, PNG, or WebP photo is required")
+    data = await reference_photo.read(MAX_PHOTO_BYTES + 1)
+    if not data or len(data) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Photo must be nonempty and 10 MB or smaller")
+    submit = request.app.state.execute_search
+    if submit is None:
+        await run_in_threadpool(process_search, search_request_id, data)
+    else:
+        await submit(search_request_id, data)
+    return SearchResponse(success=True, message="Search complete", search_request_id=search_request_id)
