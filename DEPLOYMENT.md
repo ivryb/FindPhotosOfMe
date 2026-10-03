@@ -1,114 +1,60 @@
 # Deployment Configuration
 
-## Python ML Service
+## Nuxt on Cloudflare Workers
 
-### Railway Deployment
+The landing page, dashboard, API routes and Telegram webhook share the `findphotosofme` Worker. Convex retains authentication, data, ingestion coordination and Telegram search continuations; R2 retains photos. Python hosting is a separate Modal migration.
 
-Configure your Railway service with:
-
-- **Root Directory**: `/` (repository root)
-- **Dockerfile Path**: `Dockerfile.python`
-- **Build Context**: `.` (root)
-
-### Google Cloud Run Deployment
-
-**Important**: For large file uploads (>32MB), Cloud Run requires specific configuration:
+From the repository root:
 
 ```bash
-gcloud run deploy find-photos-of-me \
-  --source . \
-  --dockerfile Dockerfile.python \
-  --platform managed \
-  --region europe-west1 \
-  --allow-unauthenticated \
-  --timeout=3600 \
-  --memory=2Gi \
-  --cpu=2 \
-  --max-instances=10 \
-  --request-timeout=3600s
+pnpm install --frozen-lockfile
+pnpm --filter web build
+pnpm --filter web exec wrangler deploy --dry-run
+pnpm --filter web preview
+# Publishes to Cloudflare:
+pnpm --filter web run deploy
 ```
 
-**Key Flags for Large Uploads:**
+Nitro generates `apps/web/.output/server/wrangler.json` and the Wrangler redirect under `.wrangler/deploy/`. Build before running Wrangler. The checked-in `apps/web/wrangler.jsonc` owns the Worker name and compatibility settings; Nitro supplies the entry point and static assets. This uses Nitro 2's [Workers adapter](https://v2.nitro.build/deploy/providers/cloudflare).
 
-- `--timeout=3600`: Request timeout (1 hour) for processing large collections
-- `--memory=2Gi`: Sufficient memory for face recognition processing
-- `--cpu=2`: Faster processing with 2 vCPUs
-- `--request-timeout=3600s`: Allow long-running requests for streaming uploads
+Set the variables listed in `apps/web/.env.example` as Worker secrets using `wrangler secret put NAME` from `apps/web`. Keep secrets out of the build environment; Nuxt resolves them from bindings during requests. For a local production preview, copy those values into the gitignored `apps/web/.dev.vars`. Public Convex configuration must point at the same deployment as the server credentials. `NUXT_PUBLIC_ORIGIN` is the canonical root origin (`https://findphotosofme.com` in production); only direct subdomains of this host are treated as event slugs.
 
-**Note**: The 32MB limit applies only to non-streaming requests. The updated endpoint uses streaming, which bypasses this limit.
+Telegram uses Convex's existing scheduler because Workers background execution is [limited to 30 seconds after a response](https://developers.cloudflare.com/workers/platform/limits/#duration). Configure `PYTHON_API_URL`, `SERVICE_TOKEN`, and the four `R2_*` values in `packages/backend/.env.example` on the matching Convex deployment. Node actions have a [10-minute execution limit](https://docs.convex.dev/production/state/limits#execution-time-and-scheduling); Python requests time out at eight minutes to leave room for error reporting. Failed actions are not automatically retried; users can resend their selfie.
 
-Or if using `cloudbuild.yaml`:
+### Deployed configuration (3 October 2026)
 
-```yaml
-steps:
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "build",
-        "-f",
-        "Dockerfile.python",
-        "-t",
-        "gcr.io/$PROJECT_ID/find-photos-of-me",
-        ".",
-      ]
-  - name: "gcr.io/cloud-builders/docker"
-    args: ["push", "gcr.io/$PROJECT_ID/find-photos-of-me"]
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: gcloud
-    args:
-      - "run"
-      - "deploy"
-      - "find-photos-of-me"
-      - "--image"
-      - "gcr.io/$PROJECT_ID/find-photos-of-me"
-      - "--region"
-      - "us-central1"
-      - "--platform"
-      - "managed"
-```
+- Worker: `findphotosofme`, with fallback URL `https://findphotosofme.ivrybn.workers.dev`.
+- Canonical origin: `https://findphotosofme.com`; root and wildcard event routes are managed in `apps/web/wrangler.jsonc`.
+- Cloudflare zone: `087e5025719045bfa3e3c8c418b1378a`. Spaceship delegates to `lewis.ns.cloudflare.com` and `lorna.ns.cloudflare.com`; the registry confirms this change and Cloudflare reports the zone active.
+- Proxied apex, wildcard and www DNS records use reserved placeholder addresses; the Worker serves the entire request. Existing CAA records are preserved. The old DNS zone had no mail records.
+- Convex remains `honorable-firefly-904` (the existing development deployment), as requested. `SITE_URL` is the canonical origin. Additional trusted origins cover localhost, the Worker fallback and HTTPS event subdomains.
+- R2 CORS includes the canonical root, www, localhost and the Worker fallback.
+- `TELEGRAM_WEBHOOK_BASE_URL=https://findphotosofme.ivrybn.workers.dev/api/telegram`. Existing bot registration uses this stable endpoint with a webhook secret, independently of custom-domain DNS propagation. Search and photo delivery run in Convex.
+- Worker Python URL and service token match the deployed Modal service below.
+- The FindPhotosOfMe project was already absent from the authenticated Vercel team; there was no project to delete. Domain registration and renewal remain with Spaceship.
 
-### Local Development
+Build, type checks, Worker runtime configuration, real R2 preview streaming, Google sign-in initiation, auth CORS, and signed/no-secret Telegram webhook responses were verified. Root, www and event routes serve HTTPS successfully when resolved to Cloudflare. At cutover, some public DNS caches still resolved the apex to the previous Vercel addresses; the event hostname already resolved to Cloudflare.
 
-From repository root:
+This hosting verification does not replace the launch acceptance test: complete Google sign-in, signed-in upload/search/download and a real Telegram selfie-to-results journey still need verification. Email OTP delivery credentials are not configured on the shared Convex deployment. See [the migration handoff](docs/cloudflare-handoff.md) for verification details.
 
-```bash
-# Start service (native platform - fast for local dev)
-./deploy-python-local.sh
+## Python ML Service on Modal
 
-# Start service (linux/amd64 - test production build)
-./deploy-python-local.sh --linux
+The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
 
-# Combine flags
-./deploy-python-local.sh --linux --no-cache
+- Endpoint: `https://ivryb--findphotosofme-web.modal.run`
+- Convex `PYTHON_API_URL` points to this endpoint.
+- Set the frontend's private `NUXT_PYTHON_API_URL` to the same URL and use the
+  matching `NUXT_SERVICE_TOKEN` (available in ignored `python/.env`).
+- Ingestion returns HTTP 202 and continues in a Modal job; search returns HTTP
+  200 after matching finishes, matching the Convex Telegram handler's contract.
+- CPU workers scale to zero. Models are baked into the image; photos and indexes
+  remain in R2 and application state remains in Convex.
 
-# Stop service
-./stop-python-local.sh
+Deployment, limits, secrets and local testing are documented in
+[python/README.md](python/README.md). Verified migration status and the parallel
+frontend handoff are in [docs/modal-handoff.md](docs/modal-handoff.md).
 
-# View logs
-docker logs -f find-photos-of-me-service
-```
-
-**Flags:**
-
-- `--linux`: Build for linux/amd64 platform (matches Railway/Cloud Run)
-- `--no-cache`: Force rebuild without using Docker cache
-
-### Environment Variables Required
-
-- `R2_ACCOUNT_ID`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-- `R2_BUCKET_NAME`
-- `CONVEX_URL`
-- `CORS_ORIGINS` (optional, defaults to `*`)
-- `PORT` (optional, defaults to `8000`)
-
-## Notes
-
-- **Architecture**:
-  - By default, builds for native platform (arm64 on Apple Silicon, fast for local dev)
-  - Use `--linux` flag to build for `linux/amd64` (matches Railway/Cloud Run)
-  - Railway/Cloud Run automatically build for `linux/amd64`
-- **onnxruntime Fix**: The Dockerfile uses `patchelf --clear-execstack` to fix executable stack issues on containerized platforms (Railway, Cloud Run)
-- **Build Context**: Always the repository root
-- **Python Code**: Located in `python/` directory but gets copied to `/app` in the container
+The old Cloud Run service, Artifact Registry images, build trigger and Google
+model-cache bucket were deleted on 3 October 2026. The Google project remains
+solely to preserve its active Google sign-in OAuth client. Do not delete that
+project or redeploy Cloud Run. See the cleanup inventory in the handoff above.
