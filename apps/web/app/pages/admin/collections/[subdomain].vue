@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { useConvexMutation, useConvexClient } from "convex-vue";
+import { useConvexMutation, useConvexClient, useConvexQuery } from "convex-vue";
 import { ref, computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,29 +29,60 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  CreditCard,
   Upload,
   Trash2,
 } from "lucide-vue-next";
 
 const route = useRoute();
-const config = useRuntimeConfig();
 const subdomain = computed(() => route.params.subdomain as string);
-const adminPassword = useCookie("admin-password");
 
-const { data: collection } = await useConvexSSRQuery(
+const { data: collection } = useConvexQuery(
   api.collections.getBySubdomain,
   {
     subdomain: subdomain.value,
-  }
+  },
+  { server: false }
 );
 
 const convex = useConvexClient();
 
-const { mutate: updatecollection } = useConvexMutation(api.collections.update);
-const { mutate: deleteCollection } = useConvexMutation(
-  api.collections.deleteCollection
+type PaidPlan = "event" | "large";
+const checkoutPlan = ref<PaidPlan | null>(null);
+const checkoutError = ref<string | null>(null);
+const isExpired = computed(
+  () => Boolean(collection.value?.expiresAt && collection.value.expiresAt <= Date.now())
 );
+const canUpload = computed(
+  () =>
+    collection.value?.paymentStatus !== "refunded" &&
+    !isExpired.value &&
+    (!collection.value?.photoLimit || collection.value.imagesCount < collection.value.photoLimit)
+);
+const planName = computed(() => {
+  if (collection.value?.plan === "large") return "Large Event";
+  if (collection.value?.plan === "event") return "Event";
+  if (collection.value?.plan === "demo") return "Demo";
+  return "Legacy";
+});
 
+const startCheckout = async (plan: PaidPlan) => {
+  if (!collection.value) return;
+  checkoutPlan.value = plan;
+  checkoutError.value = null;
+  try {
+    const url = await convex.action(api.payments.createCheckout, {
+      collectionId: collection.value._id as Id<"collections">,
+      plan,
+    });
+    await navigateTo(url, { external: true });
+  } catch (error) {
+    checkoutError.value = error instanceof Error ? error.message : "Could not open checkout";
+    checkoutPlan.value = null;
+  }
+};
+
+const { mutate: updatecollection } = useConvexMutation(api.collections.update);
 const { mutate: setTelegramToken } = useConvexMutation(
   api.collections.storeTelegramBotToken
 );
@@ -183,13 +214,6 @@ const handleUpload = async () => {
   uploadStage.value = "uploading";
 
   try {
-    const apiURL = config.public.apiURL;
-    if (!apiURL) {
-      throw new Error(
-        "API URL not configured. Please set NUXT_PUBLIC_API_URL environment variable."
-      );
-    }
-
     const contentType = "application/zip";
     const jobs: { filename: string; fileKey: string }[] = [];
 
@@ -207,8 +231,8 @@ const handleUpload = async () => {
         key: string;
       }>("/api/r2/presign-upload", {
         method: "POST",
-        body: { key: r2Key, contentType },
-        headers: { "x-admin-password": adminPassword.value || "" },
+        body: { collectionId: collection.value._id, key: r2Key, contentType },
+        headers: { Authorization: `Bearer ${await getConvexAuthToken()}` },
       });
 
       await $fetch(presign.url, {
@@ -233,7 +257,7 @@ const handleUpload = async () => {
     });
 
     // 3) Ask Convex to dispatch the next job for this collection (per-job request to Python)
-    convex.action(api.ingest.dispatchNextForCollection, {
+    convex.mutation(api.ingest.requestNextForCollection, {
       collectionId: collection.value!._id as Id<"collections">,
     });
 
@@ -268,7 +292,12 @@ const handleDelete = async () => {
   isDeleting.value = true;
   try {
     console.log(`[Delete] Deleting collection: ${collection.value._id}`);
-    await deleteCollection({ id: collection.value._id });
+    const token = await getConvexAuthToken();
+    if (!token) throw new Error("Sign in required");
+    await $fetch(`/api/collections/${collection.value._id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
     console.log(`[Delete] Collection deleted successfully`);
     isDeleteDialogOpen.value = false;
     navigateTo("/admin");
@@ -448,6 +477,50 @@ const handleDelete = async () => {
         </CardContent>
       </Card>
 
+      <Card class="mt-6">
+        <CardHeader>
+          <CardTitle class="flex items-center gap-2">
+            <CreditCard class="h-5 w-5" />
+            Event plan
+          </CardTitle>
+          <CardDescription>
+            {{ planName }}
+            <template v-if="collection.photoLimit">
+              · {{ collection.imagesCount.toLocaleString() }} / {{ collection.photoLimit.toLocaleString() }} photos
+            </template>
+            <template v-if="collection.expiresAt">
+              · {{ isExpired ? "Expired" : `Available until ${new Date(collection.expiresAt).toLocaleDateString()}` }}
+            </template>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p
+            v-if="route.query.checkout === 'success' && collection.plan === 'demo'"
+            class="mb-4 text-sm text-muted-foreground"
+          >
+            Payment received. Your plan will activate as soon as Lemon Squeezy confirms the order.
+          </p>
+          <p v-if="collection.paymentStatus === 'refunded'" class="text-sm text-destructive">
+            This order was refunded. Uploading and attendee search are disabled.
+          </p>
+          <div v-else-if="collection.plan === 'demo'" class="grid gap-3 sm:grid-cols-2">
+            <Button
+              variant="outline"
+              :disabled="checkoutPlan !== null"
+              @click="startCheckout('event')"
+            >
+              <Loader2 v-if="checkoutPlan === 'event'" class="mr-2 h-4 w-4 animate-spin" />
+              Event · $49 · 5,000 photos
+            </Button>
+            <Button :disabled="checkoutPlan !== null" @click="startCheckout('large')">
+              <Loader2 v-if="checkoutPlan === 'large'" class="mr-2 h-4 w-4 animate-spin" />
+              Large Event · $149 · 20,000 photos
+            </Button>
+          </div>
+          <p v-if="checkoutError" class="mt-3 text-sm text-destructive">{{ checkoutError }}</p>
+        </CardContent>
+      </Card>
+
       <!-- Photos Upload section -->
       <Card class="mt-6">
         <CardHeader>
@@ -511,7 +584,7 @@ const handleDelete = async () => {
                   multiple
                   ref="fileInputRef"
                   @change="handleFileSelect"
-                  :disabled="isUploading"
+                  :disabled="isUploading || !canUpload"
                 />
                 <p class="text-xs text-muted-foreground">
                   Select one or more .zip files to append into this collection
@@ -540,7 +613,7 @@ const handleDelete = async () => {
 
               <Button
                 @click="handleUpload"
-                :disabled="selectedFiles.length === 0 || isUploading"
+                :disabled="selectedFiles.length === 0 || isUploading || !canUpload"
                 class="w-full"
               >
                 <Loader2 v-if="isUploading" class="mr-2 h-4 w-4 animate-spin" />
@@ -548,6 +621,15 @@ const handleDelete = async () => {
                 <span v-if="isUploading">Uploading...</span>
                 <span v-else>Upload and Queue</span>
               </Button>
+
+              <p v-if="!canUpload" class="text-sm text-destructive">
+                <template v-if="collection.plan === 'demo'">
+                  Upgrade this event before uploading more photos.
+                </template>
+                <template v-else>
+                  This event is not available for more uploads.
+                </template>
+              </p>
 
               <div
                 v-if="uploadError"

@@ -1,86 +1,20 @@
-import { useR2 } from "../../utils/r2";
-import { Readable } from "stream";
+import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import { ConvexHttpClient } from "convex/browser";
 
-export default cachedEventHandler(
-  async (event) => {
-    const pathParam = getRouterParam(event, "path");
+export default defineEventHandler(async (event) => {
+  const path = getRouterParam(event, "path");
+  if (!path) throw createError({ statusCode: 400, statusMessage: "Missing path" });
+  const key = decodeURIComponent(path);
 
-    console.log(
-      `[${new Date().toISOString()}] R2 GET request path param:`,
-      pathParam
-    );
+  const config = useRuntimeConfig(event);
+  const convex = new ConvexHttpClient(config.public.convexUrl);
+  const allowed = await convex.query(api.collections.isPublicPreview, { key });
+  if (!allowed) throw createError({ statusCode: 404, statusMessage: "Object not found" });
 
-    if (!pathParam) {
-      throw createError({ statusCode: 400, statusMessage: "Missing path" });
-    }
-
-    const objectKey = Array.isArray(pathParam)
-      ? pathParam.map((seg) => decodeURIComponent(seg)).join("/")
-      : decodeURIComponent(pathParam);
-
-    console.log(
-      `[${new Date().toISOString()}] R2 resolved object key:`,
-      objectKey
-    );
-
-    try {
-      const r2 = useR2();
-      const { stream, contentType, contentLength, lastModified } =
-        await r2.getObjectStream(objectKey);
-
-      console.log(
-        `[${new Date().toISOString()}] Fetching R2 object ${objectKey}, contentType: ${contentType}`
-      );
-
-      // Convert stream to Buffer to avoid caching serialization issues
-      const chunks: Buffer[] = [];
-      const readableStream = stream as unknown as Readable;
-
-      for await (const chunk of readableStream) {
-        chunks.push(Buffer.from(chunk));
-      }
-
-      const buffer = Buffer.concat(chunks);
-
-      console.log(
-        `[${new Date().toISOString()}] R2 object ${objectKey} loaded, size: ${buffer.length} bytes`
-      );
-
-      setHeader(event, "content-type", contentType);
-      setHeader(event, "content-length", buffer.length);
-      if (lastModified instanceof Date) {
-        setHeader(event, "last-modified", lastModified.toUTCString());
-      }
-      setHeader(event, "cache-control", "public, max-age=604800, immutable");
-
-      return buffer;
-    } catch (error: any) {
-      console.error(
-        `[${new Date().toISOString()}] Error fetching R2 object ${objectKey}:`,
-        error
-      );
-
-      if (error.name === "NoSuchKey") {
-        throw createError({
-          statusCode: 404,
-          statusMessage: "Object not found",
-        });
-      }
-
-      throw createError({
-        statusCode: error.$metadata?.httpStatusCode || 500,
-        statusMessage: error.message || "Failed to fetch object from R2",
-      });
-    }
-  },
-  {
-    maxAge: 60 * 60 * 24 * 7, // 7 days (matching the cache-control header)
-    getKey: (event) => {
-      const pathParam = getRouterParam(event, "path");
-      const objectKey = Array.isArray(pathParam)
-        ? pathParam.map((seg) => decodeURIComponent(seg)).join("/")
-        : decodeURIComponent(pathParam as string);
-      return `r2:${objectKey}`;
-    },
-  }
-);
+  const { stream, contentType, contentLength, lastModified } = await useR2(event).getObjectStream(key);
+  setHeader(event, "content-type", contentType);
+  if (contentLength) setHeader(event, "content-length", contentLength);
+  if (lastModified) setHeader(event, "last-modified", lastModified.toUTCString());
+  setHeader(event, "cache-control", "public, max-age=3600");
+  return sendStream(event, stream);
+});

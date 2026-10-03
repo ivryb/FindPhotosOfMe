@@ -4,28 +4,34 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
+    "check-types": "nuxt typecheck",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
-    "preview": "nuxt preview",
+    "preview": "wrangler dev",
+    "deploy": "nuxt build && wrangler deploy",
+    "deploy:check": "nuxt build && wrangler deploy --dry-run",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
     "@FindPhotosOfMe/backend": "workspace:*",
     "@aws-sdk/client-s3": "^3.901.0",
     "@aws-sdk/s3-request-presigner": "^3.901.0",
+    "@smithy/fetch-http-handler": "^5.3.0",
+    "@convex-dev/better-auth": "0.12.5",
     "@nuxt/content": "^3.7.1",
     "@nuxtjs/color-mode": "^3.5.2",
     "@nuxtjs/mdc": "^0.17.4",
     "@nuxtjs/tailwindcss": "7.0.0-beta.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/vue-table": "^8.21.3",
-    "@vercel/functions": "^3.1.1",
     "@vueuse/core": "^13.9.0",
+    "better-auth": "~1.6.25",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.27.0",
     "convex-nuxt": "0.1.5",
     "convex-vue": "^0.1.5",
+    "grammy": "^1.38.3",
     "lucide-vue-next": "^0.544.0",
     "marked": "^16.3.0",
     "nuxt": "^4.1.2",
@@ -41,6 +47,7 @@
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.57",
     "tailwindcss": "^4.1.13",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vue-tsc": "3.0.8"
   }
 }

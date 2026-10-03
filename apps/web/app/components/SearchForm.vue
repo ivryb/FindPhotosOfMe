@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-import { useConvexMutation } from "convex-vue";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +18,8 @@ const props = defineProps<{
   collectionId: Id<"collections">;
 }>();
 
-const config = useRuntimeConfig();
-const { mutate: createSearchRequest } = useConvexMutation(
-  api.searchRequests.create
-);
+const route = useRoute();
+const session = useAuthClient().useSession();
 
 const selectedFile = ref<File | null>(null);
 const previewUrl = ref<string | null>(null);
@@ -73,27 +69,18 @@ async function startSearch() {
   error.value = null;
 
   try {
-    // Create search request in Convex
-    console.log("Creating search request for collection:", props.collectionId);
-    const requestId = await createSearchRequest({
-      collectionId: props.collectionId,
-    });
-
-    searchRequestId.value = requestId;
-    hasStartedSearch.value = true;
-    console.log("Search request created:", requestId);
-
-    // Prepare form data
+    const token = await getConvexAuthToken();
+    if (!token) {
+      await navigateTo({ path: "/sign-in", query: { redirect: route.fullPath } });
+      return;
+    }
     const formData = new FormData();
-    formData.append("search_request_id", requestId);
+    formData.append("collection_id", props.collectionId);
     formData.append("reference_photo", selectedFile.value);
 
-    // Send to Python service
-    const apiUrl = config.public.apiURL;
-    console.log("Sending search request to:", `${apiUrl}/api/search-photos`);
-
-    const response = await fetch(`${apiUrl}/api/search-photos`, {
+    const response = await fetch("/api/search", {
       method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
 
@@ -104,8 +91,9 @@ async function startSearch() {
       throw new Error(errorData.detail || `HTTP ${response.status}`);
     }
 
-    const result = await response.json();
-    console.log("Search started successfully:", result);
+    const result = await response.json() as { requestId: Id<"searchRequests"> };
+    searchRequestId.value = result.requestId;
+    hasStartedSearch.value = true;
   } catch (err: any) {
     console.error("Search error:", err);
     error.value = err.message || "Failed to start search";
@@ -140,7 +128,11 @@ function resetForm() {
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="space-y-2">
+        <div v-if="!session.data?.session" class="rounded-lg border p-4 text-sm">
+          Sign in first so your face search and results stay private.
+          <Button class="mt-3 w-full" @click="navigateTo('/sign-in')">Sign in</Button>
+        </div>
+        <div v-else class="space-y-2">
           <Label for="photo-upload">Your Photo</Label>
           <Input
             id="photo-upload"
@@ -155,7 +147,7 @@ function resetForm() {
         </div>
 
         <!-- Preview -->
-        <div v-if="previewUrl" class="space-y-2">
+        <div v-if="session.data?.session && previewUrl" class="space-y-2">
           <Label>Preview</Label>
           <div class="relative inline-block">
             <img
@@ -181,7 +173,7 @@ function resetForm() {
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex gap-2">
+        <div v-if="session.data?.session" class="flex gap-2">
           <Button
             @click="startSearch"
             :disabled="!selectedFile || isUploading"

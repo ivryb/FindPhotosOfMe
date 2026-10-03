@@ -7,16 +7,19 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Readable } from "node:stream";
+import { FetchHttpHandler } from "@smithy/fetch-http-handler";
+import type { H3Event } from "h3";
 
 class R2Service {
   private client: S3Client | null = null;
   private bucket: string | null = null;
 
+  constructor(private readonly config: ReturnType<typeof useRuntimeConfig>) {}
+
   private initializeClient() {
     if (this.client) return;
 
-    const config = useRuntimeConfig();
+    const config = this.config;
     const accountId = config.r2AccountId as string | undefined;
     const accessKeyId = config.r2AccessKeyId as string | undefined;
     const secretAccessKey = config.r2SecretAccessKey as string | undefined;
@@ -34,6 +37,8 @@ class R2Service {
     this.client = new S3Client({
       region: "auto",
       endpoint,
+      // Nitro's Workers adapter cannot use the SDK's default Node HTTPS transport.
+      requestHandler: new FetchHttpHandler(),
       credentials: {
         accessKeyId,
         secretAccessKey,
@@ -48,7 +53,7 @@ class R2Service {
   private getBucket(): string {
     if (this.bucket) return this.bucket;
 
-    const config = useRuntimeConfig();
+    const config = this.config;
     const bucket = config.r2BucketName as string | undefined;
 
     if (!bucket) {
@@ -63,7 +68,7 @@ class R2Service {
   }
 
   async getObjectStream(objectKey: string): Promise<{
-    stream: Readable;
+    stream: ReadableStream;
     contentType: string;
     contentLength?: number;
     lastModified?: Date;
@@ -85,8 +90,7 @@ class R2Service {
       });
     }
 
-    const body = response.Body as any;
-    const stream = body instanceof Readable ? body : Readable.from(body);
+    const stream = response.Body.transformToWebStream();
 
     return {
       stream,
@@ -97,46 +101,6 @@ class R2Service {
           : undefined,
       lastModified: response.LastModified,
     };
-  }
-
-  async listAllObjects(): Promise<string[]> {
-    this.initializeClient();
-    const bucket = this.getBucket();
-
-    let keys: string[] = [];
-    let continuationToken: string | undefined;
-
-    do {
-      const listCommand = new ListObjectsV2Command({
-        Bucket: bucket,
-        ContinuationToken: continuationToken,
-      });
-      const listResponse = await this.client!.send(listCommand);
-      if (listResponse.Contents && listResponse.Contents.length > 0) {
-        keys.push(
-          ...(listResponse.Contents.map((i) => i.Key!).filter(
-            Boolean
-          ) as string[])
-        );
-      }
-      continuationToken = listResponse.NextContinuationToken;
-    } while (continuationToken);
-
-    return keys;
-  }
-
-  async deleteObjects(keys: string[]): Promise<number> {
-    if (keys.length === 0) return 0;
-
-    this.initializeClient();
-    const bucket = this.getBucket();
-
-    const deleteCommand = new DeleteObjectsCommand({
-      Bucket: bucket,
-      Delete: { Objects: keys.map((Key) => ({ Key })) },
-    });
-    const deleteResponse = await this.client!.send(deleteCommand);
-    return deleteResponse.Deleted?.length || 0;
   }
 
   async getSignedUrl(
@@ -152,6 +116,33 @@ class R2Service {
     });
 
     return await getSignedUrl(this.client!, command, { expiresIn });
+  }
+
+  async deletePrefix(prefix: string): Promise<number> {
+    this.initializeClient();
+    const bucket = this.getBucket();
+    let continuationToken: string | undefined;
+    let deleted = 0;
+
+    do {
+      const page = await this.client!.send(new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }));
+      const objects = (page.Contents ?? []).flatMap(({ Key }) => Key ? [{ Key }] : []);
+      if (objects.length) {
+        const result = await this.client!.send(new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: objects, Quiet: true },
+        }));
+        if (result.Errors?.length) throw new Error("Some event files could not be deleted");
+        deleted += objects.length;
+      }
+      continuationToken = page.NextContinuationToken;
+    } while (continuationToken);
+
+    return deleted;
   }
 
   async getUploadSignedUrl(
@@ -200,7 +191,7 @@ class R2Service {
       ResponseContentType: contentType,
       ResponseContentDisposition: `${disposition}; filename="${filename}"`,
       ...(cacheControl ? { ResponseCacheControl: cacheControl } : {}),
-    } as any);
+    });
 
     const url = await getSignedUrl(this.client!, command, { expiresIn });
     console.log(
@@ -210,11 +201,7 @@ class R2Service {
   }
 }
 
-let r2ServiceInstance: R2Service | null = null;
-
-export function useR2(): R2Service {
-  if (!r2ServiceInstance) {
-    r2ServiceInstance = new R2Service();
-  }
-  return r2ServiceInstance;
+// Worker bindings are available during a request, so resolve credentials from its config.
+export function useR2(event: H3Event): R2Service {
+  return new R2Service(useRuntimeConfig(event));
 }

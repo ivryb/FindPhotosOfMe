@@ -11,7 +11,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Images } from "lucide-vue-next";
 import SearchForm from "@/components/SearchForm.vue";
-import { marked } from "marked";
 
 const subdomain = useSubdomain();
 
@@ -21,7 +20,7 @@ if (!subdomain) {
 
 // Fetch collection by subdomain
 const { data: collection, error: collectionError } = await useConvexSSRQuery(
-  api.collections.getBySubdomain,
+  api.collections.getPublicBySubdomain,
   { subdomain: subdomain || "" }
 );
 
@@ -38,9 +37,6 @@ const previewImages = computed(() => {
   return (list || []).slice(0, 10);
 });
 
-const descriptionHtml = computed(() => {
-  return marked.parse(collection.value?.description || "");
-});
 </script>
 
 <template>
@@ -73,10 +69,10 @@ const descriptionHtml = computed(() => {
           </div>
         </div>
         <CardDescription
-          v-if="descriptionHtml"
-          class="text-base mt-4 prose prose-sm dark:prose-invert max-w-none"
+          v-if="collection?.description"
+          class="text-base mt-4 whitespace-pre-line"
         >
-          <div v-html="descriptionHtml"></div>
+          {{ collection.description }}
         </CardDescription>
       </CardContent>
     </Card>

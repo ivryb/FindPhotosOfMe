@@ -1,47 +1,49 @@
 import { Bot, webhookCallback } from "grammy";
 import { ConvexHttpClient } from "convex/browser";
-import { handleStart } from "./_handlers/start";
-import { createOnPhotoHandler } from "./_handlers/onPhoto";
-import { log } from "./_utils/log";
+import { toWebRequest } from "h3";
+import { handleStart } from "../../utils/telegram/start";
+import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+import { telegramWebhookSecret } from "@FindPhotosOfMe/backend/telegram";
 
 export default defineEventHandler(async (event) => {
-  const collectionId = getRouterParam(event, "collectionId") as string;
-  const config = useRuntimeConfig();
-  const convexUrl = config.public.convexUrl;
-
-  if (!convexUrl) {
-    throw new Error("CONVEX_URL is required");
+  assertMethod(event, "POST");
+  const collectionId = getRouterParam(event, "collectionId");
+  if (!collectionId || !/^[a-z0-9]+$/.test(collectionId)) {
+    throw createError({ statusCode: 400, statusMessage: "Invalid event ID" });
   }
-
-  const httpClient = new ConvexHttpClient(convexUrl as string);
-
-  const collection = await httpClient.query("collections:get" as any, {
-    id: collectionId,
+  const config = useRuntimeConfig(event);
+  if (!config.public.convexUrl || !config.serviceToken) {
+    throw createError({ statusCode: 503, statusMessage: "Telegram is not configured" });
+  }
+  const convex = new ConvexHttpClient(config.public.convexUrl);
+  const collection = await convex.query(api.collections.getForService, {
+    id: collectionId as Id<"collections">,
+    serviceToken: config.serviceToken,
   });
-
-  if (!collection || !collection.telegramBotToken) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: "Collection/token not found",
-    });
+  if (!collection?.telegramBotToken) {
+    throw createError({ statusCode: 404, statusMessage: "Event bot not found" });
+  }
+  const secret = await telegramWebhookSecret(collection.telegramBotToken);
+  if (getHeader(event, "x-telegram-bot-api-secret-token") !== secret) {
+    throw createError({ statusCode: 403, statusMessage: "Invalid webhook secret" });
   }
 
   const bot = new Bot(collection.telegramBotToken);
-
   bot.command("start", handleStart(collection));
-
-  bot.on(
-    ":photo",
-    createOnPhotoHandler(collection.telegramBotToken, collection)
-  );
-
-  bot.catch((err: any) => {
-    log(`Bot error while handling update ${err}`);
+  bot.on(":photo", async (ctx) => {
+    const photo = ctx.message?.photo?.at(-1);
+    if (!photo) return;
+    const initial = await ctx.reply("🔍 Starting search...");
+    await convex.mutation(api.searchRequests.createForService, {
+      collectionId: collection._id,
+      telegramChatId: String(ctx.chat.id),
+      fileId: photo.file_id,
+      messageId: initial.message_id,
+      serviceToken: config.serviceToken,
+    });
   });
 
-  const callback = webhookCallback(bot, "http");
-
-  await callback(event.node.req, event.node.res);
-
-  return event.node.res;
+  // Wait only for the durable handoff; cold Python searches run in the Convex scheduler.
+  return webhookCallback(bot, "cloudflare-mod", { secretToken: secret })(toWebRequest(event));
 });

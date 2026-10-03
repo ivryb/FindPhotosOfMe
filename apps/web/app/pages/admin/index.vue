@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-import { useConvexMutation } from "convex-vue";
+import { useConvexMutation, useConvexQuery } from "convex-vue";
 import { ref } from "vue";
 
-const adminPassword = useCookie("admin-password");
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -26,13 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Trash2 } from "lucide-vue-next";
-import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-
-const { data: collections } = await useConvexSSRQuery(
-  api.collections.getAll,
-  {}
-);
+const { data: collections } = useConvexQuery(api.collections.getAll, {}, { server: false });
 
 const isDialogOpen = ref(false);
 
@@ -76,37 +69,6 @@ const navigateToCollection = (subdomain: string) => {
   navigateTo(`/admin/collections/${subdomain}`);
 };
 
-const isClearing = ref(false);
-const clearError = ref<string | null>(null);
-
-const handleClearBucket = async () => {
-  const confirmed = confirm(
-    "⚠️ WARNING: This will permanently delete ALL files from the R2 bucket!\n\nThis action cannot be undone. Are you absolutely sure?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  isClearing.value = true;
-  clearError.value = null;
-
-  try {
-    const response = await $fetch("/api/r2-clear", {
-      method: "DELETE",
-      headers: { "x-admin-password": adminPassword.value || "" },
-    });
-
-    alert(`✓ ${response.message}`);
-    console.log("R2 bucket cleared:", response);
-  } catch (error: any) {
-    console.error("Failed to clear R2 bucket:", error);
-    clearError.value = error.message || "Failed to clear bucket";
-    alert(`✗ Failed to clear bucket: ${clearError.value}`);
-  } finally {
-    isClearing.value = false;
-  }
-};
 </script>
 
 <template>
@@ -116,14 +78,6 @@ const handleClearBucket = async () => {
         <h1 class="text-4xl font-bold">Collection Management</h1>
       </div>
       <div class="flex gap-3">
-        <Button
-          variant="destructive"
-          @click="handleClearBucket"
-          :disabled="isClearing"
-        >
-          <Trash2 :size="16" class="mr-2" />
-          {{ isClearing ? "Clearing..." : "Clear R2 Bucket" }}
-        </Button>
         <Dialog v-model:open="isDialogOpen">
           <DialogTrigger as-child>
             <Button @click="openCreateDialog"> Create New Collection </Button>

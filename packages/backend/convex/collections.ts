@@ -1,182 +1,161 @@
-import { query, mutation, action } from "./_generated/server";
+import { telegramWebhookSecret } from "../telegram";
 import { v } from "convex/values";
-import { internal, api } from "./_generated/api";
 
-/**
- * Get a collection by ID.
- */
+import { api, internal } from "./_generated/api";
+import {
+  internalAction,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
+import {
+  requireActiveCollection,
+  requireCollectionOwner,
+  requirePhotoCapacity,
+  requireServiceToken,
+  requireUser,
+} from "./authz";
+
+const DAY = 24 * 60 * 60 * 1000;
+
+const status = v.union(
+  v.literal("not_started"),
+  v.literal("processing"),
+  v.literal("complete"),
+  v.literal("error")
+);
+
+function normalizeSubdomain(value: string) {
+  const subdomain = value.trim().toLowerCase();
+  if (!/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(subdomain)) {
+    throw new Error("Use 3–63 lowercase letters, numbers, or hyphens");
+  }
+  return subdomain;
+}
+
+async function ensureSubdomainAvailable(ctx: any, subdomain: string, exceptId?: string) {
+  const existing = await ctx.db
+    .query("collections")
+    .withIndex("by_subdomain", (q: any) => q.eq("subdomain", subdomain))
+    .first();
+  if (existing && existing._id !== exceptId) throw new Error("That event URL is already in use");
+}
+
 export const get = query({
   args: { id: v.id("collections") },
-  returns: v.union(
-    v.object({
-      _id: v.id("collections"),
-      _creationTime: v.number(),
-      title: v.string(),
-      description: v.string(),
-      subdomain: v.string(),
-      status: v.union(
-        v.literal("not_started"),
-        v.literal("processing"),
-        v.literal("complete"),
-        v.literal("error")
-      ),
-      imagesCount: v.number(),
-      previewImages: v.optional(v.array(v.string())),
-      createdBy: v.optional(v.string()),
-      telegramBotToken: v.optional(v.string()),
-      welcomeMessage: v.optional(v.string()),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
-    const collection = await ctx.db.get(args.id);
-    return collection;
+  handler: async (ctx, { id }) => (await requireCollectionOwner(ctx, id)).collection,
+});
+
+export const getForService = query({
+  args: { id: v.id("collections"), serviceToken: v.string() },
+  handler: async (ctx, { id, serviceToken }) => {
+    requireServiceToken(serviceToken);
+    return ctx.db.get(id);
   },
 });
 
-/**
- * Create a new collection.
- */
+export const getInternal = internalQuery({
+  args: { id: v.id("collections") },
+  handler: async (ctx, { id }) => ctx.db.get(id),
+});
+
 export const create = mutation({
-  args: {
-    title: v.string(),
-    description: v.string(),
-    subdomain: v.string(),
-    createdBy: v.optional(v.string()),
-  },
-  returns: v.id("collections"),
+  args: { title: v.string(), description: v.string(), subdomain: v.string() },
   handler: async (ctx, args) => {
-    const collectionId = await ctx.db.insert("collections", {
-      title: args.title,
-      description: args.description,
-      subdomain: args.subdomain,
-      status: "not_started" as const,
+    const user = await requireUser(ctx);
+    const subdomain = normalizeSubdomain(args.subdomain);
+    await ensureSubdomainAvailable(ctx, subdomain);
+    return ctx.db.insert("collections", {
+      title: args.title.trim(),
+      description: args.description.trim(),
+      subdomain,
+      status: "not_started",
       imagesCount: 0,
+      plan: "demo",
+      photoLimit: 250,
+      expiresAt: Date.now() + 7 * DAY,
       previewImages: [],
-      createdBy: args.createdBy,
+      createdBy: user._id,
     });
-    return collectionId;
   },
 });
 
-/**
- * Update collection status and image count.
- */
-export const updateStatus = mutation({
-  args: {
-    id: v.id("collections"),
-    status: v.union(
-      v.literal("not_started"),
-      v.literal("processing"),
-      v.literal("complete"),
-      v.literal("error")
-    ),
-    imagesCount: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const updates: any = { status: args.status };
-    if (args.imagesCount !== undefined) {
-      updates.imagesCount = args.imagesCount;
-    }
-    await ctx.db.patch(args.id, updates);
-    return null;
-  },
-});
-
-/**
- * Increment collection image count.
- */
-export const incrementImages = mutation({
-  args: {
-    id: v.id("collections"),
-    increment: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const collection = await ctx.db.get(args.id);
-    if (!collection) {
-      throw new Error("Collection not found");
-    }
-    await ctx.db.patch(args.id, {
-      imagesCount: collection.imagesCount + args.increment,
-    });
-    return null;
-  },
-});
-
-/**
- * List all collections.
- */
 export const getAll = query({
   args: {},
-  returns: v.array(
-    v.object({
-      _id: v.id("collections"),
-      _creationTime: v.number(),
-      title: v.string(),
-      description: v.string(),
-      subdomain: v.string(),
-      status: v.union(
-        v.literal("not_started"),
-        v.literal("processing"),
-        v.literal("complete"),
-        v.literal("error")
-      ),
-      imagesCount: v.number(),
-      previewImages: v.optional(v.array(v.string())),
-      createdBy: v.optional(v.string()),
-      telegramBotToken: v.optional(v.string()),
-      welcomeMessage: v.optional(v.string()),
-    })
-  ),
-  handler: async (ctx, args) => {
-    const collections = await ctx.db
-      .query("collections")
-      .order("desc")
-      .collect();
-    return collections;
+  handler: async (ctx) => {
+    const user = await requireUser(ctx);
+    const collections = await ctx.db.query("collections").order("desc").collect();
+    const isLegacyOwner = user.email === process.env.LEGACY_OWNER_EMAIL;
+    return collections.filter(
+      (collection) => collection.createdBy === user._id || (!collection.createdBy && isLegacyOwner)
+    );
   },
 });
 
 export const getBySubdomain = query({
   args: { subdomain: v.string() },
-  returns: v.union(
-    v.object({
-      _id: v.id("collections"),
-      _creationTime: v.number(),
-      title: v.string(),
-      description: v.string(),
-      subdomain: v.string(),
-      status: v.union(
-        v.literal("not_started"),
-        v.literal("processing"),
-        v.literal("complete"),
-        v.literal("error")
-      ),
-      imagesCount: v.number(),
-      previewImages: v.optional(v.array(v.string())),
-      createdBy: v.optional(v.string()),
-      telegramBotToken: v.optional(v.string()),
-      welcomeMessage: v.optional(v.string()),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { subdomain }) => {
     const collection = await ctx.db
       .query("collections")
-      .filter((q) => q.eq(q.field("subdomain"), args.subdomain))
+      .withIndex("by_subdomain", (q) => q.eq("subdomain", subdomain))
       .first();
+    if (!collection) return null;
+    await requireCollectionOwner(ctx, collection._id);
     return collection;
   },
 });
 
-export const deleteCollection = mutation({
+export const getPublicBySubdomain = query({
+  args: { subdomain: v.string() },
+  handler: async (ctx, { subdomain }) => {
+    const collection = await ctx.db
+      .query("collections")
+      .withIndex("by_subdomain", (q) => q.eq("subdomain", subdomain))
+      .first();
+    if (!collection || collection.status !== "complete") return null;
+    try {
+      requireActiveCollection(collection);
+    } catch {
+      return null;
+    }
+    return {
+      _id: collection._id,
+      title: collection.title,
+      description: collection.description,
+      subdomain: collection.subdomain,
+      imagesCount: collection.imagesCount,
+      previewImages: collection.previewImages ?? [],
+    };
+  },
+});
+
+export const isPublicPreview = query({
+  args: { key: v.string() },
+  handler: async (ctx, { key }) => {
+    const rawId = key.split("/", 1)[0];
+    const id = rawId ? ctx.db.normalizeId("collections", rawId) : null;
+    if (!id) return false;
+    const collection = await ctx.db.get(id);
+    return Boolean(
+      collection?.status === "complete" && collection.previewImages?.includes(key)
+    );
+  },
+});
+
+export const canManage = query({
   args: { id: v.id("collections") },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.delete(args.id);
-    return null;
+  handler: async (ctx, { id }) => {
+    await requireCollectionOwner(ctx, id);
+    return true;
+  },
+});
+
+export const canUpload = query({
+  args: { id: v.id("collections") },
+  handler: async (ctx, { id }) => {
+    const { collection } = await requireCollectionOwner(ctx, id);
+    requirePhotoCapacity(collection);
+    return true;
   },
 });
 
@@ -188,105 +167,93 @@ export const update = mutation({
     description: v.string(),
     welcomeMessage: v.optional(v.string()),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
+    const { user, canClaimLegacy } = await requireCollectionOwner(ctx, args.id);
+    const subdomain = normalizeSubdomain(args.subdomain);
+    await ensureSubdomainAvailable(ctx, subdomain, args.id);
     await ctx.db.patch(args.id, {
-      subdomain: args.subdomain,
-      title: args.title,
-      description: args.description,
-      welcomeMessage: args.welcomeMessage,
+      subdomain,
+      title: args.title.trim(),
+      description: args.description.trim(),
+      welcomeMessage: args.welcomeMessage?.trim() || undefined,
+      ...(canClaimLegacy ? { createdBy: user._id } : {}),
     });
-    return null;
   },
 });
 
-/**
- * Set or clear a Telegram bot token for a collection and schedule webhook setup.
- */
+export const deleteCollection = mutation({
+  args: { id: v.id("collections") },
+  handler: async (ctx, { id }) => {
+    await requireCollectionOwner(ctx, id);
+    const searches = await ctx.db
+      .query("searchRequests")
+      .withIndex("by_collection", (q) => q.eq("collectionId", id))
+      .collect();
+    const jobs = await ctx.db
+      .query("ingestJobs")
+      .withIndex("by_collection", (q) => q.eq("collectionId", id))
+      .collect();
+    await Promise.all([...searches, ...jobs].map((doc) => ctx.db.delete(doc._id)));
+    await ctx.db.delete(id);
+  },
+});
+
+export const updateStatusForService = mutation({
+  args: { id: v.id("collections"), status, imagesCount: v.optional(v.number()), serviceToken: v.string() },
+  handler: async (ctx, { id, serviceToken, ...updates }) => {
+    requireServiceToken(serviceToken);
+    await ctx.db.patch(id, updates);
+  },
+});
+
+export const incrementImagesForService = mutation({
+  args: { id: v.id("collections"), increment: v.number(), serviceToken: v.string() },
+  handler: async (ctx, { id, increment, serviceToken }) => {
+    requireServiceToken(serviceToken);
+    const collection = await ctx.db.get(id);
+    if (!collection) throw new Error("Collection not found");
+    await ctx.db.patch(id, { imagesCount: collection.imagesCount + increment });
+  },
+});
+
+export const setPreviewImagesForService = mutation({
+  args: { id: v.id("collections"), previewImages: v.array(v.string()), serviceToken: v.string() },
+  handler: async (ctx, { id, previewImages, serviceToken }) => {
+    requireServiceToken(serviceToken);
+    await ctx.db.patch(id, { previewImages: previewImages.slice(0, 50) });
+  },
+});
+
 export const storeTelegramBotToken = mutation({
-  args: {
-    id: v.id("collections"),
-    token: v.union(v.string(), v.literal("")),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const collection = await ctx.db.get(args.id);
-
-    if (!collection) {
-      throw new Error("Collection not found");
-    }
-
-    const tokenToStore = args.token.trim();
-
-    await ctx.db.patch(args.id, {
-      telegramBotToken: tokenToStore.length > 0 ? tokenToStore : undefined,
-    });
-
-    await ctx.scheduler.runAfter(0, api.collections.setTelegramBotToken, {
-      id: args.id,
-      token: tokenToStore,
-    });
+  args: { id: v.id("collections"), token: v.string() },
+  handler: async (ctx, { id, token }) => {
+    await requireCollectionOwner(ctx, id);
+    const value = token.trim();
+    await ctx.db.patch(id, { telegramBotToken: value || undefined });
+    if (value) await ctx.scheduler.runAfter(0, internal.collections.setTelegramBotToken, { id, token: value });
   },
 });
 
-export const setTelegramBotToken = action({
-  args: {
-    id: v.id("collections"),
-    token: v.union(v.string(), v.literal("")),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+export const setTelegramBotToken = internalAction({
+  args: { id: v.id("collections"), token: v.string() },
+  handler: async (ctx, { id, token }) => {
     const webhookBase = process.env.TELEGRAM_WEBHOOK_BASE_URL;
-
-    if (!webhookBase) {
-      throw new Error("TELEGRAM_WEBHOOK_BASE_URL not configured");
-    }
-
-    const collection = await ctx.runQuery(api.collections.get, {
-      id: args.id,
-    });
-
-    if (!collection || !collection.telegramBotToken) {
-      throw new Error("Collection or Telegram token not found");
-    }
-
-    const webhookUrl = `${webhookBase}/${args.id}`;
-    const endpoint = `https://api.telegram.org/bot${collection.telegramBotToken}/setWebhook?url=${webhookUrl}`;
-
-    const res = await fetch(endpoint, {
-      method: "GET",
-    });
-
-    const data = (await res.json()) as any;
-
-    if (!res.ok || !data.ok) {
-      throw new Error(
-        `Failed to set webhook: ${res.status} ${data?.description || "unknown"}`
-      );
-    }
-
-    console.log("Webhook set successfully", res);
-
-    // await ctx.runMutation(api.collections.storeTelegramBotToken, {
-    //   id: args.id,
-    //   token: args.token,
-    // });
-  },
-});
-
-/**
- * Set preview images (first 50) for a collection.
- */
-export const setPreviewImages = mutation({
-  args: {
-    id: v.id("collections"),
-    previewImages: v.array(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, {
-      previewImages: args.previewImages.slice(0, 50),
-    });
-    return null;
+    if (!webhookBase) throw new Error("TELEGRAM_WEBHOOK_BASE_URL not configured");
+    const collection = await ctx.runQuery(internal.collections.getInternal, { id });
+    if (!collection) throw new Error("Collection not found");
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/setWebhook`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: `${webhookBase}/${id}`,
+          secret_token: await telegramWebhookSecret(token),
+          allowed_updates: ["message"],
+        }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error("Failed to set Telegram webhook");
   },
 });

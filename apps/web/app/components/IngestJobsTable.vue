@@ -2,8 +2,7 @@
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { computed } from "vue";
-import { useConvexSSRQuery } from "@/composables/useConvexSSRQuery";
-import { useConvexClient } from "convex-vue";
+import { useConvexClient, useConvexQuery } from "convex-vue";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,11 +11,12 @@ const props = defineProps<{ collectionId: Id<"collections"> }>();
 
 const convex = useConvexClient();
 
-const { data: jobs } = await useConvexSSRQuery(
+const { data: jobs } = useConvexQuery(
   api.ingestJobs.listByCollection,
   {
     collectionId: props.collectionId,
-  }
+  },
+  { server: false }
 );
 
 const rows = computed(() => jobs.value ?? []);

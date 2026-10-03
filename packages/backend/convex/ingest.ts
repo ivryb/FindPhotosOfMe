@@ -1,66 +1,41 @@
-import { action, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
 
-export const dispatchNextForCollection = action({
+import { internal } from "./_generated/api";
+import { internalAction, mutation } from "./_generated/server";
+import { requireCollectionOwner } from "./authz";
+import type { Id } from "./_generated/dataModel";
+
+export const dispatchNextForCollection = internalAction({
   args: { collectionId: v.id("collections") },
-  returns: v.object({
-    dispatched: v.boolean(),
-    jobId: v.optional(v.id("ingestJobs")),
-  }),
-  handler: async (ctx, args): Promise<{ dispatched: boolean; jobId?: any }> => {
-    // Atomically claim next job (enforces per-collection sequential processing)
-    const claim: {
-      _id: any;
-      collectionId: any;
-      fileKey: string;
-      filename: string;
-    } | null = await ctx.runMutation(api.ingestJobs.claimNextForCollection, {
-      collectionId: args.collectionId,
-    });
+  handler: async (ctx, { collectionId }): Promise<{ dispatched: false } | { dispatched: true; jobId: Id<"ingestJobs"> }> => {
+    const apiUrl = process.env.PYTHON_API_URL;
+    const serviceToken = process.env.SERVICE_TOKEN;
+    if (!apiUrl || !serviceToken) throw new Error("Processing service is not configured");
+    const claim = await ctx.runMutation(internal.ingestJobs.claimNextForCollection, { collectionId });
+    if (!claim) return { dispatched: false };
 
-    if (!claim) {
-      console.log("[Ingest] No job to dispatch", {
-        collectionId: args.collectionId,
-      });
-      return { dispatched: false } as const;
-    }
-
-    const apiUrl =
-      process.env.PYTHON_API_URL ||
-      process.env.API_URL ||
-      process.env.NUXT_PUBLIC_API_URL;
-    if (!apiUrl) throw new Error("API URL not configured");
-
-    const payload = {
-      job_id: claim._id,
-      collection_id: claim.collectionId,
-      file_key: claim.fileKey,
-    } as const;
-
-    // Fire-and-forget start; Python runs the job and reports progress to Convex
-    const url = `${apiUrl.replace(/\/$/, "")}/api/process-ingest-job`;
-    console.log("[Ingest] Dispatching job to Python", { url, payload });
-    await fetch(url, {
+    const response = await fetch(`${apiUrl.replace(/\/$/, "")}/api/process-ingest-job`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      headers: {
+        Authorization: `Bearer ${serviceToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        job_id: claim._id,
+        collection_id: claim.collectionId,
+        file_key: claim.fileKey,
+      }),
     });
 
-    return { dispatched: true, jobId: claim._id } as const;
+    if (!response.ok) throw new Error(`Processing service returned ${response.status}`);
+    return { dispatched: true, jobId: claim._id };
   },
 });
 
 export const requestNextForCollection = mutation({
   args: { collectionId: v.id("collections") },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    console.log("[Ingest] Scheduling next job dispatch", {
-      collectionId: args.collectionId,
-    });
-    await ctx.scheduler.runAfter(0, api.ingest.dispatchNextForCollection, {
-      collectionId: args.collectionId,
-    });
-    return null;
+  handler: async (ctx, { collectionId }) => {
+    await requireCollectionOwner(ctx, collectionId);
+    await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId });
   },
 });

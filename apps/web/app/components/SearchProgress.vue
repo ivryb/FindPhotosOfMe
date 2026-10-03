@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { useConvexQuery } from "convex-vue";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
@@ -30,8 +30,6 @@ const emit = defineEmits<{
   reset: [];
 }>();
 
-const config = useRuntimeConfig();
-
 // Query the search request directly
 const { data: searchRequest } = useConvexQuery(api.searchRequests.get, {
   id: props.searchRequestId,
@@ -55,6 +53,23 @@ const foundPhotos = computed(() => {
   if (!searchRequest.value || !searchRequest.value.imagesFound) return [];
   return searchRequest.value.imagesFound;
 });
+
+const signedPhotoUrls = ref<string[]>([]);
+watch(
+  () => [searchRequest.value?.status, ...(foundPhotos.value ?? [])],
+  async () => {
+    if (searchRequest.value?.status !== "complete" || !foundPhotos.value.length) return;
+    const token = await getConvexAuthToken();
+    if (!token) return;
+    const result = await $fetch<{ urls: string[] }>("/api/r2/authorize", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: { requestId: props.searchRequestId, keys: foundPhotos.value },
+    });
+    signedPhotoUrls.value = result.urls;
+  },
+  { immediate: true }
+);
 
 function handleReset() {
   emit("reset");
@@ -170,12 +185,12 @@ function handleReset() {
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div
-          v-for="(photoPath, index) in foundPhotos"
-          :key="index"
+          v-for="(photoUrl, index) in signedPhotoUrls"
+          :key="photoUrl"
           class="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted hover:border-primary transition-colors group"
         >
           <img
-            :src="`/api/r2/${photoPath}`"
+            :src="photoUrl"
             :alt="`Match ${index + 1}`"
             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"

@@ -1,12 +1,14 @@
 import { useR2 } from "../../utils/r2";
-import { requireAdminAuth } from "../../utils/auth";
+import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 
 export default defineEventHandler(async (event) => {
-  requireAdminAuth(event);
+  const convex = getAuthenticatedConvex(event);
   const now = new Date().toISOString();
   try {
     const body = await readBody<{
       key?: string;
+      collectionId?: string;
       contentType?: string;
       expiresIn?: number;
     }>(event);
@@ -16,18 +18,25 @@ export default defineEventHandler(async (event) => {
     const expiresIn =
       typeof body?.expiresIn === "number" ? body!.expiresIn : 3600;
 
-    if (!key || typeof key !== "string") {
+    if (!key || typeof key !== "string" || !body.collectionId) {
       throw createError({
         statusCode: 400,
         statusMessage: "Missing or invalid 'key'",
       });
     }
 
+    await convex.query(api.collections.canUpload, {
+      id: body.collectionId as Id<"collections">,
+    });
+    if (!key.startsWith(`uploads/${body.collectionId}/`)) {
+      throw createError({ statusCode: 400, statusMessage: "Invalid upload path" });
+    }
+
     if (key.includes("..")) {
       throw createError({ statusCode: 400, statusMessage: "Invalid key" });
     }
 
-    const r2 = useR2();
+    const r2 = useR2(event);
     const url = await r2.getUploadSignedUrl(key, contentType, expiresIn);
 
     console.log(`[${now}] R2 presign upload generated for key: ${key}`);

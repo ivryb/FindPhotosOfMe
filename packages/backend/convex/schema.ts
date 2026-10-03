@@ -18,6 +18,15 @@ export default defineSchema({
       v.literal("error")
     ),
     imagesCount: v.number(),
+    plan: v.optional(
+      v.union(v.literal("demo"), v.literal("event"), v.literal("large"))
+    ),
+    photoLimit: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+    paymentStatus: v.optional(
+      v.union(v.literal("active"), v.literal("refunded"))
+    ),
+    lemonsqueezyOrderId: v.optional(v.string()),
     // First 50 image keys for previews
     previewImages: v.optional(v.array(v.string())),
     createdBy: v.optional(v.string()), // User ID or identifier
@@ -27,10 +36,12 @@ export default defineSchema({
     welcomeMessage: v.optional(v.string()),
   })
     .index("by_status", ["status"])
-    .index("by_subdomain", ["subdomain"]),
+    .index("by_subdomain", ["subdomain"])
+    .index("by_created_by", ["createdBy"]),
 
   searchRequests: defineTable({
     collectionId: v.id("collections"),
+    requesterId: v.optional(v.string()),
     status: v.union(
       v.literal("pending"),
       v.literal("processing"),
@@ -65,4 +76,25 @@ export default defineSchema({
   })
     .index("by_collection", ["collectionId"])
     .index("by_collection_and_status", ["collectionId", "status"]),
+
+  paymentOrders: defineTable({
+    providerOrderId: v.string(),
+    collectionId: v.id("collections"),
+    userId: v.string(),
+    plan: v.union(v.literal("event"), v.literal("large")),
+    variantId: v.string(),
+    status: v.union(
+      v.literal("paid"),
+      v.literal("partial_refund"),
+      v.literal("refunded")
+    ),
+    amount: v.number(),
+    refundedAmount: v.optional(v.number()),
+    currency: v.string(),
+    testMode: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_provider_order", ["providerOrderId"])
+    .index("by_collection", ["collectionId"]),
 });

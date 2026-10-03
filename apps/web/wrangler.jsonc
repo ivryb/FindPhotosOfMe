@@ -1,0 +1,13 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "findphotosofme",
+  "account_id": "8a66125b4def6052f9afa0b466b8c04a",
+  "compatibility_date": "2025-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "findphotosofme.com/*", "zone_id": "087e5025719045bfa3e3c8c418b1378a" },
+    { "pattern": "*.findphotosofme.com/*", "zone_id": "087e5025719045bfa3e3c8c418b1378a" }
+  ],
+  "observability": { "enabled": true }
+}

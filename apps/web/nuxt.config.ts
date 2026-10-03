@@ -2,7 +2,14 @@
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
-  compatibilityDate: "latest",
+  compatibilityDate: "2025-10-01",
+  nitro: {
+    preset: "cloudflare_module",
+    cloudflare: {
+      deployConfig: true,
+      nodeCompat: true,
+    },
+  },
   devtools: { enabled: false },
   modules: ["@nuxtjs/tailwindcss", "shadcn-nuxt", "convex-nuxt"],
   css: ["~/assets/css/tailwind.css"],
@@ -13,15 +20,16 @@ export default defineNuxtConfig({
     url: process.env.NUXT_PUBLIC_CONVEX_URL,
   },
   runtimeConfig: {
-    adminPassword: process.env.NUXT_ADMIN_PASSWORD,
-    r2AccountId: process.env.NUXT_R2_ACCOUNT_ID,
-    r2BucketName: process.env.NUXT_R2_BUCKET_NAME,
-    r2AccessKeyId: process.env.NUXT_R2_ACCESS_KEY_ID,
-    r2SecretAccessKey: process.env.NUXT_R2_SECRET_ACCESS_KEY,
+    serviceToken: "",
+    pythonApiUrl: "",
+    r2AccountId: "",
+    r2BucketName: "",
+    r2AccessKeyId: "",
+    r2SecretAccessKey: "",
     public: {
-      origin: process.env.NUXT_PUBLIC_ORIGIN,
-      convexUrl: process.env.NUXT_PUBLIC_CONVEX_URL,
-      apiURL: process.env.NUXT_PUBLIC_API_URL,
+      origin: "",
+      convexUrl: "",
+      convexSiteUrl: "",
     },
   },
   vite: {
