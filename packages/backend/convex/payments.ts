@@ -1,16 +1,10 @@
 import { v } from "convex/values";
 
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { action, httpAction, internalMutation } from "./_generated/server";
 import { authComponent } from "./auth";
-
-const DAY = 24 * 60 * 60 * 1000;
-const paidPlan = v.union(v.literal("event"), v.literal("large"));
-
-const PLANS = {
-  event: { days: 60, photoLimit: 5_000, variantEnv: "LEMONSQUEEZY_EVENT_VARIANT_ID" },
-  large: { days: 90, photoLimit: 20_000, variantEnv: "LEMONSQUEEZY_LARGE_EVENT_VARIANT_ID" },
-} as const;
+import { applyEntry, balanceFor, findEntry } from "./balances";
+import { DAY, INCLUDED_DAYS, MAXIMUM_TOP_UP, MINIMUM_TOP_UP, formatMoney } from "./pricing";
 
 function requiredEnv(name: string) {
   const value = process.env[name];
@@ -18,28 +12,18 @@ function requiredEnv(name: string) {
   return value;
 }
 
-function planForVariant(variantId: string) {
-  return (Object.entries(PLANS) as [keyof typeof PLANS, (typeof PLANS)[keyof typeof PLANS]][])
-    .find(([, config]) => process.env[config.variantEnv] === variantId)?.[0];
-}
-
-export const createCheckout = action({
-  args: { collectionId: v.id("collections"), plan: paidPlan },
-  handler: async (ctx, { collectionId, plan }): Promise<string> => {
-    const [user, collection] = await Promise.all([
-      authComponent.getAuthUser(ctx),
-      ctx.runQuery(api.collections.get, { id: collectionId }),
-    ]);
+/** Opens a Lemon Squeezy checkout that adds `amount` (in mills) to the signed-in account's balance. */
+export const createTopUp = action({
+  args: { amount: v.number() },
+  handler: async (ctx, { amount }): Promise<string> => {
+    const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new Error("Not authenticated");
-    if (collection.paymentStatus === "refunded") {
-      throw new Error("This event was refunded and cannot be repurchased");
-    }
-    if (collection.plan && collection.plan !== "demo") {
-      throw new Error("This event already has a paid plan");
+    const cents = Math.round(amount / 10);
+    if (cents * 10 < MINIMUM_TOP_UP || cents * 10 > MAXIMUM_TOP_UP) {
+      throw new Error(`Top up between ${formatMoney(MINIMUM_TOP_UP)} and ${formatMoney(MAXIMUM_TOP_UP)}`);
     }
 
-    const variantId = requiredEnv(PLANS[plan].variantEnv);
-    const storeId = requiredEnv("LEMONSQUEEZY_STORE_ID");
+    const variantId = requiredEnv("LEMONSQUEEZY_TOP_UP_VARIANT_ID");
     const siteUrl = requiredEnv("SITE_URL").replace(/\/$/, "");
     const response = await fetch("https://api.lemonsqueezy.com/v1/checkouts", {
       method: "POST",
@@ -52,26 +36,20 @@ export const createCheckout = action({
         data: {
           type: "checkouts",
           attributes: {
+            custom_price: cents,
             product_options: {
               enabled_variants: [Number(variantId)],
-              redirect_url: `${siteUrl}/admin/collections/${collection.subdomain}?checkout=success`,
-              receipt_button_text: "Manage event",
-              receipt_link_url: `${siteUrl}/admin/collections/${collection.subdomain}`,
+              redirect_url: `${siteUrl}/admin?top_up=success`,
+              receipt_button_text: "Back to your galleries",
+              receipt_link_url: `${siteUrl}/admin`,
             },
             checkout_options: { embed: false, media: false, logo: true },
-            checkout_data: {
-              email: user.email,
-              name: user.name,
-              custom: {
-                collection_id: collectionId,
-                user_id: user._id,
-              },
-            },
+            checkout_data: { email: user.email, name: user.name, custom: { user_id: user._id } },
             expires_at: new Date(Date.now() + DAY).toISOString(),
             test_mode: process.env.LEMONSQUEEZY_TEST_MODE === "true",
           },
           relationships: {
-            store: { data: { type: "stores", id: storeId } },
+            store: { data: { type: "stores", id: requiredEnv("LEMONSQUEEZY_STORE_ID") } },
             variant: { data: { type: "variants", id: variantId } },
           },
         },
@@ -79,19 +57,19 @@ export const createCheckout = action({
     });
     const result = await response.json();
     const url = result?.data?.attributes?.url;
-    if (!response.ok || !url) throw new Error("Could not create checkout");
+    if (!response.ok || !url) throw new Error("Could not open checkout");
     return url;
   },
 });
 
-export const recordOrder = internalMutation({
+/** Credits a paid order to its buyer's balance. Amounts are in the order's cents; the credit is the price before tax. */
+export const recordTopUp = internalMutation({
   args: {
     providerOrderId: v.string(),
-    collectionId: v.id("collections"),
     userId: v.string(),
-    plan: paidPlan,
     variantId: v.string(),
-    amount: v.number(),
+    subtotal: v.number(),
+    total: v.number(),
     currency: v.string(),
     testMode: v.boolean(),
     purchasedAt: v.number(),
@@ -103,34 +81,29 @@ export const recordOrder = internalMutation({
       .unique();
     if (existing) return existing._id;
 
-    const collection = await ctx.db.get(args.collectionId);
-    if (!collection || collection.createdBy !== args.userId) throw new Error("Invalid collection owner");
-    if (collection.lemonsqueezyOrderId && collection.lemonsqueezyOrderId !== args.providerOrderId) {
-      throw new Error("Collection already has a different order");
-    }
-
-    const config = PLANS[args.plan];
-    const now = Date.now();
     const id = await ctx.db.insert("paymentOrders", {
       providerOrderId: args.providerOrderId,
-      collectionId: args.collectionId,
       userId: args.userId,
-      plan: args.plan,
       variantId: args.variantId,
       status: "paid",
-      amount: args.amount,
+      amount: args.total,
       currency: args.currency,
       testMode: args.testMode,
       createdAt: args.purchasedAt,
-      updatedAt: now,
+      updatedAt: Date.now(),
     });
-    await ctx.db.patch(args.collectionId, {
-      plan: args.plan,
-      photoLimit: config.photoLimit,
-      expiresAt: args.purchasedAt + config.days * DAY,
-      paymentStatus: "active",
-      lemonsqueezyOrderId: args.providerOrderId,
-    });
+    await applyEntry(ctx, { userId: args.userId, amount: args.subtotal * 10, reason: "top_up", sourceId: args.providerOrderId });
+
+    // The first top-up gives galleries made during the trial their full included time.
+    const balance = await balanceFor(ctx, args.userId);
+    if (!balance.paid) {
+      await ctx.db.patch(balance._id, { paid: true });
+      const galleries = await ctx.db.query("collections").withIndex("by_created_by", (q) => q.eq("createdBy", args.userId)).collect();
+      for (const gallery of galleries.filter((gallery) => gallery.trial)) {
+        const included = gallery._creationTime + INCLUDED_DAYS * DAY;
+        await ctx.db.patch(gallery._id, { trial: undefined, expiresAt: Math.max(gallery.expiresAt ?? 0, included) });
+      }
+    }
     return id;
   },
 });
@@ -152,12 +125,31 @@ export const recordRefund = internalMutation({
       refundedAmount: args.refundedAmount,
       updatedAt: Date.now(),
     });
-    if (args.full) {
+
+    // Legacy plan orders bought one gallery; a full refund takes that gallery offline.
+    if (order.collectionId) {
       const collection = await ctx.db.get(order.collectionId);
-      if (collection?.lemonsqueezyOrderId === args.providerOrderId) {
+      if (args.full && collection?.lemonsqueezyOrderId === args.providerOrderId) {
         await ctx.db.patch(order.collectionId, { paymentStatus: "refunded" });
       }
+      return;
     }
+
+    // A top-up refund takes back the refunded share of its credit; the balance may go below zero.
+    // Each webhook carries the running refunded total, so the refund entry is raised to match it.
+    const credited = await findEntry(ctx, args.providerOrderId, "top_up");
+    if (!credited || !order.amount) return;
+    const owed = Math.round(credited.amount * Math.min(args.refundedAmount, order.amount) / order.amount);
+    const previous = await findEntry(ctx, args.providerOrderId, "top_up_refund");
+    const more = owed - (previous ? -previous.amount : 0);
+    if (more <= 0) return;
+    if (!previous) {
+      await applyEntry(ctx, { userId: order.userId, amount: -more, reason: "top_up_refund", sourceId: args.providerOrderId });
+      return;
+    }
+    const balance = await balanceFor(ctx, order.userId);
+    await ctx.db.patch(previous._id, { amount: -owed });
+    await ctx.db.patch(balance._id, { credit: balance.credit - more });
   },
 });
 
@@ -201,24 +193,16 @@ export const webhook = httpAction(async (ctx, request) => {
   if (eventName === "order_created") {
     const custom = payload?.meta?.custom_data;
     const productId = String(attributes.first_order_item?.product_id ?? "");
-    const variantId = String(attributes.first_order_item?.variant_id ?? "");
-    const plan = planForVariant(variantId);
-    if (
-      !custom?.collection_id ||
-      !custom?.user_id ||
-      productId !== requiredEnv("LEMONSQUEEZY_PRODUCT_ID") ||
-      !plan ||
-      attributes.status !== "paid"
-    ) {
+    if (!custom?.user_id || productId !== requiredEnv("LEMONSQUEEZY_PRODUCT_ID") || attributes.status !== "paid") {
       return new Response("Invalid order", { status: 400 });
     }
-    await ctx.runMutation(internal.payments.recordOrder, {
+    // Every paid order credits its buyer's balance, including plan checkouts opened before balances existed.
+    await ctx.runMutation(internal.payments.recordTopUp, {
       providerOrderId: String(order.id),
-      collectionId: custom.collection_id,
       userId: String(custom.user_id),
-      plan,
-      variantId,
-      amount: Number(attributes.total),
+      variantId: String(attributes.first_order_item?.variant_id ?? ""),
+      subtotal: Number(attributes.subtotal),
+      total: Number(attributes.total),
       currency: String(attributes.currency),
       testMode: Boolean(attributes.test_mode),
       purchasedAt: Date.parse(attributes.created_at) || Date.now(),

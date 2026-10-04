@@ -10,6 +10,7 @@ import {
   requireCollectionOwner,
   requireServiceToken,
 } from "./authz";
+import { chargeSearch, returnSearch } from "./balances";
 
 async function canReadRequest(ctx: QueryCtx, request: Doc<"searchRequests">) {
   // Only new attendee searches are public; existing private and Telegram searches stay private.
@@ -30,14 +31,16 @@ export const create = mutation({
   args: { collectionId: v.id("collections") },
   handler: async (ctx, { collectionId }) => {
     const collection = await ctx.db.get(collectionId);
-    if (!collection || collection.status !== "complete") throw new Error("Event is not ready");
+    if (!collection || !collection.imagesCount) throw new Error("This gallery has no photos yet");
     requireActiveCollection(collection);
-    return ctx.db.insert("searchRequests", {
+    const requestId = await ctx.db.insert("searchRequests", {
       collectionId,
       publicAccess: true,
       status: "pending",
       imagesFound: [],
     });
+    await chargeSearch(ctx, collection, requestId);
+    return requestId;
   },
 });
 
@@ -52,7 +55,7 @@ export const createForService = mutation({
   handler: async (ctx, { collectionId, telegramChatId, fileId, messageId, serviceToken }) => {
     requireServiceToken(serviceToken);
     const collection = await ctx.db.get(collectionId);
-    if (!collection || collection.status !== "complete") throw new Error("Event is not ready");
+    if (!collection || !collection.imagesCount) throw new Error("This gallery has no photos yet");
     requireActiveCollection(collection);
     const requestId = await ctx.db.insert("searchRequests", {
       collectionId,
@@ -60,6 +63,7 @@ export const createForService = mutation({
       imagesFound: [],
       telegramChatId,
     });
+    await chargeSearch(ctx, collection, requestId);
     // Persist the request and schedule its continuation atomically before acknowledging Telegram.
     await ctx.scheduler.runAfter(0, internal.telegram.searchAndReply, {
       requestId, fileId, messageId,
@@ -93,10 +97,14 @@ export const updateForService = mutation({
     imagesFound: v.optional(v.array(v.string())),
     totalImages: v.optional(v.number()),
     processedImages: v.optional(v.number()),
+    error: v.optional(v.union(v.literal("no_face"), v.literal("failed"))),
   },
   handler: async (ctx, { id, serviceToken, ...values }) => {
     requireServiceToken(serviceToken);
     await ctx.db.patch(id, values);
+    // A search that couldn't run is given back to the gallery owner.
+    const request = await ctx.db.get(id);
+    if (request && values.status === "error") await returnSearch(ctx, request);
   },
 });
 

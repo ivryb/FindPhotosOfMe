@@ -10,12 +10,15 @@
 
 import type * as auth from "../auth.js";
 import type * as authz from "../authz.js";
+import type * as balances from "../balances.js";
 import type * as collections from "../collections.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as ingestJobs from "../ingestJobs.js";
+import type * as migrations from "../migrations.js";
 import type * as payments from "../payments.js";
+import type * as pricing from "../pricing.js";
 import type * as searchRequests from "../searchRequests.js";
 import type * as telegram from "../telegram.js";
 import type * as todos from "../todos.js";
@@ -29,12 +32,15 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authz: typeof authz;
+  balances: typeof balances;
   collections: typeof collections;
   healthCheck: typeof healthCheck;
   http: typeof http;
   ingest: typeof ingest;
   ingestJobs: typeof ingestJobs;
+  migrations: typeof migrations;
   payments: typeof payments;
+  pricing: typeof pricing;
   searchRequests: typeof searchRequests;
   telegram: typeof telegram;
   todos: typeof todos;

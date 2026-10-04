@@ -2,7 +2,8 @@ import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { requireCollectionOwner, requirePhotoCapacity, requireServiceToken } from "./authz";
+import { requireActiveCollection, requireCollectionOwner, requireServiceToken } from "./authz";
+import { settleIngest } from "./balances";
 
 const jobStatus = v.union(
   v.literal("pending"),
@@ -45,7 +46,7 @@ export const create = mutation({
   args: { collectionId: v.id("collections"), fileKey: v.string(), filename: v.string() },
   handler: async (ctx, args) => {
     const { collection } = await requireCollectionOwner(ctx, args.collectionId);
-    requirePhotoCapacity(collection);
+    requireActiveCollection(collection);
     return ctx.db.insert("ingestJobs", newJob(args.collectionId, args.fileKey, args.filename, Date.now()));
   },
 });
@@ -60,7 +61,7 @@ export const createBatch = mutation({
     if (!jobs.length || jobs.length > 20) throw new Error("Upload 1–20 archives at a time");
     for (const collectionId of new Set(jobs.map((job) => job.collectionId))) {
       const { collection } = await requireCollectionOwner(ctx, collectionId);
-      requirePhotoCapacity(collection);
+      requireActiveCollection(collection);
     }
     const now = Date.now();
     return Promise.all(
@@ -99,19 +100,30 @@ export const markFailed = mutation({
     const existing = await ctx.db.get(id);
     if (!existing || existing.status === "completed" || existing.status === "canceled") return;
     await ctx.db.patch(id, { status: "failed", error, finishedAt: Date.now() });
+    await settleIngest(ctx, existing, 0);
     const job = await ctx.db.get(id);
     if (job) await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId: job.collectionId });
   },
 });
 
 export const markCompleted = mutation({
-  args: { id: v.id("ingestJobs"), processedImages: v.number(), serviceToken: v.string() },
-  handler: async (ctx, { id, processedImages, serviceToken }) => {
+  args: {
+    id: v.id("ingestJobs"),
+    processedImages: v.number(),
+    // Photos kept (those with faces) and their bytes with thumbnails
+    savedImages: v.number(),
+    savedBytes: v.number(),
+    serviceToken: v.string(),
+  },
+  handler: async (ctx, { id, processedImages, savedImages, savedBytes, serviceToken }) => {
     requireServiceToken(serviceToken);
     const existing = await ctx.db.get(id);
     // Modal can replay an input after its completion write already succeeded.
     if (!existing || existing.status === "completed" || existing.status === "canceled") return;
-    await ctx.db.patch(id, { status: "completed", processedImages, finishedAt: Date.now() });
+    await ctx.db.patch(id, { status: "completed", processedImages, savedImages, finishedAt: Date.now() });
+    await settleIngest(ctx, existing, savedImages);
+    const collection = await ctx.db.get(existing.collectionId);
+    if (collection) await ctx.db.patch(collection._id, { storedBytes: (collection.storedBytes ?? 0) + savedBytes });
     const job = await ctx.db.get(id);
     if (job) await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId: job.collectionId });
   },
@@ -149,7 +161,7 @@ export const claimNextForCollection = internalMutation({
       .first();
     if (!next) return null;
 
-    await ctx.db.patch(next._id, { status: "running", startedAt: Date.now(), error: undefined });
+    await ctx.db.patch(next._id, { status: "running", startedAt: Date.now(), error: undefined, attempt: (next.attempt ?? 0) + 1 });
     return { _id: next._id, collectionId: next.collectionId, fileKey: next.fileKey, filename: next.filename };
   },
 });

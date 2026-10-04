@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
-import { LIMITS, MINIMUM_PAYMENT, clampCount, count, estimatePrice, money, type Usage } from "@/utils/pricing";
+import { LIMITS, MINIMUM_TOP_UP, clampCount, count, estimateTopUp, formatMoney, type Usage } from "@/utils/pricing";
 
 const id = useId();
 const photos = ref(2_000);
 const searches = ref(300);
 const days = ref<Usage["days"]>(30);
-const price = computed(() => estimatePrice({ photos: photos.value, searches: searches.value, days: days.value }));
+const price = computed(() => estimateTopUp({ photos: photos.value, searches: searches.value, days: days.value }));
 const progress = (value: number, kind: keyof typeof LIMITS) => `${(value - LIMITS[kind].min) / (LIMITS[kind].max - LIMITS[kind].min) * 100}%`;
 
 // One tile per 100 photos, so a full sheet is the 20,000-photo limit.
@@ -73,12 +73,12 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
       <p class="sheet-caption">Each tile is 100 photos</p>
 
       <p class="slip-title">You pay once</p>
-      <output class="total" aria-live="polite" aria-atomic="true" aria-label="Estimated total">{{ money.format(price.total) }}</output>
+      <output class="total" aria-live="polite" aria-atomic="true" aria-label="Estimated total">{{ formatMoney(price.total) }}</output>
       <dl class="lines">
-        <div><dt>{{ count.format(photos) }} photos</dt><dd>{{ money.format(price.photoCost) }}</dd></div>
-        <div><dt>{{ count.format(searches) }} searches</dt><dd>{{ money.format(price.searchCost) }}</dd></div>
-        <div><dt>{{ days }} days of storage</dt><dd>{{ price.storageCost === 0 ? 'Included' : money.format(price.storageCost) }}</dd></div>
-        <div v-if="price.subtotal < MINIMUM_PAYMENT" class="minimum"><dt>Topped up to the $10 minimum</dt><dd>{{ money.format(MINIMUM_PAYMENT - price.subtotal) }}</dd></div>
+        <div><dt>{{ count.format(photos) }} photos</dt><dd>{{ formatMoney(price.photoCost) }}</dd></div>
+        <div><dt>{{ count.format(searches) }} searches</dt><dd>{{ formatMoney(price.searchCost) }}</dd></div>
+        <div><dt>{{ days }} days of storage</dt><dd>{{ price.storageCost === 0 ? 'Included' : formatMoney(price.storageCost) }}</dd></div>
+        <div v-if="price.subtotal < MINIMUM_TOP_UP" class="minimum"><dt>Topped up to the $10 minimum</dt><dd>{{ formatMoney(MINIMUM_TOP_UP - price.subtotal) }}</dd></div>
       </dl>
       <Button as-child size="xl" class="w-full">
         <NuxtLink to="/admin">Try 500 photos free</NuxtLink>

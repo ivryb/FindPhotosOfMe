@@ -34,19 +34,9 @@ export function requireServiceToken(token: string) {
 
 export function requireActiveCollection(collection: any) {
   if (collection.paymentStatus === "refunded") {
-    throw new Error("This event was refunded and is no longer active");
+    throw new Error("This gallery was refunded and is no longer active");
   }
   if (collection.expiresAt && collection.expiresAt <= Date.now()) {
-    throw new Error("This event has expired");
-  }
-}
-
-export function requirePhotoCapacity(collection: any, additionalImages = 0) {
-  requireActiveCollection(collection);
-  if (
-    collection.photoLimit &&
-    collection.imagesCount + additionalImages > collection.photoLimit
-  ) {
-    throw new Error(`This event is limited to ${collection.photoLimit.toLocaleString()} photos`);
+    throw new Error("This gallery is no longer online");
   }
 }

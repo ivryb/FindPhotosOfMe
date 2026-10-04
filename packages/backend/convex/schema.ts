@@ -18,11 +18,18 @@ export default defineSchema({
       v.literal("error")
     ),
     imagesCount: v.number(),
+    // Bytes of photos and thumbnails in R2, for pricing storage extensions
+    storedBytes: v.optional(v.number()),
+    // Legacy per-gallery plans; migrations.moveToBalance clears them. Remove once it has run in production.
     plan: v.optional(
       v.union(v.literal("demo"), v.literal("event"), v.literal("large"))
     ),
     photoLimit: v.optional(v.number()),
     expiresAt: v.optional(v.number()),
+    // Created before the owner's first top-up; that top-up extends it to the full included time
+    trial: v.optional(v.boolean()),
+    // Whether anyone with the link can browse every photo, or only the previews. Unset means every photo.
+    showAllPhotos: v.optional(v.boolean()),
     paymentStatus: v.optional(
       v.union(v.literal("active"), v.literal("refunded"))
     ),
@@ -50,6 +57,7 @@ export default defineSchema({
       v.literal("error")
     ),
     imagesFound: v.array(v.string()), // Array of R2 paths
+    error: v.optional(v.union(v.literal("no_face"), v.literal("failed"))),
     totalImages: v.optional(v.number()),
     processedImages: v.optional(v.number()),
     // Optional Telegram chat id to notify results
@@ -69,6 +77,10 @@ export default defineSchema({
     ),
     totalImages: v.optional(v.number()),
     processedImages: v.number(),
+    // Photos with faces that were kept; the rest are returned to the owner's balance
+    savedImages: v.optional(v.number()),
+    // Counts dispatches, so a retried upload is charged again while a replayed one is not
+    attempt: v.optional(v.number()),
     error: v.optional(v.string()),
     workId: v.optional(v.string()),
     createdAt: v.number(),
@@ -78,11 +90,42 @@ export default defineSchema({
     .index("by_collection", ["collectionId"])
     .index("by_collection_and_status", ["collectionId", "status"]),
 
+  // Money in mills (thousandths of a dollar). Every change to a balance is an entry.
+  balances: defineTable({
+    userId: v.string(),
+    credit: v.number(),
+    // Has topped up at least once; new galleries then get the full included time
+    paid: v.boolean(),
+  }).index("by_user", ["userId"]),
+
+  balanceEntries: defineTable({
+    userId: v.string(),
+    amount: v.number(),
+    reason: v.union(
+      v.literal("trial"),
+      v.literal("top_up"),
+      v.literal("top_up_refund"),
+      v.literal("photos"),
+      v.literal("photos_returned"),
+      v.literal("search"),
+      v.literal("search_returned"),
+      v.literal("storage"),
+      v.literal("migration")
+    ),
+    collectionId: v.optional(v.id("collections")),
+    // The job, search, or order this entry belongs to; one entry per source and reason
+    sourceId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_source", ["sourceId", "reason"]),
+
   paymentOrders: defineTable({
     providerOrderId: v.string(),
-    collectionId: v.id("collections"),
+    // Legacy plan orders belong to a gallery; top-ups belong to the account
+    collectionId: v.optional(v.id("collections")),
     userId: v.string(),
-    plan: v.union(v.literal("event"), v.literal("large")),
+    plan: v.optional(v.union(v.literal("event"), v.literal("large"))),
     variantId: v.string(),
     status: v.union(
       v.literal("paid"),

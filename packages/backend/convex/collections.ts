@@ -8,15 +8,34 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import {
   requireActiveCollection,
   requireCollectionOwner,
-  requirePhotoCapacity,
   requireServiceToken,
   requireUser,
 } from "./authz";
+import { balanceFor } from "./balances";
+import { DAY, INCLUDED_DAYS, TRIAL_DAYS } from "./pricing";
 
-const DAY = 24 * 60 * 60 * 1000;
+/** What anyone with the link may see. A gallery is public once it has photos, even while more are being added. */
+function publicView(collection: Doc<"collections"> | null) {
+  if (!collection?.imagesCount) return null;
+  try {
+    requireActiveCollection(collection);
+  } catch {
+    return null;
+  }
+  return {
+    _id: collection._id,
+    title: collection.title,
+    description: collection.description,
+    subdomain: collection.subdomain,
+    imagesCount: collection.imagesCount,
+    previewImages: collection.previewImages ?? [],
+    showAllPhotos: collection.showAllPhotos ?? true,
+  };
+}
 
 const status = v.union(
   v.literal("not_started"),
@@ -38,7 +57,7 @@ async function ensureSubdomainAvailable(ctx: any, subdomain: string, exceptId?: 
     .query("collections")
     .withIndex("by_subdomain", (q: any) => q.eq("subdomain", subdomain))
     .first();
-  if (existing && existing._id !== exceptId) throw new Error("That event URL is already in use");
+  if (existing && existing._id !== exceptId) throw new Error("That gallery address is already in use");
 }
 
 export const get = query({
@@ -65,15 +84,16 @@ export const create = mutation({
     const user = await requireUser(ctx);
     const subdomain = normalizeSubdomain(args.subdomain);
     await ensureSubdomainAvailable(ctx, subdomain);
+    // During the trial a gallery stays online for a week; the first top-up extends it.
+    const { paid } = await balanceFor(ctx, user._id);
     return ctx.db.insert("collections", {
       title: args.title.trim(),
       description: args.description.trim(),
       subdomain,
       status: "not_started",
       imagesCount: 0,
-      plan: "demo",
-      photoLimit: 250,
-      expiresAt: Date.now() + 7 * DAY,
+      expiresAt: Date.now() + (paid ? INCLUDED_DAYS : TRIAL_DAYS) * DAY,
+      trial: paid ? undefined : true,
       previewImages: [],
       createdBy: user._id,
     });
@@ -112,21 +132,13 @@ export const getPublicBySubdomain = query({
       .query("collections")
       .withIndex("by_subdomain", (q) => q.eq("subdomain", subdomain))
       .first();
-    if (!collection || collection.status !== "complete") return null;
-    try {
-      requireActiveCollection(collection);
-    } catch {
-      return null;
-    }
-    return {
-      _id: collection._id,
-      title: collection.title,
-      description: collection.description,
-      subdomain: collection.subdomain,
-      imagesCount: collection.imagesCount,
-      previewImages: collection.previewImages ?? [],
-    };
+    return publicView(collection);
   },
+});
+
+export const getPublic = query({
+  args: { id: v.id("collections") },
+  handler: async (ctx, { id }) => publicView(await ctx.db.get(id)),
 });
 
 export const isPublicPreview = query({
@@ -154,7 +166,7 @@ export const canUpload = query({
   args: { id: v.id("collections") },
   handler: async (ctx, { id }) => {
     const { collection } = await requireCollectionOwner(ctx, id);
-    requirePhotoCapacity(collection);
+    requireActiveCollection(collection);
     return true;
   },
 });
@@ -166,6 +178,7 @@ export const update = mutation({
     title: v.string(),
     description: v.string(),
     welcomeMessage: v.optional(v.string()),
+    showAllPhotos: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { user, canClaimLegacy } = await requireCollectionOwner(ctx, args.id);
@@ -176,6 +189,7 @@ export const update = mutation({
       title: args.title.trim(),
       description: args.description.trim(),
       welcomeMessage: args.welcomeMessage?.trim() || undefined,
+      ...(args.showAllPhotos === undefined ? {} : { showAllPhotos: args.showAllPhotos }),
       ...(canClaimLegacy ? { createdBy: user._id } : {}),
     });
   },
@@ -213,6 +227,15 @@ export const incrementImagesForService = mutation({
     const collection = await ctx.db.get(id);
     if (!collection) throw new Error("Collection not found");
     await ctx.db.patch(id, { imagesCount: collection.imagesCount + increment });
+  },
+});
+
+/** Records a gallery's size in R2; the thumbnail backfill measures galleries made before sizes were tracked. */
+export const setStoredBytesForService = mutation({
+  args: { id: v.id("collections"), storedBytes: v.number(), serviceToken: v.string() },
+  handler: async (ctx, { id, storedBytes, serviceToken }) => {
+    requireServiceToken(serviceToken);
+    await ctx.db.patch(id, { storedBytes });
   },
 });
 
