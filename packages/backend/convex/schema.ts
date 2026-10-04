@@ -1,6 +1,30 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+/** One upload: a ZIP, or photos chosen together. The browser sends its photos in batches; workers process each batch. */
+export const uploadFields = {
+  collectionId: v.id("collections"),
+  // Name and size identify the upload, so adding the same ZIP again continues it
+  name: v.string(),
+  size: v.number(),
+  photos: v.number(),
+  // Photos the browser has sent, processed, kept (those with faces), and given up on
+  sent: v.number(),
+  processed: v.number(),
+  saved: v.number(),
+  failed: v.number(),
+};
+
+export const batchStatus = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  // Its faces are in their own file, waiting to be merged into the gallery's face index
+  v.literal("done"),
+  v.literal("merged"),
+  // Given up after its tries; its photos were refunded
+  v.literal("failed")
+);
+
 export default defineSchema({
   todos: defineTable({
     text: v.string(),
@@ -41,10 +65,13 @@ export default defineSchema({
     telegramBotToken: v.optional(v.string()),
     // Custom welcome message for Telegram bot (supports {IMAGES_COUNT} template)
     welcomeMessage: v.optional(v.string()),
+    // When a worker started merging finished batches into the face index; one merge runs at a time
+    mergingSince: v.optional(v.number()),
   })
     .index("by_status", ["status"])
     .index("by_subdomain", ["subdomain"])
-    .index("by_created_by", ["createdBy"]),
+    .index("by_created_by", ["createdBy"])
+    .index("by_merging_since", ["mergingSince"]),
 
   searchRequests: defineTable({
     collectionId: v.id("collections"),
@@ -64,6 +91,22 @@ export default defineSchema({
     telegramChatId: v.optional(v.string()),
   }).index("by_collection", ["collectionId"]),
 
+  uploads: defineTable(uploadFields).index("by_collection", ["collectionId"]),
+
+  // Up to 50 photos of an upload: the unit of work one processing worker takes on
+  uploadBatches: defineTable({
+    collectionId: v.id("collections"),
+    uploadId: v.id("uploads"),
+    names: v.array(v.string()),
+    status: batchStatus,
+    attempts: v.number(),
+    startedAt: v.optional(v.number()),
+  })
+    .index("by_status", ["status"])
+    .index("by_collection_and_status", ["collectionId", "status"])
+    .index("by_upload", ["uploadId"]),
+
+  // Legacy ZIP jobs from before uploads were sent photo by photo. Nothing reads them; delete the rows, then this table.
   ingestJobs: defineTable({
     collectionId: v.id("collections"),
     fileKey: v.string(),

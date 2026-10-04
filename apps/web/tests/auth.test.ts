@@ -146,3 +146,23 @@ test("anonymous result downloads only authorize photos from that search", async 
   expect(photo.download).toContain("attachment");
   expect((await authorize(["test-collection/photo-008.jpg"])).status).toBe(403);
 });
+
+test("upload links are signed only for the gallery owner, for plain photo names in the gallery's upload area", async () => {
+  const sign = (body: object, signedIn = true) => fetch(`${origin}/api/uploads/presign`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(signedIn ? { authorization: `Bearer ${ownerJwt}` } : {}) },
+    body: JSON.stringify(body),
+  });
+  const batch = { collectionId: "test-collection", uploadId: "upload-1", names: ["IMG_1.jpg", "stage.png"] };
+
+  expect((await sign(batch, false)).status).toBe(401);
+  expect((await sign({ ...batch, names: ["../../other-gallery/x.jpg"] })).status).toBe(400);
+  const response = await sign(batch);
+  expect(response.status).toBe(200);
+  const { urls } = await response.json() as { urls: string[] };
+  expect(urls.map((url) => new URL(url).pathname)).toEqual([
+    "/r2/fixture-bucket/uploads/test-collection/upload-1/IMG_1.jpg",
+    "/r2/fixture-bucket/uploads/test-collection/upload-1/stage.png",
+  ]);
+  expect(urls.every((url) => new URL(url).searchParams.has("X-Amz-Signature"))).toBe(true);
+});

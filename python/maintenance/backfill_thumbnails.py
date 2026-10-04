@@ -14,10 +14,10 @@ def backfill_thumbnails(r2=None, convex=None) -> dict:
     r2 = r2 or R2StorageService()
     convex = convex or ConvexService()
     galleries: dict[str, dict] = {}
-    # Keys are {collection}/{photo}, {collection}/thumbs/{photo}, {collection}/embeddings.json, and uploads/...
+    # Keys are {collection}/{photo}, {collection}/thumbs/{photo}, face indexes, and uploads/... waiting to be processed
     for item in r2.list_objects(""):
         collection_id, _, rest = item["Key"].partition("/")
-        if collection_id == "uploads" or not rest or rest == "embeddings.json":
+        if collection_id == "uploads" or not rest or rest == "embeddings.json" or rest.startswith("faces/"):
             continue
         gallery = galleries.setdefault(collection_id, {"photos": [], "thumbs": set(), "bytes": 0})
         gallery["bytes"] += item["Size"]

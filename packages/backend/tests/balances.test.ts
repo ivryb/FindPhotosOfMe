@@ -71,57 +71,6 @@ describe("searches", () => {
   });
 });
 
-describe("uploads", () => {
-  async function runningJob(t: ReturnType<typeof setup>["t"], collectionId: Id<"collections">) {
-    const jobId = await t.run((ctx) => ctx.db.insert("ingestJobs", {
-      collectionId, fileKey: "uploads/day-1.zip", filename: "day-1.zip", status: "pending", processedImages: 0, createdAt: 0,
-    }));
-    await t.mutation(internal.ingestJobs.claimNextForCollection, { collectionId });
-    return jobId;
-  }
-
-  test("reserve every photo, then return the photos without faces", async () => {
-    const { t, gallery, credit, setCredit } = setup();
-    const collectionId = await gallery();
-    await setCredit(100);
-    const jobId = await runningJob(t, collectionId);
-
-    await t.mutation(api.balances.reserveIngestForService, { jobId, images: 10, serviceToken });
-    // A replayed job reserves nothing more.
-    await t.mutation(api.balances.reserveIngestForService, { jobId, images: 10, serviceToken });
-    expect(await credit()).toBe(100 - 10 * PRICES.photo);
-
-    await t.mutation(api.ingestJobs.markCompleted, { id: jobId, processedImages: 10, savedImages: 7, savedBytes: 7e6, serviceToken });
-    expect(await credit()).toBe(100 - 7 * PRICES.photo);
-    const stored = await t.run((ctx) => ctx.db.get(collectionId));
-    expect(stored?.storedBytes).toBe(7e6);
-  });
-
-  test("give the whole reservation back when processing fails, and charge a retry again", async () => {
-    const { t, gallery, credit, setCredit } = setup();
-    const collectionId = await gallery();
-    await setCredit(100);
-    const jobId = await runningJob(t, collectionId);
-    await t.mutation(api.balances.reserveIngestForService, { jobId, images: 10, serviceToken });
-    await t.mutation(api.ingestJobs.markFailed, { id: jobId, error: "Damaged ZIP", serviceToken });
-    expect(await credit()).toBe(100);
-
-    await t.run((ctx) => ctx.db.patch(jobId, { status: "pending" }));
-    await t.mutation(internal.ingestJobs.claimNextForCollection, { collectionId });
-    await t.mutation(api.balances.reserveIngestForService, { jobId, images: 10, serviceToken });
-    expect(await credit()).toBe(100 - 10 * PRICES.photo);
-  });
-
-  test("don't start when the balance can't cover the ZIP", async () => {
-    const { t, gallery, setCredit } = setup();
-    const collectionId = await gallery();
-    await setCredit(4 * PRICES.photo);
-    const jobId = await runningJob(t, collectionId);
-    await expect(t.mutation(api.balances.reserveIngestForService, { jobId, images: 5, serviceToken }))
-      .rejects.toThrow("This ZIP has 5 photos ($0.02), but your balance is $0.02");
-  });
-});
-
 describe("top-ups", () => {
   const order = { providerOrderId: "order-1", userId: "owner", variantId: "v", subtotal: 2_000, total: 2_420, currency: "USD", testMode: true, purchasedAt: 0 };
 

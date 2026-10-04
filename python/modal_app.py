@@ -34,12 +34,24 @@ model_image = (
 )
 
 
+# Up to MAX_RUNNING_BATCHES in packages/backend/convex/uploads.ts run at once. A batch must finish well within
+# STALLED_AFTER there (10 minutes), after which Convex gives it to another worker; 50 photos take about 2 minutes.
+# Containers stay up a minute between batches, so a long upload doesn't reload the model for each one.
 @app.function(image=model_image, secrets=[secret], cpu=1, memory=4096,
-              min_containers=0, max_containers=1, scaledown_window=10,
-              timeout=7200, retries=0)
-def ingest(job_id: str, collection_id: str, file_key: str):
-    from endpoints.upload_collection import process_ingest_job
-    return process_ingest_job(job_id, collection_id, file_key)
+              min_containers=0, max_containers=10, scaledown_window=60,
+              timeout=480, retries=0)
+def process_batch(batch_id: str):
+    from endpoints.photo_batches import process_batch as run
+    return run(batch_id)
+
+
+# One merge per gallery at a time; like batches, well within STALLED_AFTER.
+@app.function(image=model_image, secrets=[secret], cpu=1, memory=2048,
+              min_containers=0, max_containers=4, scaledown_window=10,
+              timeout=300, retries=0)
+def merge_faces(collection_id: str, batch_ids: list[str]):
+    from endpoints.photo_batches import merge_faces as run
+    return run(collection_id, batch_ids)
 
 
 @app.function(image=model_image, secrets=[secret], cpu=1, memory=2048,
@@ -56,11 +68,18 @@ def search(search_request_id: str, reference_data: bytes):
 @modal.asgi_app()
 def web():
     from main import create_app
-    return create_app(submit_ingest=ingest.spawn.aio, execute_search=search.remote.aio)
+    return create_app(submit_batch=process_batch.spawn.aio, submit_merge=merge_faces.spawn.aio, execute_search=search.remote.aio)
 
 
 @app.function(image=model_image, secrets=[secret], cpu=1, memory=2048, timeout=7200, retries=0)
 def backfill_thumbnails():
     """One-time: thumbnails and sizes for galleries made before they existed. `modal run python/modal_app.py::backfill_thumbnails`"""
     from maintenance.backfill_thumbnails import backfill_thumbnails as run
+    return run()
+
+
+@app.function(image=model_image, secrets=[secret], cpu=1, memory=4096, timeout=3600, retries=0)
+def convert_face_indexes():
+    """One-time, right after deploying: old face indexes to the new format. `modal run python/modal_app.py::convert_face_indexes`"""
+    from maintenance.convert_face_indexes import convert_face_indexes as run
     return run()

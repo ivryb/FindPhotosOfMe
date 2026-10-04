@@ -1,8 +1,5 @@
-import io
-import json
 import sys
 import types
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -10,8 +7,11 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from main import create_app
-from endpoints import upload_collection as ingest
+from endpoints import photo_batches
 from endpoints.search_photos import process_search
+from services.face_index import Faces, batch_key, index_key
+
+FACE = [{'embedding': [1.0, 0.0], 'gender': 0}]
 
 
 def test_http_requires_token_and_submits_without_waiting(monkeypatch):
@@ -21,145 +21,132 @@ def test_http_requires_token_and_submits_without_waiting(monkeypatch):
     async def submit(*args):
         calls.append(args)
 
-    client = TestClient(create_app(submit_ingest=submit, execute_search=submit))
+    client = TestClient(create_app(submit_batch=submit, submit_merge=submit, execute_search=submit))
     headers = {'Authorization': 'Bearer test-service-token'}
-    body = {'job_id': 'job', 'collection_id': 'event', 'file_key': 'upload.zip'}
-    assert client.post('/api/process-ingest-job', json=body).status_code == 401
+    assert client.post('/api/process-batch', json={'batch_id': 'batch'}).status_code == 401
     assert calls == []
-    assert client.post('/api/process-ingest-job', json=body, headers=headers).status_code == 202
-    assert calls == [('job', 'event', 'upload.zip')]
-    assert client.post('/api/process-ingest-job', json={}, headers=headers).status_code == 422
+    assert client.post('/api/process-batch', json={'batch_id': 'batch'}, headers=headers).status_code == 202
+    assert client.post('/api/merge-faces', json={'collection_id': 'event', 'batch_ids': ['b1']}, headers=headers).status_code == 202
+    assert client.post('/api/process-batch', json={}, headers=headers).status_code == 422
+    assert calls == [('batch',), ('event', ['b1'])]
     response = client.post('/api/search-photos', headers=headers,
                            data={'search_request_id': 'search'},
                            files={'reference_photo': ('selfie.jpg', b'image', 'image/jpeg')})
     assert response.status_code == 200
-    assert response.json()['search_request_id'] == 'search'
     assert calls[-1] == ('search', b'image')
     assert client.post('/api/search-photos', headers=headers, data={'search_request_id': 'search'},
                        files={'reference_photo': ('x.jpg', b'x' * (10 * 1024**2 + 1), 'image/jpeg')}).status_code == 413
-    assert len(calls) == 2
 
 
 @pytest.fixture
 def backend(monkeypatch):
-    archive = io.BytesIO()
-    with zipfile.ZipFile(archive, 'w') as z:
-        z.writestr('folder/photo.jpg', b'face')
-        z.writestr('other/photo.jpg', b'face')
     state = {
-        'job': {'collectionId': 'event', 'fileKey': 'upload.zip', 'status': 'running'},
-        'collection': {'status': 'complete', 'imagesCount': 0},
+        'objects': {'uploads/event/up/a.jpg': b'face', 'uploads/event/up/b.jpg': b'no face'},
+        'batch': {'collectionId': 'event', 'status': 'running', 'attempt': 1, 'photos': [
+            {'name': 'a.jpg', 'source': 'uploads/event/up/a.jpg', 'key': 'event/tag-a.jpg'},
+            {'name': 'b.jpg', 'source': 'uploads/event/up/b.jpg', 'key': 'event/tag-b.jpg'},
+        ]},
+        'completed': [], 'failed': [], 'merged': [], 'fail_copy': False,
+        'collection': {'imagesCount': 1},
         'search': {'collectionId': 'event', 'status': 'pending', 'imagesFound': []},
-        'objects': {'upload.zip': archive.getvalue()}, 'delete_count': 0,
-        'fail_index': False, 'complete_count': 0, 'reserved': [], 'completed': None, 'refuse_reservation': False,
     }
+    objects = state['objects']
 
     class Storage:
-        def download_file(self, key): return state['objects'].get(key)
-        def download_to_file(self, key, path, *, max_bytes): path.write_bytes(state['objects'][key])
+        def download_file(self, key): return objects.get(key)
         def upload_file(self, data, key, content_type):
-            if state['fail_index'] and key.endswith('embeddings.json'): return False
-            state['objects'][key] = data
+            objects[key] = data
             return True
-        def delete_file(self, key):
-            state['objects'].pop(key, None)
-            state['delete_count'] += 1
+        def copy_file(self, source, key):
+            if state['fail_copy']: return False
+            objects[key] = objects[source]
+            return True
+        def delete_files(self, keys):
+            for key in keys: objects.pop(key, None)
+        def list_objects(self, prefix): return [{'Key': key} for key in sorted(objects) if key.startswith(prefix)]
 
     class Convex:
-        def get_ingest_job(self, _): return state['job']
+        def get_batch(self, _): return state['batch']
+        def complete_batch(self, batch_id, saved, saved_bytes):
+            state['batch']['status'] = 'done'
+            state['completed'].append((batch_id, saved, saved_bytes))
+        def fail_batch(self, batch_id, attempt): state['failed'].append((batch_id, attempt))
+        def faces_merged(self, collection_id, batch_ids): state['merged'].append((collection_id, batch_ids))
         def get_collection(self, _): return state['collection']
-        def update_ingest_progress(self, _, **kwargs): state['job'].update(kwargs)
-        def update_collection_status(self, _, status, images_count=None):
-            state['collection']['status'] = status
-            if images_count is not None: state['collection']['imagesCount'] = images_count
-        def set_collection_preview_images(self, _, previews): state['previews'] = previews
-        def reserve_ingest(self, _, images):
-            if state['refuse_reservation']: raise RuntimeError('This ZIP has 2 photos, but your balance is $0')
-            state['reserved'].append(images)
-        def mark_ingest_completed(self, _, count, saved_images, saved_bytes):
-            state['job']['status'] = 'completed'
-            state['complete_count'] += 1
-            state['completed'] = (count, saved_images, saved_bytes)
-        def mark_ingest_failed(self, _, error): state['job']['status'] = 'failed'
         def get_search_request(self, _): return state['search']
         def update_search_request(self, _, status, **kwargs): state['search'].update(status=status, **kwargs)
 
-    class Faces:
-        def extract_embeddings(self, data):
-            return [{'embedding': [1.0, 0.0], 'gender': 0}] if data == b'face' else []
-        def find_matching_faces(self, *args): return [('job-photo.jpg', 1.0)]
+    class FaceService:
+        def extract_embeddings(self, data): return FACE if data == b'face' else []
 
     module = types.ModuleType('services.face_recognition_service')
-    module.get_face_service = lambda: Faces()
+    module.get_face_service = lambda: FaceService()
     monkeypatch.setitem(sys.modules, module.__name__, module)
-    monkeypatch.setattr(ingest, 'make_thumbnail', lambda data: b'small-' + data)
-    monkeypatch.setattr(ingest, 'R2StorageService', Storage)
-    monkeypatch.setattr(ingest, 'ConvexService', Convex)
-    monkeypatch.setattr('endpoints.search_photos.R2StorageService', Storage)
-    monkeypatch.setattr('endpoints.search_photos.ConvexService', Convex)
+    monkeypatch.setattr(photo_batches, 'make_thumbnail', lambda data: b'small-' + data)
+    for target in (photo_batches, sys.modules['endpoints.search_photos']):
+        monkeypatch.setattr(target, 'R2StorageService', Storage)
+        monkeypatch.setattr(target, 'ConvexService', Convex)
     return state
 
 
-def test_ingest_saves_index_before_deleting_source_and_completed_replay_is_noop(backend):
-    result = ingest.process_ingest_job('job', 'event', 'upload.zip')
-    assert result['matchedImages'] == 2
-    index = json.loads(backend['objects']['event/embeddings.json'])
-    assert set(index) == {'job-photo.jpg', 'job-photo-1.jpg'}
-    assert backend['collection']['imagesCount'] == 2
-    assert backend['job']['status'] == 'completed'
-    assert 'upload.zip' not in backend['objects']
-    ingest.process_ingest_job('job', 'event', 'upload.zip')
-    assert backend['complete_count'] == 1
-    assert backend['delete_count'] == 1
+def test_batch_keeps_photos_with_faces_and_clears_the_uploads(backend):
+    photo_batches.process_batch('b1')
+    objects = backend['objects']
+    assert objects['event/tag-a.jpg'] == b'face'
+    assert objects['event/thumbs/tag-a.jpg'] == b'small-face'
+    assert 'event/tag-b.jpg' not in objects
+    assert not [key for key in objects if key.startswith('uploads/')]
+    assert Faces.decode(objects[batch_key('event', 'b1')]).names.tolist() == ['tag-a.jpg']
+    # One photo of 4 bytes and its thumbnail of 10 bytes
+    assert backend['completed'] == [('b1', ['a.jpg'], 14)]
 
 
-def test_ingest_reserves_photos_first_and_saves_a_thumbnail_next_to_each_kept_photo(backend):
-    ingest.process_ingest_job('job', 'event', 'upload.zip')
-    assert backend['reserved'] == [2]
-    assert backend['objects']['event/thumbs/job-photo.jpg'] == b'small-face'
-    assert backend['objects']['event/thumbs/job-photo-1.jpg'] == b'small-face'
-    # Two photos of 4 bytes and two thumbnails of 10 bytes
-    assert backend['completed'] == (2, 2, 28)
+def test_a_batch_that_already_has_a_result_is_left_alone(backend):
+    backend['batch']['status'] = 'done'
+    photo_batches.process_batch('b1')
+    assert backend['completed'] == []
+    assert 'uploads/event/up/a.jpg' in backend['objects']
 
 
-def test_ingest_saves_nothing_when_the_balance_cannot_cover_the_zip(backend):
-    backend['refuse_reservation'] = True
-    with pytest.raises(RuntimeError, match='balance'):
-        ingest.process_ingest_job('job', 'event', 'upload.zip')
-    assert backend['job']['status'] == 'failed'
-    assert list(backend['objects']) == ['upload.zip']
+def test_a_batch_another_worker_already_finished_is_left_alone(backend):
+    photo_batches.process_batch('b1')
+    # The same batch was also given to a second worker, which runs after the first cleared the uploads.
+    backend['batch']['status'] = 'running'
+    faces_file = backend['objects'][batch_key('event', 'b1')]
+    assert photo_batches.process_batch('b1')['skipped']
+    assert backend['objects'][batch_key('event', 'b1')] == faces_file
+    assert len(backend['completed']) == 1
 
 
-def test_failed_index_preserves_source_and_can_be_retried(backend):
-    backend['fail_index'] = True
-    with pytest.raises(RuntimeError, match='face index'):
-        ingest.process_ingest_job('job', 'event', 'upload.zip')
-    assert backend['job']['status'] == 'failed'
-    assert backend['collection']['status'] == 'error'
-    assert 'upload.zip' in backend['objects']
-    assert backend['delete_count'] == 0
-    backend['fail_index'] = False
-    backend['job']['status'] = 'running'
-    ingest.process_ingest_job('job', 'event', 'upload.zip')
-    assert backend['collection']['imagesCount'] == 2
-    # The retry overwrites the photos and thumbnails it saved before failing instead of adding copies.
-    saved = [key for key in backend['objects'] if key.endswith('.jpg')]
-    assert sorted(saved) == ['event/job-photo-1.jpg', 'event/job-photo.jpg', 'event/thumbs/job-photo-1.jpg', 'event/thumbs/job-photo.jpg']
+def test_a_failed_batch_keeps_its_uploads_and_asks_to_be_retried(backend):
+    backend['fail_copy'] = True
+    with pytest.raises(RuntimeError):
+        photo_batches.process_batch('b1')
+    assert backend['failed'] == [('b1', 1)]
+    assert backend['completed'] == []
+    assert 'uploads/event/up/a.jpg' in backend['objects']
 
 
-def test_replay_after_index_write_keeps_other_archives(backend):
-    face = [{'embedding': [1, 0], 'gender': 0}]
-    backend['objects']['event/embeddings.json'] = json.dumps({'job-photo.jpg': face, 'earlier.jpg': face}).encode()
-    ingest.process_ingest_job('job', 'event', 'upload.zip')
-    assert backend['collection']['imagesCount'] == 3
-    assert 'earlier.jpg' in json.loads(backend['objects']['event/embeddings.json'])
+def test_merge_folds_batch_files_into_the_index_and_can_run_again(backend):
+    objects = backend['objects']
+    objects[index_key('event')] = Faces.of({'old.jpg': FACE, 'x.jpg': FACE}).encode()
+    # x.jpg is in the index already: a merge whose result was lost is running again.
+    objects[batch_key('event', 'b1')] = Faces.of({'x.jpg': FACE, 'y.jpg': FACE}).encode()
+
+    photo_batches.merge_faces('event', ['b1', 'b2'])
+    photo_batches.merge_faces('event', ['b1', 'b2'])
+    assert sorted(Faces.decode(objects[index_key('event')]).names.tolist()) == ['old.jpg', 'x.jpg', 'y.jpg']
+    assert batch_key('event', 'b1') not in objects
+    assert backend['merged'] == [('event', ['b1', 'b2'])] * 2
 
 
-def test_wrong_collection_rejected_without_changing_job(backend):
-    with pytest.raises(ValueError, match='does not match'):
-        ingest.process_ingest_job('job', 'other-event', 'upload.zip')
-    assert backend['job']['status'] == 'running'
-    assert len(backend['objects']) == 1
+def test_search_reads_the_index_and_unmerged_batches_and_counts_each_photo_once(backend):
+    objects = backend['objects']
+    objects[index_key('event')] = Faces.of({'tag-a.jpg': FACE, 'other.jpg': [{'embedding': [0.0, 1.0], 'gender': 0}]}).encode()
+    objects[batch_key('event', 'b1')] = Faces.of({'tag-a.jpg': FACE, 'tag-c.jpg': [{'embedding': [1.0, 0.0], 'gender': 1}]}).encode()
+    assert process_search('search', b'face')['matches'] == 1
+    assert backend['search']['status'] == 'complete'
+    assert backend['search']['images_found'] == ['event/tag-a.jpg']
 
 
 def test_no_face_search_sets_error_instead_of_staying_processing(backend):
@@ -176,29 +163,12 @@ def test_other_search_failures_are_reported_as_failed(backend):
     assert backend['search']['error'] == 'failed'
 
 
-def test_search_publishes_results_to_convex(backend):
-    backend['objects']['event/embeddings.json'] = b'{"job-photo.jpg": []}'
-    assert process_search('search', b'face')['matches'] == 1
-    assert backend['search']['status'] == 'complete'
-    assert backend['search']['images_found'] == ['event/job-photo.jpg']
-
-
-def test_archive_limits_checked_before_decoding(monkeypatch):
-    data = io.BytesIO()
-    with zipfile.ZipFile(data, 'w') as archive:
-        archive.writestr('photo.jpg', b'12345')
-    monkeypatch.setattr(ingest, 'MAX_IMAGE_BYTES', 4)
-    with zipfile.ZipFile(data) as archive, pytest.raises(ValueError, match='50 MB'):
-        ingest.image_entries(archive)
-
-
-def test_lost_completion_response_does_not_corrupt_completed_event(backend, monkeypatch):
-    original = ingest.ConvexService.mark_ingest_completed
-    def complete_then_disconnect(self, *args):
-        original(self, *args)
-        raise ConnectionError('response lost')
-    monkeypatch.setattr(ingest.ConvexService, 'mark_ingest_completed', complete_then_disconnect)
-    assert ingest.process_ingest_job('job', 'event', 'upload.zip')['status'] == 'completed'
-    assert backend['collection']['status'] == 'complete'
-    assert backend['job']['status'] == 'completed'
-    assert 'upload.zip' in backend['objects']
+def test_faces_match_by_likeness_and_gender_best_first():
+    faces = Faces.of({
+        'close.jpg': [{'embedding': [1.0, 0.1], 'gender': 0}],
+        'exact.jpg': [{'embedding': [2.0, 0.0], 'gender': 0}],
+        'other-gender.jpg': [{'embedding': [1.0, 0.0], 'gender': 1}],
+        'different.jpg': [{'embedding': [0.0, 1.0], 'gender': 0}],
+    })
+    assert [name for name, _ in faces.match([1.0, 0.0], 0)] == ['exact.jpg', 'close.jpg']
+    assert Faces.empty().match([1.0, 0.0], 0) == []

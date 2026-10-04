@@ -8,20 +8,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from endpoints.upload_collection import router as upload_router
+from endpoints.photo_batches import router as batches_router
 from endpoints.search_photos import router as search_router
 
 load_dotenv()
 
 
 def create_app(
-    submit_ingest: Callable[[str, str, str], Awaitable[object]] | None = None,
+    submit_batch: Callable[[str], Awaitable[object]] | None = None,
+    submit_merge: Callable[[str, list[str]], Awaitable[object]] | None = None,
     execute_search: Callable[[str, bytes], Awaitable[object]] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Find Photos of Me - Processing Service", version="2.0.0")
-    app.state.submit_ingest = submit_ingest
+    app.state.submit_batch = submit_batch
+    app.state.submit_merge = submit_merge
     app.state.execute_search = execute_search
-    app.include_router(upload_router, prefix="/api", tags=["upload"])
+    app.include_router(batches_router, prefix="/api", tags=["photos"])
     app.include_router(search_router, prefix="/api", tags=["search"])
 
     @app.get("/")

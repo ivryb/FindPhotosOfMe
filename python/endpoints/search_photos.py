@@ -1,6 +1,5 @@
 """Selfie submission and face matching, with results stored in Convex."""
 
-import json
 import time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -8,6 +7,7 @@ from starlette.concurrency import run_in_threadpool
 
 from schemas.types import SearchResponse
 from security import require_service_token
+from services import face_index
 from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
 
@@ -42,15 +42,13 @@ def process_search(search_request_id: str, reference_data: bytes) -> dict:
         if not faces:
             convex.update_search_request(search_request_id, "error", error="no_face")
             raise NoFaceError("No face detected in reference photo")
-        data = R2StorageService().download_file(f"{collection_id}/embeddings.json")
-        if data is None:
-            raise ValueError("Face index not found")
-        embeddings = json.loads(data)
-        matches = face_service.find_matching_faces(faces[0]["embedding"], faces[0]["gender"], embeddings)
+        gallery = face_index.load(R2StorageService(), collection_id)
+        matches = gallery.match(faces[0]["embedding"], faces[0]["gender"])
+        photos = len(set(gallery.names.tolist()))
         convex.update_search_request(
             search_request_id, "complete",
-            images_found=[f"{collection_id}/{filename}" for filename, _ in matches],
-            total_images=len(embeddings), processed_images=len(embeddings),
+            images_found=[f"{collection_id}/{name}" for name, _ in matches],
+            total_images=photos, processed_images=photos,
         )
         return {"ok": True, "matches": len(matches)}
     except NoFaceError:

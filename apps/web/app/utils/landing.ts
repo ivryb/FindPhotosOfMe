@@ -6,9 +6,9 @@ export type FaqColumn = { title: string; items: Faq[] };
 const WHO_CAN_SEE = "can open its page, browse the photos, and search with a selfie. You can turn browsing off so people see only a few photos and find the rest with a selfie. Search matches the face in the submitted photo; it doesn’t check who that person is.";
 
 export const FAQ = {
-  upload: { q: "What do I upload, and how many photos can I add?", a: "ZIP files with JPEG or PNG photos. Each ZIP can be up to 2 GB with up to 10,000 files, and you can add more ZIPs later. New accounts start with free credit for about 500 photos and 50 searches. For more, top up your balance from $10; all your galleries share it. Use the calculator to estimate how much you need." },
+  upload: { q: "What do I upload, and how many photos can I add?", a: "JPEG or PNG photos, as ZIP files of any size or one by one, up to 50 MB per photo. You can add more later. New accounts start with free credit for about 500 photos and 50 searches. For more, top up your balance from $10; all your galleries share it. Use the calculator to estimate how much you need." },
   searches: { q: "What counts as a search?", a: "Each selfie someone checks against your photos is one search. Searches cost $1.50 per 100. The people searching never pay; the person uploading the photos covers the cost." },
-  processing: { q: "How long does processing take?", a: "It depends on how many photos you upload. Each ZIP shows its progress, and searching works as soon as it says Ready." },
+  processing: { q: "How long does processing take?", a: "Photos are processed while the rest are still uploading, many at a time, so it mostly depends on your connection. Each upload shows its progress, and photos can be found by search as soon as they’re processed." },
   online: { q: "How long does my event stay online?", a: "During the free trial, a gallery stays online for 7 days. After your first top-up, it stays online for 30 days. To keep it online longer, add 30 days at a time for $0.10 per GB of photos, paid from your balance." },
   whoCanSee: { q: "Who can see the photos?", a: `Anyone with the event link ${WHO_CAN_SEE}` },
   bot: { q: "How do I set up the Telegram bot?", a: "Create a bot with @BotFather in Telegram, copy its token, and paste it into your gallery’s Telegram bot settings. Then share the bot link along with your event link." },

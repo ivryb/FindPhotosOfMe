@@ -63,7 +63,17 @@ Galleries used to be bought one plan at a time; now every account has one balanc
 1. Create the top-up variant in Lemon Squeezy and set `LEMONSQUEEZY_TOP_UP_VARIANT_ID`. The old `LEMONSQUEEZY_EVENT_VARIANT_ID` and `LEMONSQUEEZY_LARGE_EVENT_VARIANT_ID` are no longer read.
 2. Deploy the Convex functions, then run `bunx convex run migrations:moveToBalance` from `packages/backend` (add `--prod` for production). Each paid gallery's unused photos become balance credit for its owner, and every gallery keeps its end date. Running it again changes nothing.
 3. Deploy Modal, then make thumbnails for photos uploaded before thumbnails existed: `modal run python/modal_app.py::backfill_thumbnails`. Until it finishes, the gallery grid shows the full photos in place of the missing thumbnails.
-4. Deploy the web app. Old `/admin/collections/<address>` links redirect to `/admin/galleries/<address>`.
+4. Right after deploying Modal and before deploying the web app, move the old face indexes to the new format: `modal run python/modal_app.py::convert_face_indexes`. Search reads only the new format, so older galleries find nothing until this has run. It must finish before uploads reopen with the new web app, because it rewrites the same index file that merges write. Running it again changes nothing.
+5. Deploy the web app. Old `/admin/collections/<address>` links redirect to `/admin/galleries/<address>`.
+
+### Photo uploads
+
+The browser now uploads each photo straight to R2 (it unpacks ZIPs itself), and up to ten Modal workers process them 50 at a time while the rest upload. See [the Python instructions](../python/README.md#execution).
+
+- The bucket's CORS policy must allow `PUT` from the site's origin with a `Content-Type` header. It already allows ZIP uploads this way; check that it isn't limited to `application/zip`.
+- Add an R2 lifecycle rule that deletes objects under `uploads/` after 7 days. Processed photos leave there within minutes; what stays is from uploads that stopped and were never added again.
+- Convex runs `uploads:recover` every two minutes (`convex/crons.ts`); it retries work whose worker went quiet.
+- Old ZIP jobs stay in the `ingestJobs` table, which nothing reads. Once they're deleted, the table can be removed from the schema.
 
 ### Launching before payments open
 

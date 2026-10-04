@@ -5,7 +5,7 @@ import type { MutationCtx } from "./_generated/server";
 import { components } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { authComponent } from "./auth";
-import { requireCollectionOwner, requireServiceToken } from "./authz";
+import { requireCollectionOwner } from "./authz";
 import {
   DAY,
   EXTENSION_DAYS,
@@ -59,11 +59,16 @@ export async function applyEntry(ctx: MutationCtx, entry: Entry) {
   return true;
 }
 
-/** Takes `cost` from the balance, or throws `message(credit)` when the balance can't cover it. The message reaches people as is. */
+/** Throws `message(credit)` unless the account can pay `cost`. Nothing is taken. The message reaches people as is. */
+export async function requireCredit(ctx: MutationCtx, userId: string, cost: number, message: (credit: number) => string) {
+  const balance = await balanceFor(ctx, userId);
+  if (balance.credit < cost) throw new ConvexError(message(balance.credit));
+}
+
+/** Takes `cost` from the balance, or throws `message(credit)` when the balance can't cover it. */
 export async function charge(ctx: MutationCtx, entry: Omit<Entry, "amount">, cost: number, message: (credit: number) => string) {
   if (entry.sourceId && (await findEntry(ctx, entry.sourceId, entry.reason))) return;
-  const balance = await balanceFor(ctx, entry.userId);
-  if (balance.credit < cost) throw new ConvexError(message(balance.credit));
+  await requireCredit(ctx, entry.userId, cost, message);
   await applyEntry(ctx, { ...entry, amount: -cost });
 }
 
@@ -85,17 +90,11 @@ export async function returnSearch(ctx: MutationCtx, request: Doc<"searchRequest
   await applyEntry(ctx, { userId: charged.userId, amount: -charged.amount, reason: "search_returned", collectionId: request.collectionId, sourceId: request._id });
 }
 
-/** One upload attempt; a retry is a new attempt and is charged again, a replay of the same attempt is not. */
-export const ingestAttempt = (job: Doc<"ingestJobs">) => `${job._id}#${job.attempt ?? 0}`;
-
-/** Returns what an upload attempt reserved, less the photos it kept. Kept photos stay paid for. */
-export async function settleIngest(ctx: MutationCtx, job: Doc<"ingestJobs">, savedImages: number) {
-  const attempt = ingestAttempt(job);
-  const reserved = await findEntry(ctx, attempt, "photos");
-  if (!reserved) return;
-  const returned = -reserved.amount - savedImages * PRICES.photo;
-  if (returned <= 0) return;
-  await applyEntry(ctx, { userId: reserved.userId, amount: returned, reason: "photos_returned", collectionId: job.collectionId, sourceId: attempt });
+/** Returns photos of a batch to its owner: those without faces, or all of them when the batch is given up. */
+export async function returnPhotos(ctx: MutationCtx, batch: Doc<"uploadBatches">, photos: number) {
+  const charged = await findEntry(ctx, batch._id, "photos");
+  if (!charged || !photos) return;
+  await applyEntry(ctx, { userId: charged.userId, amount: photos * PRICES.photo, reason: "photos_returned", collectionId: batch.collectionId, sourceId: batch._id });
 }
 
 export const mine = query({
@@ -106,26 +105,6 @@ export const mine = query({
     const balance = await ctx.db.query("balances").withIndex("by_user", (q) => q.eq("userId", user._id)).unique();
     // Before the balance opens, show the trial credit it will open with.
     return { credit: balance?.credit ?? TRIAL_CREDIT, paid: balance?.paid ?? false };
-  },
-});
-
-/** Reserves the photos in an upload before processing starts. Called by the processing service once it has counted them. */
-export const reserveIngestForService = mutation({
-  args: { jobId: v.id("ingestJobs"), images: v.number(), serviceToken: v.string() },
-  handler: async (ctx, { jobId, images, serviceToken }) => {
-    requireServiceToken(serviceToken);
-    const job = await ctx.db.get(jobId);
-    if (!job) throw new Error("Upload not found");
-    const collection = await ctx.db.get(job.collectionId);
-    if (!collection) throw new Error("Gallery not found");
-    if (!collection.createdBy) return;
-    const cost = images * PRICES.photo;
-    await charge(
-      ctx,
-      { userId: collection.createdBy, reason: "photos", collectionId: collection._id, sourceId: ingestAttempt(job) },
-      cost,
-      (credit) => `This ZIP has ${images.toLocaleString("en-US")} photos (${formatMoney(cost)}), but your balance is ${formatMoney(credit)}. Top up, then upload it again.`,
-    );
   },
 });
 

@@ -51,7 +51,24 @@ export function startBackend(port = 0) {
     title, description: "Owner-only description", imagesCount: 2742,
     status: "complete", previewImages: [], createdBy: "owner",
   });
-  const result = (path: string) => path === "ingestJobs:listByCollection" ? []
+  // Uploads the dashboard starts, the batches it registers, and the photos it puts in R2
+  const uploads: Array<Record<string, unknown> & { _id: string; sent: number }> = [];
+  const batches: Array<{ uploadId: string; first: number; names: string[] }> = [];
+  const putKeys: string[] = [];
+  function mutate(path: string, args: Record<string, any>) {
+    if (path === "uploads:start") {
+      const upload = { _id: `upload-${uploads.length + 1}`, _creationTime: Date.now(), ...args, sent: 0, processed: 0, saved: 0, failed: 0 };
+      uploads.unshift(upload);
+      return { uploadId: upload._id, sent: 0 };
+    }
+    if (path === "uploads:addBatch") {
+      batches.push(args as typeof batches[number]);
+      const upload = uploads.find((item) => item._id === args.uploadId)!;
+      upload.sent = args.first + args.names.length;
+    }
+    return null;
+  }
+  const result = (path: string) => path === "uploads:list" ? uploads
     : path === "collections:getAll" ? [collection()]
     : path === "balances:mine" ? { credit: 3250, paid: false }
     : path === "searchRequests:get" ? { _id: "fixture-search", collectionId: "test-collection", status: "complete", imagesFound: FOUND }
@@ -75,6 +92,7 @@ export function startBackend(port = 0) {
     if (request.headers.get("upgrade") === "websocket") {
       if (server.upgrade(request, { data: { version: { querySet: 0, identity: 0, ts: "AAAAAAAAAAA=" }, queries: new Map() } })) return;
     }
+    if (new URL(request.url).pathname === "/__fixture/uploads") return Response.json({ uploads, batches, putKeys });
     if (new URL(request.url).pathname === "/__fixture/title") {
       title = await request.text();
       for (const socket of sockets) transition(socket);
@@ -83,6 +101,14 @@ export function startBackend(port = 0) {
     const url = new URL(request.url);
     const path = url.pathname;
     if (path.replace(/\/$/, "") === "/r2/fixture-bucket" && url.searchParams.get("list-type") === "2") return listBucket(url);
+    // The browser puts photos straight into R2 with signed links, across origins like the real bucket.
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-methods": "PUT", "access-control-allow-headers": "content-type" };
+    if (path.startsWith("/r2/fixture-bucket/") && request.method === "OPTIONS") return new Response(null, { headers: cors });
+    if (path.startsWith("/r2/fixture-bucket/") && request.method === "PUT") {
+      await request.arrayBuffer();
+      putKeys.push(decodeURIComponent(path.slice("/r2/fixture-bucket/".length)));
+      return new Response(null, { headers: cors });
+    }
     if (path.startsWith("/r2/fixture-bucket/")) {
       const index = BUCKET_KEYS.indexOf(decodeURIComponent(path.slice("/r2/fixture-bucket/".length)));
       if (index < 0) return new Response("NoSuchKey", { status: 404 });
@@ -146,6 +172,14 @@ export function startBackend(port = 0) {
     message(socket: ServerWebSocket<SocketData>, raw: string | Buffer) {
       const message: ClientMessage = JSON.parse(raw.toString());
       if (message.type === "Authenticate") transition(socket, undefined, message.baseVersion + 1);
+      if (message.type === "Mutation") {
+        // The client resolves a mutation once it sees a transition at the mutation's timestamp, so one follows.
+        const ts = Buffer.alloc(8);
+        ts.writeBigUInt64LE(BigInt(timestamp + 1));
+        const value = mutate(message.udfPath, message.args[0] as Record<string, any>);
+        socket.send(JSON.stringify({ type: "MutationResponse", requestId: message.requestId, success: true, result: value, ts: ts.toString("base64"), logLines: [] }));
+        for (const each of sockets) transition(each);
+      }
       if (message.type === "ModifyQuerySet") {
         for (const modification of message.modifications) {
           if (modification.type === "Add") socket.data.queries.set(modification.queryId, modification.udfPath);

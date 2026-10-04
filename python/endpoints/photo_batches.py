@@ -1,0 +1,119 @@
+"""Processing of uploaded photos: one batch of up to 50 per call, and merging finished batches into a gallery's face index.
+
+Convex hands out the work (packages/backend/convex/uploads.ts) and retries a batch whose worker goes quiet, so both
+are safe to run twice: keys are fixed by Convex, and the first result for a batch is the one that counts.
+"""
+
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
+
+from security import require_service_token
+from services.convex_client import ConvexService
+from services.face_index import Faces, batch_key, index_key
+from services.r2_storage import R2StorageService
+from services.thumbnails import make_thumbnail, thumbnail_key
+
+router = APIRouter(dependencies=[Depends(require_service_token)])
+# Photos fetched from R2 at once while faces are found
+DOWNLOADS = 8
+
+
+class BatchRequest(BaseModel):
+    batch_id: str = Field(min_length=1)
+
+
+class MergeRequest(BaseModel):
+    collection_id: str = Field(min_length=1)
+    batch_ids: list[str] = Field(min_length=1)
+
+
+@router.post("/process-batch", status_code=202)
+async def submit_batch(body: BatchRequest, request: Request):
+    submit = request.app.state.submit_batch
+    await (submit(body.batch_id) if submit else run_in_threadpool(process_batch, body.batch_id))
+    return {"accepted": True}
+
+
+@router.post("/merge-faces", status_code=202)
+async def submit_merge(body: MergeRequest, request: Request):
+    submit = request.app.state.submit_merge
+    args = (body.collection_id, body.batch_ids)
+    await (submit(*args) if submit else run_in_threadpool(merge_faces, *args))
+    return {"accepted": True}
+
+
+def process_batch(batch_id: str) -> dict:
+    """Keeps the batch's photos that have faces, with thumbnails, writes their faces to the batch's own file, and
+    reports the photos it kept; the rest are refunded. The uploaded copies are deleted once Convex has the result."""
+    convex = ConvexService()
+    batch = convex.get_batch(batch_id)
+    if not batch or batch["status"] not in ("pending", "running"):
+        return {"ok": True, "skipped": True}
+    collection_id = batch["collectionId"]
+    photos = batch["photos"]
+    log(f"Batch {batch_id}: {len(photos)} photos for {collection_id}")
+    try:
+        r2 = R2StorageService()
+        from services.face_recognition_service import get_face_service
+        face_service = get_face_service()
+        found: dict[str, list[dict]] = {}
+        saved: list[str] = []
+        saved_bytes = 0
+        with ThreadPoolExecutor(DOWNLOADS) as pool:
+            # A few photos at a time: downloads outpace face finding, and 50 large photos at once don't fit in memory.
+            for start in range(0, len(photos), DOWNLOADS):
+                chunk = photos[start:start + DOWNLOADS]
+                images = list(pool.map(lambda photo: r2.download_file(photo["source"]), chunk))
+                # The browser registers a batch only once all its photos are uploaded, so a missing one means
+                # another worker finished this batch and cleared them. Writing now would replace its faces file.
+                if any(image is None for image in images):
+                    log(f"Batch {batch_id}: already finished by another worker")
+                    return {"ok": True, "skipped": True}
+                for photo, image in zip(chunk, images):
+                    faces = face_service.extract_embeddings(image)
+                    if not faces:
+                        continue
+                    name = photo["key"].split("/", 1)[1]
+                    thumbnail = make_thumbnail(image)
+                    if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), "image/jpeg") \
+                            or not r2.copy_file(photo["source"], photo["key"]):
+                        raise RuntimeError(f"Could not save {photo['key']}")
+                    found[name] = faces
+                    saved.append(photo["name"])
+                    saved_bytes += len(image) + len(thumbnail)
+        if found and not r2.upload_file(Faces.of(found).encode(), batch_key(collection_id, batch_id), "application/octet-stream"):
+            raise RuntimeError(f"Could not save the faces of batch {batch_id}")
+        convex.complete_batch(batch_id, saved, saved_bytes)
+    except Exception:
+        # Retried right away instead of after the wait for a worker that went quiet.
+        convex.fail_batch(batch_id, batch["attempt"])
+        raise
+    r2.delete_files([photo["source"] for photo in photos])
+    log(f"Batch {batch_id}: kept {len(saved)} of {len(photos)} photos")
+    return {"ok": True, "saved": len(saved)}
+
+
+def merge_faces(collection_id: str, batch_ids: list[str]) -> dict:
+    """Folds finished batches' face files into the gallery's index. Convex runs one merge per gallery at a time."""
+    r2 = R2StorageService()
+    keys = [batch_key(collection_id, batch_id) for batch_id in batch_ids]
+    with ThreadPoolExecutor(DOWNLOADS) as pool:
+        batches = [Faces.decode(data) for data in pool.map(r2.download_file, keys) if data]
+    existing = r2.download_file(index_key(collection_id))
+    index = Faces.decode(existing) if existing else Faces.empty()
+    merged = Faces.join([index.without({name for part in batches for name in part.names.tolist()}), *batches])
+    if not r2.upload_file(merged.encode(), index_key(collection_id), "application/octet-stream"):
+        raise RuntimeError(f"Could not save the face index of {collection_id}")
+    ConvexService().faces_merged(collection_id, batch_ids)
+    # Search reads batch files too, so they go only once Convex knows they're merged.
+    r2.delete_files(keys)
+    log(f"Merged {len(batches)} batch files into {collection_id}: {len(merged.names)} faces")
+    return {"ok": True, "faces": len(merged.names)}
+
+
+def log(message: str):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")

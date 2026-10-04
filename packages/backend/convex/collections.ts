@@ -15,7 +15,7 @@ import {
   requireServiceToken,
   requireUser,
 } from "./authz";
-import { balanceFor } from "./balances";
+import { balanceFor, returnPhotos } from "./balances";
 import { DAY, INCLUDED_DAYS, TRIAL_DAYS } from "./pricing";
 
 /** What anyone with the link may see. A gallery is public once it has photos, even while more are being added. */
@@ -36,13 +36,6 @@ function publicView(collection: Doc<"collections"> | null) {
     showAllPhotos: collection.showAllPhotos ?? true,
   };
 }
-
-const status = v.union(
-  v.literal("not_started"),
-  v.literal("processing"),
-  v.literal("complete"),
-  v.literal("error")
-);
 
 function normalizeSubdomain(value: string) {
   const subdomain = value.trim().toLowerCase();
@@ -141,19 +134,6 @@ export const getPublic = query({
   handler: async (ctx, { id }) => publicView(await ctx.db.get(id)),
 });
 
-export const isPublicPreview = query({
-  args: { key: v.string() },
-  handler: async (ctx, { key }) => {
-    const rawId = key.split("/", 1)[0];
-    const id = rawId ? ctx.db.normalizeId("collections", rawId) : null;
-    if (!id) return false;
-    const collection = await ctx.db.get(id);
-    return Boolean(
-      collection?.status === "complete" && collection.previewImages?.includes(key)
-    );
-  },
-});
-
 export const canManage = query({
   args: { id: v.id("collections") },
   handler: async (ctx, { id }) => {
@@ -203,30 +183,16 @@ export const deleteCollection = mutation({
       .query("searchRequests")
       .withIndex("by_collection", (q) => q.eq("collectionId", id))
       .collect();
-    const jobs = await ctx.db
-      .query("ingestJobs")
-      .withIndex("by_collection", (q) => q.eq("collectionId", id))
-      .collect();
-    await Promise.all([...searches, ...jobs].map((doc) => ctx.db.delete(doc._id)));
+    const uploads = await ctx.db.query("uploads").withIndex("by_collection", (q) => q.eq("collectionId", id)).collect();
+    const batches = (await Promise.all(uploads.map((upload) =>
+      ctx.db.query("uploadBatches").withIndex("by_upload", (q) => q.eq("uploadId", upload._id)).collect()))).flat();
+    // Photos still waiting to be processed were paid for when they arrived.
+    for (const batch of batches) {
+      if (batch.status === "pending" || batch.status === "running") await returnPhotos(ctx, batch, batch.names.length);
+    }
+    const jobs = await ctx.db.query("ingestJobs").withIndex("by_collection", (q) => q.eq("collectionId", id)).collect();
+    await Promise.all([...searches, ...uploads, ...batches, ...jobs].map((doc) => ctx.db.delete(doc._id)));
     await ctx.db.delete(id);
-  },
-});
-
-export const updateStatusForService = mutation({
-  args: { id: v.id("collections"), status, imagesCount: v.optional(v.number()), serviceToken: v.string() },
-  handler: async (ctx, { id, serviceToken, ...updates }) => {
-    requireServiceToken(serviceToken);
-    await ctx.db.patch(id, updates);
-  },
-});
-
-export const incrementImagesForService = mutation({
-  args: { id: v.id("collections"), increment: v.number(), serviceToken: v.string() },
-  handler: async (ctx, { id, increment, serviceToken }) => {
-    requireServiceToken(serviceToken);
-    const collection = await ctx.db.get(id);
-    if (!collection) throw new Error("Collection not found");
-    await ctx.db.patch(id, { imagesCount: collection.imagesCount + increment });
   },
 });
 
@@ -236,14 +202,6 @@ export const setStoredBytesForService = mutation({
   handler: async (ctx, { id, storedBytes, serviceToken }) => {
     requireServiceToken(serviceToken);
     await ctx.db.patch(id, { storedBytes });
-  },
-});
-
-export const setPreviewImagesForService = mutation({
-  args: { id: v.id("collections"), previewImages: v.array(v.string()), serviceToken: v.string() },
-  handler: async (ctx, { id, previewImages, serviceToken }) => {
-    requireServiceToken(serviceToken);
-    await ctx.db.patch(id, { previewImages: previewImages.slice(0, 50) });
   },
 });
 

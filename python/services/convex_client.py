@@ -14,49 +14,22 @@ class ConvexService:
             "id": collection_id, "serviceToken": self.service_token,
         })
 
-    def get_ingest_job(self, job_id: str) -> dict | None:
-        return self.client.query("ingestJobs:getForService", {
-            "id": job_id, "serviceToken": self.service_token,
+    def get_batch(self, batch_id: str) -> dict | None:
+        """The batch's status and photos: where each was uploaded, and its key in the gallery."""
+        return self.client.query("uploads:getBatchForService", {"id": batch_id, "serviceToken": self.service_token})
+
+    def complete_batch(self, batch_id: str, saved: list[str], saved_bytes: int):
+        """Reports the photos kept, by name; Convex refunds the rest."""
+        self.client.mutation("uploads:completeBatchForService", {
+            "id": batch_id, "saved": saved, "savedBytes": saved_bytes, "serviceToken": self.service_token,
         })
 
-    def update_collection_status(self, collection_id: str, status: str, images_count: int | None = None):
-        args = {"id": collection_id, "status": status, "serviceToken": self.service_token}
-        if images_count is not None:
-            args["imagesCount"] = images_count
-        self.client.mutation("collections:updateStatusForService", args)
+    def fail_batch(self, batch_id: str, attempt: int):
+        self.client.mutation("uploads:failBatchForService", {"id": batch_id, "attempt": attempt, "serviceToken": self.service_token})
 
-    def set_collection_preview_images(self, collection_id: str, preview_images: list[str]):
-        self.client.mutation("collections:setPreviewImagesForService", {
-            "id": collection_id, "previewImages": preview_images[:50],
-            "serviceToken": self.service_token,
-        })
-
-    def update_ingest_progress(self, job_id: str, *, total_images: int | None = None,
-                               processed_images: int | None = None, status: str | None = None):
-        args = {"id": job_id, "serviceToken": self.service_token}
-        if total_images is not None:
-            args["totalImages"] = total_images
-        if processed_images is not None:
-            args["processedImages"] = processed_images
-        if status is not None:
-            args["status"] = status
-        self.client.mutation("ingestJobs:updateProgress", args)
-
-    def mark_ingest_failed(self, job_id: str, error: str):
-        self.client.mutation("ingestJobs:markFailed", {
-            "id": job_id, "error": error, "serviceToken": self.service_token,
-        })
-
-    def reserve_ingest(self, job_id: str, images: int):
-        """Takes the photos from the owner's balance; raises when the balance can't cover them."""
-        self.client.mutation("balances:reserveIngestForService", {
-            "jobId": job_id, "images": images, "serviceToken": self.service_token,
-        })
-
-    def mark_ingest_completed(self, job_id: str, processed_images: int, saved_images: int, saved_bytes: int):
-        self.client.mutation("ingestJobs:markCompleted", {
-            "id": job_id, "processedImages": processed_images, "savedImages": saved_images,
-            "savedBytes": saved_bytes, "serviceToken": self.service_token,
+    def faces_merged(self, collection_id: str, batch_ids: list[str]):
+        self.client.mutation("uploads:facesMergedForService", {
+            "collectionId": collection_id, "batchIds": batch_ids, "serviceToken": self.service_token,
         })
 
     def set_stored_bytes(self, collection_id: str, stored_bytes: int):

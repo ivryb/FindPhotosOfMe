@@ -25,7 +25,7 @@ FindPhotosOfMe/
 
 ## Architecture Flow
 
-1. **Admin uploads collection** → Photos stored in R2 → Python service extracts embeddings → Stored in R2 as `{collectionId}/embeddings.json`
+1. **Owner uploads photos** → The browser unpacks ZIPs and puts photos in R2, registering them in Convex 50 at a time → Python workers process batches in parallel and write each batch's faces to `{collectionId}/faces/` → Merges fold them into `{collectionId}/faces/index.npz` (see `packages/backend/convex/uploads.ts`)
 2. **User searches** → Upload reference photo → Create search request in Convex → Python service compares embeddings → Returns matching photos
 3. **Results** → Convex tracks progress → Frontend subscribes to updates via reactive queries
 

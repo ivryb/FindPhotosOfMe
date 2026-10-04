@@ -5,7 +5,6 @@ import boto3
 from botocore.exceptions import ClientError
 from datetime import datetime
 from typing import Optional
-from pathlib import Path
 
 
 class R2StorageService:
@@ -78,23 +77,15 @@ class R2StorageService:
                 return None
             raise
 
-    def download_to_file(self, key: str, path: Path, *, max_bytes: int) -> None:
-        """Bound archive downloads without keeping the ZIP in memory."""
-        response = self.s3_client.get_object(Bucket=self.bucket_name, Key=key)
-        body = response['Body']
+    def copy_file(self, source: str, key: str) -> bool:
+        """Copies inside R2, so the photo's bytes don't pass through this worker."""
         try:
-            if response['ContentLength'] > max_bytes:
-                raise ValueError('Archive is larger than 2 GB')
-            total = 0
-            with path.open('wb') as output:
-                for chunk in body.iter_chunks(chunk_size=1024 * 1024):
-                    total += len(chunk)
-                    if total > max_bytes:
-                        raise ValueError('Archive is larger than 2 GB')
-                    output.write(chunk)
-        finally:
-            body.close()
-    
+            self.s3_client.copy_object(Bucket=self.bucket_name, Key=key, CopySource={'Bucket': self.bucket_name, 'Key': source})
+            return True
+        except ClientError as e:
+            print(f"[{self._get_time()}] Error copying {source} to {key}: {e}")
+            return False
+
     def list_objects(self, prefix: str) -> list:
         """List all objects in bucket with given prefix.
         
@@ -134,3 +125,9 @@ class R2StorageService:
         except ClientError as e:
             print(f"[{self._get_time()}] Error deleting {key}: {e}")
             return False
+
+    def delete_files(self, keys: list[str]) -> None:
+        """Deletes up to a thousand keys per request; missing keys are fine."""
+        for start in range(0, len(keys), 1000):
+            chunk = keys[start:start + 1000]
+            self.s3_client.delete_objects(Bucket=self.bucket_name, Delete={'Objects': [{'Key': key} for key in chunk], 'Quiet': True})
