@@ -59,6 +59,22 @@ A complete Google sign-in on production has not been reverified for this release
 Typechecking remains blocked by the existing Nuxt `DefineNuxtConfig` typing issue
 and reports the existing Volar `vue-router` plugin resolution warning.
 
+### Event previews and public attendee search (4 October 2026)
+
+Worker version `a49d9533-57c4-4599-9246-5d3740f27472` includes fixes `2c89a86`
+and `28abfba`. The Cloudflare bundle now resolves browser runtime mappings
+consistently, fixing the S3 initialization crash that broke event previews. The
+shared `honorable-firefly-904` deployment also accepts anonymous attendee
+searches. Organizer permissions and existing private searches remain protected;
+result downloads only authorize photos matched by the specified search.
+
+Verified all ten IT Arena previews in production, then uploaded a preview image
+through the signed-out browser flow, completed a search, and loaded its matched
+photo. The local Worker also returned 404 for a non-preview image. Eleven HTTP
+integration tests, the production build, and frontend/backend typechecks passed.
+The Nuxt configuration typing error is resolved; the existing Volar plugin
+resolution warning still appears without failing typechecking.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
