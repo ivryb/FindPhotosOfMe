@@ -33,6 +33,8 @@ export default {
   routeRules: {
     "/admin": { headers: { "cache-control": "private, no-store" } },
     "/admin/**": { headers: { "cache-control": "private, no-store" } },
+    // Galleries were called collections before; keep old dashboard links working
+    "/admin/collections/**": { redirect: "/admin/galleries/**" },
     "/api/admin/**": { headers: { "cache-control": "private, no-store" } },
     "/api/auth/**": { headers: { "cache-control": "private, no-store" } },
   },

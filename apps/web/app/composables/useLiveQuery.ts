@@ -5,24 +5,27 @@ import { useConvexClient } from "convex-vue";
 export function useLiveQuery<Query extends FunctionReference<"query">>(
   query: Query,
   args: FunctionArgs<Query>,
-  initial: Ref<FunctionReturnType<Query> | undefined>,
+  initial: Readonly<Ref<FunctionReturnType<Query> | undefined>>,
 ) {
   const client = useConvexClient();
   const authenticated = useState("convexAuthenticated", () => false);
-  const data = shallowRef(initial.value);
+  const live = shallowRef<FunctionReturnType<Query>>();
+  const delivered = ref(false);
   const error = shallowRef<Error>();
   onMounted(() => {
     watch(authenticated, (ready, _, onCleanup) => {
       if (!ready) return;
       const unsubscribe = client.onUpdate(query, args, (value) => {
-        data.value = value;
+        live.value = value;
         error.value = undefined;
+        delivered.value = true;
       }, (cause) => {
-        data.value = undefined;
+        live.value = undefined;
         error.value = cause;
+        delivered.value = true;
       });
       onCleanup(unsubscribe);
     }, { immediate: true });
   });
-  return { data, error };
+  return { data: computed(() => (delivered.value ? live.value : initial.value)), error };
 }

@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { requireActiveCollection, requireCollectionOwner, requireServiceToken } from "./authz";
 import { settleIngest } from "./balances";
@@ -13,7 +15,7 @@ const jobStatus = v.union(
   v.literal("canceled")
 );
 
-function newJob(collectionId: any, fileKey: string, filename: string, createdAt: number) {
+function newJob(collectionId: Id<"collections">, fileKey: string, filename: string, createdAt: number) {
   return {
     collectionId,
     fileKey,
@@ -42,33 +44,15 @@ export const getForService = query({
   },
 });
 
+/** Queues an uploaded ZIP and starts it right away unless another upload of this gallery is running. */
 export const create = mutation({
   args: { collectionId: v.id("collections"), fileKey: v.string(), filename: v.string() },
   handler: async (ctx, args) => {
     const { collection } = await requireCollectionOwner(ctx, args.collectionId);
     requireActiveCollection(collection);
-    return ctx.db.insert("ingestJobs", newJob(args.collectionId, args.fileKey, args.filename, Date.now()));
-  },
-});
-
-export const createBatch = mutation({
-  args: {
-    jobs: v.array(
-      v.object({ collectionId: v.id("collections"), fileKey: v.string(), filename: v.string() })
-    ),
-  },
-  handler: async (ctx, { jobs }) => {
-    if (!jobs.length || jobs.length > 20) throw new Error("Upload 1–20 archives at a time");
-    for (const collectionId of new Set(jobs.map((job) => job.collectionId))) {
-      const { collection } = await requireCollectionOwner(ctx, collectionId);
-      requireActiveCollection(collection);
-    }
-    const now = Date.now();
-    return Promise.all(
-      jobs.map((job) =>
-        ctx.db.insert("ingestJobs", newJob(job.collectionId, job.fileKey, job.filename, now))
-      )
-    );
+    const id = await ctx.db.insert("ingestJobs", newJob(args.collectionId, args.fileKey, args.filename, Date.now()));
+    await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId: args.collectionId });
+    return id;
   },
 });
 
@@ -78,32 +62,37 @@ export const updateProgress = mutation({
     serviceToken: v.string(),
     totalImages: v.optional(v.number()),
     processedImages: v.optional(v.number()),
-    status: v.optional(jobStatus),
-    error: v.optional(v.string()),
+    // Jobs finish only through markCompleted or markFailed, which settle what the upload reserved.
+    status: v.optional(v.literal("running")),
     workId: v.optional(v.string()),
   },
   handler: async (ctx, { id, serviceToken, ...values }) => {
     requireServiceToken(serviceToken);
-    const updates: Record<string, unknown> = { ...values };
-    if (values.status === "running") updates.startedAt = Date.now();
-    if (["completed", "failed", "canceled"].includes(values.status ?? "")) {
-      updates.finishedAt = Date.now();
-    }
-    await ctx.db.patch(id, updates);
+    await ctx.db.patch(id, { ...values, ...(values.status === "running" ? { startedAt: Date.now() } : {}) });
   },
 });
+
+/** Fails a job, returns what it reserved, and starts the gallery's next upload. */
+async function failJob(ctx: MutationCtx, id: Id<"ingestJobs">, error: string) {
+  const existing = await ctx.db.get(id);
+  if (!existing || existing.status === "completed" || existing.status === "canceled") return;
+  await ctx.db.patch(id, { status: "failed", error, finishedAt: Date.now() });
+  await settleIngest(ctx, existing, 0);
+  await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId: existing.collectionId });
+}
 
 export const markFailed = mutation({
   args: { id: v.id("ingestJobs"), error: v.string(), serviceToken: v.string() },
   handler: async (ctx, { id, error, serviceToken }) => {
     requireServiceToken(serviceToken);
-    const existing = await ctx.db.get(id);
-    if (!existing || existing.status === "completed" || existing.status === "canceled") return;
-    await ctx.db.patch(id, { status: "failed", error, finishedAt: Date.now() });
-    await settleIngest(ctx, existing, 0);
-    const job = await ctx.db.get(id);
-    if (job) await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId: job.collectionId });
+    await failJob(ctx, id, error);
   },
+});
+
+/** For a job the processing service never received, so it isn't left running and blocking the gallery's uploads. */
+export const markUndelivered = internalMutation({
+  args: { id: v.id("ingestJobs") },
+  handler: (ctx, { id }) => failJob(ctx, id, "Processing didn't start. Try again in a minute."),
 });
 
 export const markCompleted = mutation({
@@ -123,7 +112,9 @@ export const markCompleted = mutation({
     await ctx.db.patch(id, { status: "completed", processedImages, savedImages, finishedAt: Date.now() });
     await settleIngest(ctx, existing, savedImages);
     const collection = await ctx.db.get(existing.collectionId);
-    if (collection) await ctx.db.patch(collection._id, { storedBytes: (collection.storedBytes ?? 0) + savedBytes });
+    // Galleries from before sizes were recorded get their total from the thumbnail backfill; adding one upload's
+    // bytes to nothing would make their storage look tiny and their extensions nearly free.
+    if (collection?.storedBytes !== undefined) await ctx.db.patch(collection._id, { storedBytes: collection.storedBytes + savedBytes });
     const job = await ctx.db.get(id);
     if (job) await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId: job.collectionId });
   },

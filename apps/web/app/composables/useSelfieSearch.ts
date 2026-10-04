@@ -50,11 +50,9 @@ export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>) 
         state.value = request?.error === "no_face" ? { kind: "no_face", selfie } : { kind: "failed", selfie };
       }
     } catch (error) {
-      // 409 means the search was refused, such as when the gallery owner's balance is empty.
-      const refused = (error as { statusCode?: number }).statusCode === 409;
-      state.value = refused
-        ? { kind: "paused", message: (error as { statusMessage?: string }).statusMessage ?? "Searching is paused for this gallery." }
-        : { kind: "failed", selfie };
+      // A refused search, such as when the gallery owner's balance is empty, says why.
+      const message = refusal(error);
+      state.value = message ? { kind: "paused", message } : { kind: "failed", selfie };
     }
   }
 

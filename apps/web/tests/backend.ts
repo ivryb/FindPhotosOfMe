@@ -53,6 +53,7 @@ export function startBackend(port = 0) {
   });
   const result = (path: string) => path === "ingestJobs:listByCollection" ? []
     : path === "collections:getAll" ? [collection()]
+    : path === "balances:mine" ? { credit: 3250, paid: false }
     : path === "searchRequests:get" ? { _id: "fixture-search", collectionId: "test-collection", status: "complete", imagesFound: FOUND }
     : path === "collections:getPublicBySubdomain" ? publicGallery("test-collection")
     : collection();
@@ -135,8 +136,6 @@ export function startBackend(port = 0) {
       if (body.path === "collections:getPublic") return Response.json({ status: "success", value: publicGallery(body.args[0].id), logLines: [] });
       if (body.path === "searchRequests:authorizeImages") return Response.json({ status: "success", value: body.args[0].id === "fixture-search" && body.args[0].keys.every((key: string) => FOUND.includes(key)), logLines: [] });
       if (request.headers.get("authorization") !== `Bearer ${ownerJwt}`) return new Response(null, { status: 401 });
-      if (body.args?.[0]?.subdomain === "other-owner") return Response.json({ status: "error", errorMessage: "Not authorized", logLines: [] });
-      if (body.args?.[0]?.subdomain === "missing") return Response.json({ status: "success", value: null, logLines: [] });
       return Response.json({ status: "success", value: result(body.path), logLines: [] });
     }
     return new Response("Not found", { status: 404 });

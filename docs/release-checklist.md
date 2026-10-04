@@ -40,8 +40,7 @@ Create or select the production Convex deployment, then configure:
 | `GOOGLE_CLIENT_SECRET` | Google OAuth web-client secret |
 | `LEMONSQUEEZY_STORE_ID` | Dedicated FindPhotosOfMe store: `444807` |
 | `LEMONSQUEEZY_PRODUCT_ID` | Test: `1264917`; production: create after store activation |
-| `LEMONSQUEEZY_EVENT_VARIANT_ID` | Test: `1977595`; production: create after store activation |
-| `LEMONSQUEEZY_LARGE_EVENT_VARIANT_ID` | Test: `1977598`; production: create after store activation |
+| `LEMONSQUEEZY_TOP_UP_VARIANT_ID` | Pay-what-you-want "Balance top-up" variant; checkout sets the price. Create it in test and live mode |
 | `LEMONSQUEEZY_API_KEY` | Dedicated FindPhotosOfMe API key |
 | `LEMONSQUEEZY_WEBHOOK_SECRET` | Random 6–40 character signing secret |
 | `LEMONSQUEEZY_TEST_MODE` | `true` in preview, `false` in production |
@@ -56,6 +55,15 @@ Create or select the production Convex deployment, then configure:
 `CONVEX_SITE_URL` is supplied by Convex. Verify that it matches the production deployment used for the auth callback.
 
 Deploy the Convex functions only after these variables are set. Run the one-time legacy ownership claim, verify its result, then remove `LEGACY_OWNER_EMAIL` if the migration no longer needs it.
+
+### Moving to the shared balance
+
+Galleries used to be bought one plan at a time; now every account has one balance in dollars. On each deployment, once:
+
+1. Create the top-up variant in Lemon Squeezy and set `LEMONSQUEEZY_TOP_UP_VARIANT_ID`. The old `LEMONSQUEEZY_EVENT_VARIANT_ID` and `LEMONSQUEEZY_LARGE_EVENT_VARIANT_ID` are no longer read.
+2. Deploy the Convex functions, then run `bunx convex run migrations:moveToBalance` from `packages/backend` (add `--prod` for production). Each paid gallery's unused photos become balance credit for its owner, and every gallery keeps its end date. Running it again changes nothing.
+3. Deploy Modal, then make thumbnails for photos uploaded before thumbnails existed: `modal run python/modal_app.py::backfill_thumbnails`. Until it finishes, the gallery grid shows the full photos in place of the missing thumbnails.
+4. Deploy the web app. Old `/admin/collections/<address>` links redirect to `/admin/galleries/<address>`.
 
 ## 3. Google Auth Platform
 
@@ -139,7 +147,7 @@ Use a non-production event and two unrelated accounts:
 
 - Request and redeem an email OTP; verify expiry, retry limits, and invalid-code handling.
 - Sign in with Google and verify return to `/admin`.
-- Upgrade one demo collection through Lemon Squeezy and verify the webhook activates only that collection.
+- Top up a balance through Lemon Squeezy and verify the webhook credits only that account; refund it and verify the credit is taken back.
 - Create or claim a collection as organizer A.
 - Confirm organizer B cannot view its admin data, request uploads, or inspect its jobs.
 - Upload individual images and an archive; reject invalid type, oversized file, oversized archive, and path traversal attempts.

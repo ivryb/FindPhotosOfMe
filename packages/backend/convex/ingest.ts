@@ -1,8 +1,7 @@
 import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
-import { internalAction, mutation } from "./_generated/server";
-import { requireCollectionOwner } from "./authz";
+import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
 export const dispatchNextForCollection = internalAction({
@@ -25,17 +24,13 @@ export const dispatchNextForCollection = internalAction({
         collection_id: claim.collectionId,
         file_key: claim.fileKey,
       }),
-    });
+    }).catch(() => undefined);
 
-    if (!response.ok) throw new Error(`Processing service returned ${response.status}`);
+    // A claimed job the service never got would stay running and block the gallery's later uploads.
+    if (!response?.ok) {
+      await ctx.runMutation(internal.ingestJobs.markUndelivered, { id: claim._id });
+      return { dispatched: false };
+    }
     return { dispatched: true, jobId: claim._id };
-  },
-});
-
-export const requestNextForCollection = mutation({
-  args: { collectionId: v.id("collections") },
-  handler: async (ctx, { collectionId }) => {
-    await requireCollectionOwner(ctx, collectionId);
-    await ctx.scheduler.runAfter(0, internal.ingest.dispatchNextForCollection, { collectionId });
   },
 });

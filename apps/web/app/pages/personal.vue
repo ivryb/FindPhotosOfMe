@@ -38,7 +38,7 @@ useSeoMeta({
       :columns="[
         { title: 'Uploading', items: [
           FAQ.upload, FAQ.searches, FAQ.processing,
-          { q: 'Who can see my photos?', a: 'Only people you share the link with. They can open the page, see the preview photos you chose, and search with a selfie.' },
+          { q: 'Who can see my photos?', a: 'Only people you share the link with. They can open the page, browse the photos, and search with a selfie. You can turn browsing off so they see only a few photos.' },
           ask(FAQ.online, 'How long do my photos stay online?'),
         ] },
         { title: 'Searching', items: [

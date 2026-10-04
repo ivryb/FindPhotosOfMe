@@ -1,4 +1,5 @@
-import type { Id } from "./_generated/dataModel";
+import { ConvexError } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
 import { authComponent } from "./auth";
 
 export async function requireUser(ctx: any) {
@@ -32,11 +33,11 @@ export function requireServiceToken(token: string) {
   if (!expected || token !== expected) throw new Error("Not authorized");
 }
 
-export function requireActiveCollection(collection: any) {
+export function requireActiveCollection(collection: Doc<"collections">) {
   if (collection.paymentStatus === "refunded") {
-    throw new Error("This gallery was refunded and is no longer active");
+    throw new ConvexError("This gallery was refunded and is no longer active.");
   }
   if (collection.expiresAt && collection.expiresAt <= Date.now()) {
-    throw new Error("This gallery is no longer online");
+    throw new ConvexError("This gallery is offline.");
   }
 }

@@ -38,7 +38,7 @@ test("logout expires the cookie and cross-origin writes are rejected", async () 
 test("Google callback sets the app cookie and returns to a local page only in the initiating browser", async () => {
   const start = await fetch(`${origin}/api/auth/sign-in/social`, {
     method: "POST", headers: { origin, "content-type": "application/json" },
-    body: JSON.stringify({ provider: "google", callbackURL: `${origin}/auth/callback?redirect=/admin/collections/itarena` }),
+    body: JSON.stringify({ provider: "google", callbackURL: `${origin}/auth/callback?redirect=/admin/galleries/itarena` }),
   });
   const { url } = await start.json();
   const callback = new URL(url);
@@ -49,43 +49,47 @@ test("Google callback sets the app cookie and returns to a local page only in th
     redirect: "manual", headers: { cookie: start.headers.getSetCookie().map(value => value.split(";")[0]).join("; ") },
   });
   expect(result.status).toBe(302);
-  expect(result.headers.get("location")).toBe("/admin/collections/itarena");
+  expect(result.headers.get("location")).toBe("/admin/galleries/itarena");
   expect(result.headers.get("set-cookie")).toContain(sessionCookie);
   expect(result.headers.get("cache-control")).toContain("no-store");
 });
 
-for (const page of ["/admin", "/admin/collections/itarena"]) {
+for (const page of ["/admin", "/admin/galleries/itarena"]) {
   test(`${page} redirects anonymous requests before rendering private content`, async () => {
     const response = await fetch(`${origin}${page}`, { redirect: "manual" });
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toContain("/sign-in?redirect=");
     expect(await response.text()).not.toContain("Owner-only description");
   });
-  test(`${page} includes the owner's collections in initial HTML`, async () => {
-    const response = await fetch(`${origin}${page}`, { headers: { cookie: sessionCookie } });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toContain("no-store");
-    const html = await response.text();
-    expect(html).toContain("IT Arena SSR fixture");
-    expect(html).not.toContain("No collections yet.");
-    expect(html).not.toContain(ownerJwt);
-    expect(html).not.toContain("test-session");
-  });
 }
 
-test("expired sessions redirect and a different owner's detail never appears in HTML", async () => {
+test("the dashboard opens the owner's newest gallery, and old collection links still work", async () => {
+  const front = await fetch(`${origin}/admin`, { redirect: "manual", headers: { cookie: sessionCookie } });
+  expect(front.status).toBe(302);
+  expect(front.headers.get("location")).toBe("/admin/galleries/itarena");
+  const old = await fetch(`${origin}/admin/collections/itarena`, { redirect: "manual" });
+  expect(old.headers.get("location")).toBe("/admin/galleries/itarena");
+});
+
+test("a gallery's dashboard includes the owner's galleries and balance in initial HTML", async () => {
+  const response = await fetch(`${origin}/admin/galleries/itarena`, { headers: { cookie: sessionCookie } });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  const html = await response.text();
+  expect(html).toContain("IT Arena SSR fixture");
+  expect(html).toContain("$3.25");
+  expect(html).not.toContain(ownerJwt);
+  expect(html).not.toContain("test-session");
+});
+
+test("expired sessions redirect, and galleries the owner doesn't have are not found", async () => {
   const expired = await fetch(`${origin}/admin`, {
     redirect: "manual", headers: { cookie: "__Secure-better-auth.session_token=expired" },
   });
   expect(expired.status).toBe(302);
-  const forbidden = await fetch(`${origin}/admin/collections/other-owner`, { headers: { cookie: sessionCookie } });
-  expect(forbidden.status).toBeGreaterThanOrEqual(400);
-  const apiResponse = await fetch(`${origin}/api/admin/collections/other-owner`, { headers: { cookie: sessionCookie } });
-  expect(apiResponse.status).toBeGreaterThanOrEqual(400);
-  expect(await apiResponse.text()).not.toContain("Owner-only description");
-  expect(await forbidden.text()).not.toContain("Owner-only description");
-  const missing = await fetch(`${origin}/admin/collections/missing`, { headers: { cookie: sessionCookie } });
-  expect(await missing.text()).toContain("collection Not Found");
+  const missing = await fetch(`${origin}/admin/galleries/other-owner`, { headers: { cookie: sessionCookie } });
+  expect(missing.status).toBe(404);
+  expect(await missing.text()).toContain("Gallery not found");
 });
 
 test("callback rejects expired handoffs and external redirect destinations", async () => {

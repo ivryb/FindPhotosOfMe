@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { useR2 } from "../../utils/r2";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
@@ -25,8 +26,10 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    await convex.query(api.collections.canUpload, {
-      id: body.collectionId as Id<"collections">,
+    // A refused upload (the gallery is offline or refunded) comes back as a ConvexError meant for people.
+    await convex.query(api.collections.canUpload, { id: body.collectionId as Id<"collections"> }).catch((error) => {
+      if (error instanceof ConvexError) throw createError({ statusCode: 409, statusMessage: String(error.data) });
+      throw error;
     });
     if (!key.startsWith(`uploads/${body.collectionId}/`)) {
       throw createError({ statusCode: 400, statusMessage: "Invalid upload path" });
@@ -53,6 +56,7 @@ export default defineEventHandler(async (event) => {
     };
   } catch (error: any) {
     console.error(`[${now}] Error generating presign upload URL:`, error);
+    if (isError(error)) throw error;
     throw createError({
       statusCode: error.$metadata?.httpStatusCode || 500,
       statusMessage: error.message || "Failed to generate presigned upload URL",

@@ -1,5 +1,5 @@
 import { telegramWebhookSecret } from "../telegram";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { api, internal } from "./_generated/api";
 import {
@@ -47,7 +47,7 @@ const status = v.union(
 function normalizeSubdomain(value: string) {
   const subdomain = value.trim().toLowerCase();
   if (!/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(subdomain)) {
-    throw new Error("Use 3–63 lowercase letters, numbers, or hyphens");
+    throw new ConvexError("Use 3–63 lowercase letters, numbers, or hyphens");
   }
   return subdomain;
 }
@@ -57,7 +57,7 @@ async function ensureSubdomainAvailable(ctx: any, subdomain: string, exceptId?: 
     .query("collections")
     .withIndex("by_subdomain", (q: any) => q.eq("subdomain", subdomain))
     .first();
-  if (existing && existing._id !== exceptId) throw new Error("That gallery address is already in use");
+  if (existing && existing._id !== exceptId) throw new ConvexError("That gallery address is already in use");
 }
 
 export const get = query({
@@ -92,6 +92,7 @@ export const create = mutation({
       subdomain,
       status: "not_started",
       imagesCount: 0,
+      storedBytes: 0,
       expiresAt: Date.now() + (paid ? INCLUDED_DAYS : TRIAL_DAYS) * DAY,
       trial: paid ? undefined : true,
       previewImages: [],
@@ -104,11 +105,10 @@ export const getAll = query({
   args: {},
   handler: async (ctx) => {
     const user = await requireUser(ctx);
-    const collections = await ctx.db.query("collections").order("desc").collect();
-    const isLegacyOwner = user.email === process.env.LEGACY_OWNER_EMAIL;
-    return collections.filter(
-      (collection) => collection.createdBy === user._id || (!collection.createdBy && isLegacyOwner)
-    );
+    const owned = await ctx.db.query("collections").withIndex("by_created_by", (q) => q.eq("createdBy", user._id)).order("desc").collect();
+    if (user.email !== process.env.LEGACY_OWNER_EMAIL) return owned;
+    const unclaimed = await ctx.db.query("collections").withIndex("by_created_by", (q) => q.eq("createdBy", undefined)).order("desc").collect();
+    return [...owned, ...unclaimed];
   },
 });
 

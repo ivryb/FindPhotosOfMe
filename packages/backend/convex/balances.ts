@@ -120,7 +120,7 @@ export const extendStorage = mutation({
   args: { id: v.id("collections") },
   handler: async (ctx, { id }) => {
     const { user, collection } = await requireCollectionOwner(ctx, id);
-    if (collection.paymentStatus === "refunded") throw new Error("This gallery was refunded and can't be extended");
+    if (collection.paymentStatus === "refunded") throw new ConvexError("This gallery was refunded and can't be kept online.");
     const cost = extensionCost(collection);
     await charge(ctx, { userId: user._id, reason: "storage", collectionId: id }, cost,
       (credit) => `Another ${EXTENSION_DAYS} days costs ${formatMoney(cost)}, but your balance is ${formatMoney(credit)}.`);
