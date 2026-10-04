@@ -17,7 +17,6 @@ useSeoMeta({
 });
 useHead({ bodyAttrs: { style: "background: #151515" } });
 
-const count = new Intl.NumberFormat("en-US");
 const { photos, loadMore, loading, done, failed } = useGalleryPhotos(() => current.value._id);
 onMounted(loadMore);
 // Galleries that show only previews have just those to browse; search still covers every photo.

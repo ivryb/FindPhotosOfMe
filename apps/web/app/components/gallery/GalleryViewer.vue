@@ -12,7 +12,6 @@ const emit = defineEmits<{ more: [] }>();
 
 const photo = computed(() => props.photos[index.value]);
 const sharp = ref(false);
-const count = new Intl.NumberFormat("en-US");
 
 function go(step: number) {
   const next = index.value + step;

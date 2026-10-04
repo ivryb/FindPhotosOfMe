@@ -16,7 +16,7 @@ const open = ref(false);
 const picker = useTemplateRef("picker");
 const camera = useTemplateRef("camera");
 const dragging = ref(false);
-const total = computed(() => new Intl.NumberFormat("en-US").format(props.total));
+const total = computed(() => count.format(props.total));
 
 const selfie = computed(() => ("selfie" in state.value ? state.value.selfie : undefined));
 const canPick = computed(() => ["idle", "none", "no_face", "unreadable", "failed"].includes(state.value.kind));

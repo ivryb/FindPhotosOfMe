@@ -6,6 +6,7 @@ import {
   DeleteObjectsCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { DAY } from "@FindPhotosOfMe/backend/convex/pricing";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
 import type { H3Event } from "h3";
@@ -184,13 +185,17 @@ class R2Service {
     return { keys, next: page.IsTruncated && last ? last.slice(prefix.length) : null };
   }
 
-  /** Links to a photo's thumbnail, full size, and a download of it. They work for an hour. */
+  /**
+   * Links to a photo's thumbnail, full size, and a download of it. Signed as of the start of the UTC day,
+   * so they work for one to two days (long enough for a tab left open) and stay the same all day, so browsers cache them.
+   */
   async photoLinks(key: string): Promise<GalleryPhoto> {
     this.initializeClient();
     const Bucket = this.getBucket();
     const slash = key.indexOf("/");
     const name = key.slice(slash + 1);
-    const sign = (command: GetObjectCommand) => getSignedUrl(this.client!, command, { expiresIn: 3600 });
+    const signingDate = new Date(Math.floor(Date.now() / DAY) * DAY);
+    const sign = (command: GetObjectCommand) => getSignedUrl(this.client!, command, { expiresIn: 2 * DAY / 1000, signingDate });
     const [thumb, full, download] = await Promise.all([
       sign(new GetObjectCommand({ Bucket, Key: `${key.slice(0, slash)}/thumbs/${name}` })),
       sign(new GetObjectCommand({ Bucket, Key: key })),
