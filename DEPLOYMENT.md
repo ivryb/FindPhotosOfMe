@@ -109,6 +109,14 @@ Fixed during the release: R2 listings failed on Workers because the SDK's browse
 its image lacks, taking search and uploads down for about 15 minutes; and the thumbnail backfill stopped at the
 index backup, which it now skips as a non-photo.
 
+### Photos through the edge cache (4 October 2026)
+
+Worker version `7e4ed51e-3f36-462b-aa68-585ed5db17e8` serves photos from `/media` with signed links, reading R2
+through the `PHOTOS` binding and keeping copies in the edge cache; Modal now writes WebP thumbnails. The account is
+on Workers Paid, which every photo view now counts against. Measured from Hong Kong against the EEUR bucket: cached
+views were as fast as a request the Worker answers without any work (about 0.15–0.25 s after connecting), and first
+views added about 0.6 s, mostly distance to the bucket. Forged links get 403, and downloads come as attachments.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:

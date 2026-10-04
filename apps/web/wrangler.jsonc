@@ -9,5 +9,7 @@
     { "pattern": "findphotosofme.com/*", "zone_id": "087e5025719045bfa3e3c8c418b1378a" },
     { "pattern": "*.findphotosofme.com/*", "zone_id": "087e5025719045bfa3e3c8c418b1378a" }
   ],
+  // /media reads photos through this binding, which is much faster than R2's S3 API (server/routes/media)
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "find-photos-of-me" }],
   "observability": { "enabled": true }
 }

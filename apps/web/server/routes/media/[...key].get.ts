@@ -1,5 +1,10 @@
+import type { H3Event } from "h3";
+
 // Serves a photo or thumbnail from R2 for a signed link (see server/utils/media.ts), through Cloudflare's
 // edge cache: the first view in a region reads R2, later ones come from the cache.
+
+type Photo = { stream: ReadableStream; contentType: string; contentLength?: number };
+type Bucket = { get(key: string): Promise<{ body: ReadableStream; size: number; httpMetadata?: { contentType?: string } } | null> };
 
 export default defineEventHandler(async (event) => {
   const key = decodeURIComponent(getRouterParam(event, "key") ?? "");
@@ -15,9 +20,8 @@ export default defineEventHandler(async (event) => {
   const cached = await cache?.match(request);
   if (cached) return cached;
 
-  const photo = await useR2(event).getObjectStream(key).catch(() => {
-    throw createError({ statusCode: 404, statusMessage: "Photo not found" });
-  });
+  const photo = await readPhoto(event, key);
+  if (!photo) throw createError({ statusCode: 404, statusMessage: "Photo not found" });
   const name = key.slice(key.lastIndexOf("/") + 1);
   const response = new Response(photo.stream, {
     headers: {
@@ -31,3 +35,11 @@ export default defineEventHandler(async (event) => {
   if (cache) event.waitUntil(cache.put(request, response.clone()));
   return response;
 });
+
+/** On Workers through the PHOTOS binding (wrangler.jsonc); development and tests read through R2's S3 API. */
+async function readPhoto(event: H3Event, key: string): Promise<Photo | undefined> {
+  const bucket: Bucket | undefined = event.context.cloudflare?.env?.PHOTOS;
+  if (!bucket) return useR2(event).getObjectStream(key).catch(() => undefined);
+  const object = await bucket.get(key);
+  return object ? { stream: object.body, contentType: object.httpMetadata?.contentType ?? "application/octet-stream", contentLength: object.size } : undefined;
+}
