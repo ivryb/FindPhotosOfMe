@@ -9,6 +9,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
 import type { H3Event } from "h3";
+import type { GalleryPhoto } from "#shared/types/gallery";
 
 class R2Service {
   private client: S3Client | null = null;
@@ -32,11 +33,13 @@ class R2Service {
       });
     }
 
-    const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
+    const endpoint = (config.r2Endpoint as string) || `https://${accountId}.r2.cloudflarestorage.com`;
 
     this.client = new S3Client({
       region: "auto",
       endpoint,
+      // R2 supports bucket-in-path URLs, which also work against the tests' local fake.
+      forcePathStyle: true,
       // Nitro's Workers adapter cannot use the SDK's default Node HTTPS transport.
       requestHandler: new FetchHttpHandler(),
       credentials: {
@@ -162,42 +165,38 @@ class R2Service {
     return await getSignedUrl(this.client!, command, { expiresIn });
   }
 
-  async getSignedUrlWithResponse(
-    objectKey: string,
-    opts?: {
-      filename?: string;
-      contentType?: string;
-      expiresIn?: number;
-      cacheSeconds?: number;
-      contentDisposition?: "inline" | "attachment";
-    }
-  ): Promise<string> {
+  /**
+   * One page of a gallery's photos in key order, after the photo named `after`.
+   * Thumbnails sit in a subfolder and the face index is skipped, so only photos come back.
+   */
+  async listPhotos(collectionId: string, after: string | undefined, limit: number) {
     this.initializeClient();
-    const bucket = this.getBucket();
+    const prefix = `${collectionId}/`;
+    const page = await this.client!.send(new ListObjectsV2Command({
+      Bucket: this.getBucket(),
+      Prefix: prefix,
+      Delimiter: "/",
+      StartAfter: after ? prefix + after : undefined,
+      MaxKeys: limit,
+    }));
+    const keys = (page.Contents ?? []).flatMap(({ Key }) => (Key && Key !== `${prefix}embeddings.json` ? [Key] : []));
+    const last = page.Contents?.at(-1)?.Key;
+    return { keys, next: page.IsTruncated && last ? last.slice(prefix.length) : null };
+  }
 
-    const expiresIn = opts?.expiresIn ?? 300;
-    const contentType = opts?.contentType ?? "image/jpeg";
-    const filename =
-      opts?.filename ?? objectKey.split("/").pop() ?? "photo.jpg";
-    const disposition = opts?.contentDisposition ?? "inline";
-    const cacheControl =
-      typeof opts?.cacheSeconds === "number"
-        ? `public, max-age=${opts!.cacheSeconds}`
-        : undefined;
-
-    const command = new GetObjectCommand({
-      Bucket: bucket,
-      Key: objectKey,
-      ResponseContentType: contentType,
-      ResponseContentDisposition: `${disposition}; filename="${filename}"`,
-      ...(cacheControl ? { ResponseCacheControl: cacheControl } : {}),
-    });
-
-    const url = await getSignedUrl(this.client!, command, { expiresIn });
-    console.log(
-      `[${new Date().toISOString()}] Generated signed URL with response overrides (key: ${objectKey}, expiresIn: ${expiresIn}, disposition: ${disposition})`
-    );
-    return url;
+  /** Links to a photo's thumbnail, full size, and a download of it. They work for an hour. */
+  async photoLinks(key: string): Promise<GalleryPhoto> {
+    this.initializeClient();
+    const Bucket = this.getBucket();
+    const slash = key.indexOf("/");
+    const name = key.slice(slash + 1);
+    const sign = (command: GetObjectCommand) => getSignedUrl(this.client!, command, { expiresIn: 3600 });
+    const [thumb, full, download] = await Promise.all([
+      sign(new GetObjectCommand({ Bucket, Key: `${key.slice(0, slash)}/thumbs/${name}` })),
+      sign(new GetObjectCommand({ Bucket, Key: key })),
+      sign(new GetObjectCommand({ Bucket, Key: key, ResponseContentDisposition: `attachment; filename="${name}"` })),
+    ]);
+    return { key, thumb, full, download };
   }
 }
 

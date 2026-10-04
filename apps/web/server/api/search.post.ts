@@ -1,5 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
+import { ConvexError } from "convex/values";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -20,7 +22,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 413, statusMessage: "Photo must be 10 MB or smaller" });
   }
 
-  const requestId = await convex.mutation(api.searchRequests.create, { collectionId: collectionId as any });
+  // A refused search (no photos yet, or the owner's balance is empty) comes back as a ConvexError meant for people.
+  const requestId = await convex.mutation(api.searchRequests.create, { collectionId: collectionId as Id<"collections"> })
+    .catch((error) => {
+      if (error instanceof ConvexError) throw createError({ statusCode: 409, statusMessage: String(error.data) });
+      throw error;
+    });
 
   const body = new FormData();
   body.append("search_request_id", requestId);
@@ -29,13 +36,12 @@ export default defineEventHandler(async (event) => {
     new Blob([new Uint8Array(photo.data)], { type: photo.type }),
     photo.filename || "photo.jpg"
   );
-  const response = await fetch(`${config.pythonApiUrl}/api/search-photos`, {
+  // The search service records every outcome on the request, including why it failed, and the page reads it there.
+  // A request it never reached stays pending, which the page also treats as failed.
+  await fetch(`${config.pythonApiUrl}/api/search-photos`, {
     method: "POST",
     headers: { Authorization: `Bearer ${config.serviceToken}` },
     body,
-  });
-  if (!response.ok) {
-    throw createError({ statusCode: 502, statusMessage: "Face search service failed to start" });
-  }
+  }).catch(() => undefined);
   return { requestId };
 });

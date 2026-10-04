@@ -69,6 +69,8 @@ export default {
     r2BucketName: "",
     r2AccessKeyId: "",
     r2SecretAccessKey: "",
+    // Only tests set this, to point at their fake R2; otherwise the account's R2 endpoint is used.
+    r2Endpoint: "",
     public: {
       origin: "",
       convexUrl: "",

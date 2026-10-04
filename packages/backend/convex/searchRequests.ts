@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { authComponent } from "./auth";
 import type { Doc } from "./_generated/dataModel";
@@ -31,7 +31,7 @@ export const create = mutation({
   args: { collectionId: v.id("collections") },
   handler: async (ctx, { collectionId }) => {
     const collection = await ctx.db.get(collectionId);
-    if (!collection || !collection.imagesCount) throw new Error("This gallery has no photos yet");
+    if (!collection || !collection.imagesCount) throw new ConvexError("This gallery has no photos yet");
     requireActiveCollection(collection);
     const requestId = await ctx.db.insert("searchRequests", {
       collectionId,

@@ -15,6 +15,7 @@ export default defineNuxtConfig({
     r2BucketName: "fixture-bucket",
     r2AccessKeyId: "fixture-access-key",
     r2SecretAccessKey: "fixture-secret",
+    r2Endpoint: `${process.env.TEST_BACKEND_URL}/r2`,
     public: {
       convexUrl: process.env.TEST_BACKEND_URL,
       convexSiteUrl: process.env.TEST_BACKEND_URL,

@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
+from convex import ConvexError
+
 from security import require_service_token
 from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
@@ -126,7 +128,9 @@ def process_ingest_job(job_id: str, collection_id: str, file_key: str) -> dict:
             return {"ok": True, "status": "completed"}
         # Keep the source archive on failure; the existing Retry action needs it.
         convex.update_collection_status(collection_id, "error")
-        convex.mark_ingest_failed(job_id, str(exc))
+        # Convex hides plain error messages in production; a ConvexError carries the message meant for people.
+        message = exc.data if isinstance(exc, ConvexError) and isinstance(exc.data, str) else str(exc)
+        convex.mark_ingest_failed(job_id, message)
         raise
 
     # Completion is durable before deleting the only source archive.

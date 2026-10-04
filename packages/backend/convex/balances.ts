@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -45,11 +45,11 @@ export async function applyEntry(ctx: MutationCtx, entry: Entry) {
   return true;
 }
 
-/** Takes `cost` from the balance, or throws `message(credit)` when the balance can't cover it. */
+/** Takes `cost` from the balance, or throws `message(credit)` when the balance can't cover it. The message reaches people as is. */
 export async function charge(ctx: MutationCtx, entry: Omit<Entry, "amount">, cost: number, message: (credit: number) => string) {
   if (entry.sourceId && (await findEntry(ctx, entry.sourceId, entry.reason))) return;
   const balance = await balanceFor(ctx, entry.userId);
-  if (balance.credit < cost) throw new Error(message(balance.credit));
+  if (balance.credit < cost) throw new ConvexError(message(balance.credit));
   await applyEntry(ctx, { ...entry, amount: -cost });
 }
 

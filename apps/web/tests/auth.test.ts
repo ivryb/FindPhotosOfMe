@@ -1,32 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 
-import { startBackend, sessionCookie, ownerJwt } from "./backend";
+import { startApp } from "./app";
+import { sessionCookie, ownerJwt } from "./backend";
 
-const backend = startBackend();
 const origin = "http://localhost:3212";
-let server: ReturnType<typeof Bun.spawn>;
+let app: Awaited<ReturnType<typeof startApp>>;
 
 beforeAll(async () => {
-  server = Bun.spawn(["bun", "x", "nuxt", "dev", "tests", "--port", "3212", "--dotenv", "/dev/null"], {
-    cwd: new URL("..", import.meta.url).pathname,
-    env: { ...process.env, TEST_BACKEND_URL: backend.url.href.replace(/\/$/, "") },
-    stdout: Bun.file("/tmp/findphotos-auth-tests.log"),
-    stderr: Bun.file("/tmp/findphotos-auth-tests.log"),
-  });
-  for (let attempt = 0; attempt < 120; attempt++) {
-    try {
-      const response = await fetch(`${origin}/sign-in`);
-      if (response.ok) return;
-    } catch {}
-    await Bun.sleep(500);
-  }
-  throw new Error("Nuxt did not start; see /tmp/findphotos-auth-tests.log");
+  app = await startApp(3212);
 }, 90000);
 
-afterAll(() => {
-  server?.kill();
-  backend.stop(true);
-});
+afterAll(() => app?.stop());
 
 test("email sign-in sets an HttpOnly session cookie on the app origin", async () => {
   const response = await fetch(`${origin}/api/auth/sign-in/email-otp`, {
@@ -121,11 +105,12 @@ test("callback rejects expired handoffs and external redirect destinations", asy
 });
 
 
-test("attendees can upload a selfie and start a search without signing in", async () => {
+test("attendees can open a gallery and start a search without signing in", async () => {
   const page = await fetch(`${origin}/search?subdomain=itarena`);
   expect(page.status).toBe(200);
   const html = await page.text();
-  expect(html).toContain('id="photo-upload"');
+  expect(html).toContain("IT Arena SSR fixture");
+  expect(html).toContain("Find photos with you");
   expect(html).not.toContain("Sign in first");
   const body = new FormData();
   body.append("collection_id", "test-collection");
@@ -135,13 +120,25 @@ test("attendees can upload a selfie and start a search without signing in", asyn
   expect(await response.json()).toEqual({ requestId: "fixture-search" });
 });
 
+test("a search the gallery owner can't pay for is refused with a readable reason", async () => {
+  const body = new FormData();
+  body.append("collection_id", "paused-collection");
+  body.append("reference_photo", new Blob(["fixture-image"], { type: "image/jpeg" }), "selfie.jpg");
+  const response = await fetch(`${origin}/api/search`, { method: "POST", body });
+  expect(response.status).toBe(409);
+  expect((await response.json()).statusMessage).toBe("Searching is paused for this gallery. Please ask its owner to top up.");
+});
+
 test("anonymous result downloads only authorize photos from that search", async () => {
   const authorize = (keys: string[]) => fetch(`${origin}/api/r2/authorize`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ requestId: "fixture-search", keys }),
   });
-  const result = await authorize(["test-collection/match.jpg"]);
+  const result = await authorize(["test-collection/photo-007.jpg"]);
   expect(result.status).toBe(200);
-  expect((await result.json()).urls[0]).toContain("test-collection/match.jpg");
-  expect((await authorize(["test-collection/unmatched.jpg"])).status).toBe(403);
+  const [photo] = (await result.json()).photos;
+  expect(photo.full).toContain("test-collection/photo-007.jpg");
+  expect(photo.thumb).toContain("test-collection/thumbs/photo-007.jpg");
+  expect(photo.download).toContain("attachment");
+  expect((await authorize(["test-collection/photo-008.jpg"])).status).toBe(403);
 });
