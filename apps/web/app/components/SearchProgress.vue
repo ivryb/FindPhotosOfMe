@@ -59,11 +59,8 @@ watch(
   () => [searchRequest.value?.status, ...(foundPhotos.value ?? [])],
   async () => {
     if (searchRequest.value?.status !== "complete" || !foundPhotos.value.length) return;
-    const token = await getConvexAuthToken();
-    if (!token) return;
     const result = await $fetch<{ urls: string[] }>("/api/r2/authorize", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
       body: { requestId: props.searchRequestId, keys: foundPhotos.value },
     });
     signedPhotoUrls.value = result.urls;

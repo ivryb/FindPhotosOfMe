@@ -119,3 +119,29 @@ test("callback rejects expired handoffs and external redirect destinations", asy
   const result = await fetch(callback, { redirect: "manual", headers: { cookie } });
   expect(result.headers.get("location")).toBe("/admin");
 });
+
+
+test("attendees can upload a selfie and start a search without signing in", async () => {
+  const page = await fetch(`${origin}/search?subdomain=itarena`);
+  expect(page.status).toBe(200);
+  const html = await page.text();
+  expect(html).toContain('id="photo-upload"');
+  expect(html).not.toContain("Sign in first");
+  const body = new FormData();
+  body.append("collection_id", "test-collection");
+  body.append("reference_photo", new Blob(["fixture-image"], { type: "image/jpeg" }), "selfie.jpg");
+  const response = await fetch(`${origin}/api/search`, { method: "POST", body });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ requestId: "fixture-search" });
+});
+
+test("anonymous result downloads only authorize photos from that search", async () => {
+  const authorize = (keys: string[]) => fetch(`${origin}/api/r2/authorize`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: "fixture-search", keys }),
+  });
+  const result = await authorize(["test-collection/match.jpg"]);
+  expect(result.status).toBe(200);
+  expect((await result.json()).urls[0]).toContain("test-collection/match.jpg");
+  expect((await authorize(["test-collection/unmatched.jpg"])).status).toBe(403);
+});

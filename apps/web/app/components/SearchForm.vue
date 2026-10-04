@@ -18,9 +18,6 @@ const props = defineProps<{
   collectionId: Id<"collections">;
 }>();
 
-const route = useRoute();
-const session = useAuthClient().useSession();
-
 const selectedFile = ref<File | null>(null);
 const previewUrl = ref<string | null>(null);
 const isUploading = ref(false);
@@ -69,18 +66,12 @@ async function startSearch() {
   error.value = null;
 
   try {
-    const token = await getConvexAuthToken();
-    if (!token) {
-      await navigateTo({ path: "/sign-in", query: { redirect: route.fullPath } });
-      return;
-    }
     const formData = new FormData();
     formData.append("collection_id", props.collectionId);
     formData.append("reference_photo", selectedFile.value);
 
     const response = await fetch("/api/search", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
 
@@ -128,11 +119,7 @@ function resetForm() {
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div v-if="!session.data?.session" class="rounded-lg border p-4 text-sm">
-          Sign in first so your face search and results stay private.
-          <Button class="mt-3 w-full" @click="navigateTo('/sign-in')">Sign in</Button>
-        </div>
-        <div v-else class="space-y-2">
+        <div class="space-y-2">
           <Label for="photo-upload">Your Photo</Label>
           <Input
             id="photo-upload"
@@ -147,7 +134,7 @@ function resetForm() {
         </div>
 
         <!-- Preview -->
-        <div v-if="session.data?.session && previewUrl" class="space-y-2">
+        <div v-if="previewUrl" class="space-y-2">
           <Label>Preview</Label>
           <div class="relative inline-block">
             <img
@@ -173,7 +160,7 @@ function resetForm() {
         </div>
 
         <!-- Action Buttons -->
-        <div v-if="session.data?.session" class="flex gap-2">
+        <div class="flex gap-2">
           <Button
             @click="startSearch"
             :disabled="!selectedFile || isUploading"

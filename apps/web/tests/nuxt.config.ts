@@ -9,6 +9,12 @@ export default defineNuxtConfig({
   nitro: { preset: "node-server" },
   convex: { url: process.env.TEST_BACKEND_URL },
   runtimeConfig: {
+    pythonApiUrl: process.env.TEST_BACKEND_URL,
+    serviceToken: "fixture-service-token",
+    r2AccountId: "fixture-account",
+    r2BucketName: "fixture-bucket",
+    r2AccessKeyId: "fixture-access-key",
+    r2SecretAccessKey: "fixture-secret",
     public: {
       convexUrl: process.env.TEST_BACKEND_URL,
       convexSiteUrl: process.env.TEST_BACKEND_URL,

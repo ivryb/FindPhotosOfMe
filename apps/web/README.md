@@ -41,7 +41,7 @@ The browser uses Better Auth through the same-origin `/api/auth/**` proxy. Sessi
 
 Google still calls the existing Convex OAuth callback. Its one-time token returns through `/auth/callback`, which checks the initiating browser, exchanges the token, sets the app's cookies, and redirects to the requested local page. Localhost and production keep separate cookies and use the same Convex deployment. Existing localStorage sessions require signing in once after this change.
 
-The two admin pages use `useFetch` for their initial owner-authorized data and `useLiveQuery` for subsequent updates. The live subscription starts once Convex confirms authentication and preserves the initial data while connecting. Admin and auth responses use `private, no-store`. Existing upload/search endpoints still accept bearer tokens from `getConvexAuthToken()`.
+The two admin pages use `useFetch` for their initial owner-authorized data and `useLiveQuery` for subsequent updates. The live subscription starts once Convex confirms authentication and preserves the initial data while connecting. Admin and auth responses use `private, no-store`. Organizer upload endpoints still require bearer tokens from `getConvexAuthToken()`. Attendee selfie upload, search progress, and result downloads are public. New searches can be read by their request ID; existing private and Telegram searches retain their access checks. Download URLs are only issued for photos in that completed search.
 
 Run `bun test apps/web/tests/auth.test.ts` from the repository root. This starts Nuxt on port 3212 against an isolated HTTP/WebSocket Convex fixture and checks auth cookies, callback redirects, unauthorized requests, and the initial HTML of both admin pages. It does not modify the shared deployment.
 

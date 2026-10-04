@@ -1,10 +1,11 @@
+import { ConvexHttpClient } from "convex/browser";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export default defineEventHandler(async (event) => {
-  const convex = getAuthenticatedConvex(event);
+  const convex = new ConvexHttpClient(useRuntimeConfig(event).public.convexUrl);
   const config = useRuntimeConfig(event);
   if (!config.pythonApiUrl || !config.serviceToken) {
     throw createError({ statusCode: 500, statusMessage: "Face search is not configured" });

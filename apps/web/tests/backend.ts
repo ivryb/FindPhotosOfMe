@@ -72,9 +72,22 @@ export function startBackend(port = 0) {
       user: { id: "owner", email: "owner@example.com", name: "Owner" },
     } : null);
     if (path === "/api/auth/convex/token") return Response.json(signedIn ? { token: ownerJwt } : {}, { status: signedIn ? 200 : 401 });
-    if (path === "/api/query") {
-      if (request.headers.get("authorization") !== `Bearer ${ownerJwt}`) return new Response(null, { status: 401 });
+    if (path === "/api/mutation") {
       const body = await request.json();
+      if (body.path === "searchRequests:create") return Response.json({ status: "success", value: "fixture-search", logLines: [] });
+    }
+    if (path === "/api/search-photos") {
+      const form = await request.formData();
+      if (request.headers.get("authorization") !== "Bearer fixture-service-token" || form.get("search_request_id") !== "fixture-search" || !form.get("reference_photo")) {
+        return new Response("Invalid search", { status: 400 });
+      }
+      return Response.json({ success: true });
+    }
+    if (path === "/api/query") {
+      const body = await request.json();
+      if (body.path === "collections:getPublicBySubdomain") return Response.json({ status: "success", value: collection(), logLines: [] });
+      if (body.path === "searchRequests:authorizeImages") return Response.json({ status: "success", value: body.args[0].id === "fixture-search" && body.args[0].keys.every((key: string) => key === "test-collection/match.jpg"), logLines: [] });
+      if (request.headers.get("authorization") !== `Bearer ${ownerJwt}`) return new Response(null, { status: 401 });
       if (body.args?.[0]?.subdomain === "other-owner") return Response.json({ status: "error", errorMessage: "Not authorized", logLines: [] });
       if (body.args?.[0]?.subdomain === "missing") return Response.json({ status: "success", value: null, logLines: [] });
       return Response.json({ status: "success", value: result(body.path), logLines: [] });

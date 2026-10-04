@@ -1,13 +1,23 @@
 import { v } from "convex/values";
 
+import { authComponent } from "./auth";
+import type { Doc } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import {
   requireActiveCollection,
   requireCollectionOwner,
   requireServiceToken,
-  requireUser,
 } from "./authz";
+
+async function canReadRequest(ctx: QueryCtx, request: Doc<"searchRequests">) {
+  // Only new attendee searches are public; existing private and Telegram searches stay private.
+  if (request.publicAccess) return true;
+  if (!request.requesterId) return false;
+  const user = await authComponent.safeGetAuthUser(ctx);
+  return user?._id === request.requesterId;
+}
 
 const searchStatus = v.union(
   v.literal("pending"),
@@ -19,12 +29,12 @@ const searchStatus = v.union(
 export const create = mutation({
   args: { collectionId: v.id("collections") },
   handler: async (ctx, { collectionId }) => {
-    const [user, collection] = await Promise.all([requireUser(ctx), ctx.db.get(collectionId)]);
+    const collection = await ctx.db.get(collectionId);
     if (!collection || collection.status !== "complete") throw new Error("Event is not ready");
     requireActiveCollection(collection);
     return ctx.db.insert("searchRequests", {
       collectionId,
-      requesterId: user._id,
+      publicAccess: true,
       status: "pending",
       imagesFound: [],
     });
@@ -61,9 +71,8 @@ export const createForService = mutation({
 export const get = query({
   args: { id: v.id("searchRequests") },
   handler: async (ctx, { id }) => {
-    const user = await requireUser(ctx);
     const request = await ctx.db.get(id);
-    if (!request || request.requesterId !== user._id) return null;
+    if (!request || !(await canReadRequest(ctx, request))) return null;
     return request;
   },
 });
@@ -95,9 +104,8 @@ export const authorizeImages = query({
   args: { id: v.id("searchRequests"), keys: v.array(v.string()) },
   handler: async (ctx, { id, keys }) => {
     if (keys.length > 200) throw new Error("Too many images requested");
-    const user = await requireUser(ctx);
     const request = await ctx.db.get(id);
-    if (!request || request.requesterId !== user._id || request.status !== "complete") {
+    if (!request || !(await canReadRequest(ctx, request)) || request.status !== "complete") {
       throw new Error("Not authorized");
     }
     const allowed = new Set(request.imagesFound);

@@ -42,6 +42,7 @@ export default defineSchema({
   searchRequests: defineTable({
     collectionId: v.id("collections"),
     requesterId: v.optional(v.string()),
+    publicAccess: v.optional(v.boolean()),
     status: v.union(
       v.literal("pending"),
       v.literal("processing"),
