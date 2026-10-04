@@ -25,7 +25,8 @@ const redirectTo = computed(() => {
 async function signInWithGoogle() {
   await authClient.signIn.social({
     provider: "google",
-    callbackURL: redirectTo.value,
+    // Relative callbacks resolve against the shared backend's production SITE_URL.
+    callbackURL: new URL(redirectTo.value, window.location.origin).href,
   });
 }
 
