@@ -1,64 +1,44 @@
-# Portfolio launch
+# Product and billing
 
 ## Product and pricing
 
-The simplest sellable unit is one event, not a subscription. Attendees search free; organizers or photographers pay to host and process a collection.
+Organizers or photographers pay once per event. Attendee search is free. Keep seats and team billing out of launch scope. Personal find-and-export jobs and ongoing archives are distinct proposed offers; archive subscriptions need their own storage and renewal behavior.
 
-Initial pricing to test:
+The pricing direction selected on 4 October is **one calculator with a $10 minimum payment**, replacing the fixed paid plans on the landing pages. The purchase will use a custom-priced checkout in the dedicated FindPhotosOfMe Lemon Squeezy store. The ink contact-sheet calculator design is selected; custom checkout and its entitlements are the next implementation step.
 
-- Demo — free, up to 250 photos, expires after 7 days.
-- Event — $49, up to 5,000 photos, available for 60 days.
-- Large event — $149, up to 20,000 photos, available for 90 days.
-- Larger or recurring use — talk to us.
+The free-trial proposal remains 500 submitted photos / 2 GB, 50 searches, and seven days, with one active trial per account and 500 total trial submissions. Photo and byte limits both apply; attendees never pay. These trial terms are not yet implemented entitlements.
 
-Payments use one hidden Lemon Squeezy product, `FindPhotosOfMe — Event Photo Search`,
-with one-time Event and Large Event variants in the dedicated FindPhotosOfMe store
-`444807`. Test mode uses product `1264917` (`1977595` / `1977598`). Create the
-matching live product only after Lemon Squeezy approves the new store for Live mode.
-The free demo is created directly in the app and does not go through checkout. A signed
-`order_created` webhook activates the purchased collection; full refunds revoke its paid
-entitlement and partial refunds are recorded for review.
+The calculator's draft rates are $0.005 per uploaded photo, $0.015 per selfie search, and $0.10/GB per additional 30 days beyond the first included 30 days. It estimates storage at 5 MB/photo and offers 30 or 90 days. The estimate is `max(10, photos × 0.005 + searches × 0.015 + estimated GB × 0.10 × (days / 30 − 1))`. The $10 minimum applies to the total payment, not an additional fee.
 
-This is positioning, not proven unit economics. Before accepting payment, benchmark one 5,000-photo ingest and 100 searches, measure Cloud Run CPU/RAM time and R2 storage/egress, then preserve at least an 80% gross margin. Do not add subscription or billing tables until a real customer needs recurring billing.
+The landing section uses one calculator: ink controls beside a yellow price panel, topped by a grid of tiles that shows the photo count (one tile per 100 photos). The rates live in `apps/web/app/utils/pricing.ts`. Before wiring checkout, settle how estimated usage becomes purchased capacity and how actual file sizes, additional searches, and extensions affect the charge. No automatic usage billing is implemented by this preview.
 
-## Infrastructure decision
+The [3 October analysis](pricing-cost-analysis.md) uses the earlier $19/100-photo proposal; its cost assumptions remain a reference, not the current offer. The analysis includes 100–500,000-photo scenarios, 100–5,000 searches, 30/90-day retention, recurring archive pricing, payment contribution, and a [runnable cost model](pricing-cost-model.py). Public provider rates are verified; processing times, photo sizes and workload usage remain assumptions. Confirm them against representative Modal workloads and account bills, and include model licensing before finalizing prices. Do not price permanent retention from a one-time event payment or allocate shared provider credits separately to every customer.
 
-Keep the current architecture for launch:
+The implemented photo limits and availability periods live in [collections.create](../packages/backend/convex/collections.ts) for the demo and [PLANS](../packages/backend/convex/payments.ts) for paid events. Review those values with the price decision. Demo availability starts at event creation; paid availability starts at purchase. Neither clock waits for the organizer to finish uploading.
 
-- Nuxt on Vercel.
-- Auth and application data on Convex.
-- Original photos, embeddings, and archives in Cloudflare R2.
-- InsightFace/ONNX Python service on Cloud Run, scaling to zero.
+Availability expiry is not automatic deletion. The proposed policy starts paid availability when a ready event is published, with a deadline to publish and a disclosed seven-day recovery window after expiry. This differs from current behavior. Agree on retention, deletion, and refund terms, then verify that the application enforces what the offer promises. Personal archives additionally require keeping photos without detected faces; the current importer discards them. Large individual libraries need indexing, memory and result-capacity validation before sale.
 
-In the July 2026 Google Cloud invoice, the project cost $3.157479: $2.612525 Artifact Registry, $0.529686 tax, and $0.015268 Cloud Storage. Artifact Registry held 26.631688 GiB-month. The Python compute itself did not create a material charge.
+## Billing rules
 
-Migrating the model service now would trade a small, understood bill for deployment work and a new cold-start/reliability profile. First delete old images and add an Artifact Registry cleanup policy that keeps the latest 3 versions per package. At Google's current $0.10/GiB-month above the 0.5 GiB free tier, shrinking the repository to roughly 2–4 GiB should make the registry bill negligible.
+Use only the dedicated FindPhotosOfMe Lemon Squeezy store. Keep its products, credentials, and webhooks separate from other projects, including Listenly.
 
-Reconsider Cloud Run only after measured event workloads exceed its free tier or cold starts damage the user experience. A migration benchmark must include model image size, startup time, at least 2 GiB RAM, AVX-capable CPU, request duration, concurrency, and outbound traffic—not just the provider's headline monthly price.
+The [backend environment example](../packages/backend/.env.example) lists the required billing variables. Read the configured environment and provider account for current store, product, and variant IDs. Historical test IDs do not establish the live configuration or store approval status.
 
-## Public launch boundaries
+The current [payment implementation](../packages/backend/convex/payments.ts) does the following:
 
-- Every organizer event is owned by a Better Auth user.
-- Public event queries expose only title, description, photo count, and selected preview keys.
-- Reference-photo search requires sign-in; search status and results are requester-owned.
-- Private result images use 15-minute R2 signed URLs.
-- Upload signing requires event ownership and an event-scoped object key.
-- The Python API accepts only a shared server token and is no longer callable from browsers.
-- Uploads are limited to supported image types/10 MB; archives have compressed, expanded-size, and file-count limits.
-- Descriptions render as text, closing the stored-HTML injection path.
-- The bucket-wide delete endpoint and client-forgeable admin cookie are removed.
+- An event owner requests checkout for the Event or Large Event variant. Checkout carries the event and owner identifiers.
+- A signed paid-order webhook grants the plan after the handler checks the configured store, product, variant, and event owner. The checkout redirect does not grant access.
+- Repeated notifications for the same order reuse its stored record.
+- A full refund marks the event as refunded. A partial refund updates the order record and keeps the event's entitlement.
 
-## Required configuration before release
+Existing paid events cannot purchase another plan through the current checkout action. Upgrades and renewals need a product decision before the UI offers them.
 
-Use `docs/release-checklist.md` for the exact dashboard variables and validation order.
+## Before accepting live payments
 
-1. Configure the environment variables in each `.env.example`; use one generated `SERVICE_TOKEN` across Nuxt, Convex, and Python.
-2. In Google OAuth, add the Better Auth callback shown by the deployed Convex auth routes and set the production site origin.
-3. Set `LEGACY_OWNER_EMAIL` once so the existing unowned event can be claimed by the intended account.
-4. Onboard the sending domain in Cloudflare Email Service, create a token with Email Sending: Edit, and configure the Cloudflare email variables in Convex. Sending OTPs to arbitrary users requires the Workers Paid plan; it includes 3,000 outbound emails per month.
-5. Add the Artifact Registry cleanup policy after reviewing the repository with an account that has `artifactregistry.repositories.list` and update/delete permissions.
-6. Run the complete organizer and attendee journeys against a non-production test event before deployment.
+Confirm the dedicated store's live approval, product prices, currency, variants, webhook destination, and signing secret. Keep test and live configuration separate and verify that events from the wrong environment cannot grant live access.
 
-## Deliberately not added yet
+Use test orders to verify successful activation, repeated delivery, invalid signatures, wrong store or variant, and ownership mismatches. Test full and partial refunds, expiry, photo limits, and access to prior results after expiry or refund. Record the outcomes rather than treating the presence of a handler as proof that billing works.
 
-Organizations, team membership, recurring subscriptions, and seats are not needed for a one-owner, pay-per-event launch. Add them when the first real workflow requires team access or recurring billing; otherwise they are expensive furniture in an empty room.
+Finish the organizer and attendee journey, resolve model licensing, and publish the agreed contact, privacy, retention, and refund information before enabling paid self-service.
+
+For hosting and service configuration, read [DEPLOYMENT.md](../DEPLOYMENT.md).

@@ -10,7 +10,7 @@ For Railway, begin with a 4 GiB memory ceiling and up to 2 vCPU as an experiment
 
 **Cloudflare Containers is a credible third candidate**, especially if consolidating providers is the priority. Ordinary Workers are not a drop-in host for the current native Python/ONNX Docker image. Containers can run the image, but add Worker/Durable Object routing and lifecycle work. Prefer an isolated feasibility benchmark before committing to an all-Cloudflare design.
 
-The current Google bill does not establish a cost-saving case for migration. The older [portfolio note](portfolio-launch.md) records July 2026 spending of $3.157479, mostly Artifact Registry ($2.612525). This is historical repository evidence, not a newly verified invoice. Ivan's current preference to leave Google Cloud supersedes that note's earlier recommendation to stay.
+The original assessment used July 2026 Google Cloud spending of $3.157479, mostly Artifact Registry at $2.612525. Those costs describe the retired infrastructure. For the completed migration and cleanup, read the [Modal handoff](modal-handoff.md).
 
 ## What the code actually needs
 

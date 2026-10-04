@@ -1,10 +1,10 @@
 # FindPhotosOfMe launch work
 
-Updated 2 October 2026. This thread coordinates the landing-page exploration and hosting decisions. Current priority: choose a clear visual direction and turn it into a complete organizer offering. Convex and R2 stay. Ivan's preference to investigate leaving Vercel and Google Cloud supersedes the earlier keep-current-hosts recommendation in `portfolio-launch.md`; no hosting choice or production cutover has yet been approved.
+Historical plan from 2 October 2026, before the hosting migration. Use [DEPLOYMENT.md](../DEPLOYMENT.md) for the current setup, the [landing-page brief](landing-page-brief.md) for design work, and [Product and billing](portfolio-launch.md) for the commercial offer. The sequence and findings below record the earlier assessment.
 
 ## Review package
 
-- [Landing-page brief](landing-page-brief.md): positioning, copy library, section sequence, audiences, typography, three visual directions, and a later dashboard brief.
+- [Landing-page brief](landing-page-brief.md): the current offer, design references, product claims, and release checks.
 - [Design comparison](../design/landing/index.html): three local Claude Code prototypes, each isolated from the application. Run `python3 -m http.server 4318 --bind 127.0.0.1 --directory design/landing` from the repository root and open `http://127.0.0.1:4318/`.
 - [Python hosting options](python-hosting-options.md): seven-provider comparison with workload assumptions and source-backed prices. Shortlist Railway and Modal; consider Cloudflare Containers if provider consolidation is more valuable than the extra integration work.
 - [Cloudflare assessment](cloudflare-migration-assessment.md): Nuxt/Workers compatibility, Telegram lifecycle changes, preview hostnames, costs, and a staged plan.
