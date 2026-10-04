@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FindPhotosOfMe for personal use: filter a pile of photos by face</title>
+<meta name="description" content="Add a folder of photos and a picture of someone’s face. Get back every photo they’re in.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body id="top">
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="combined.html">FindPhotosOfMe</a>
+    <nav aria-label="Main">
+      <a href="organizers.html">Event organizers</a>
+      <a href="photographers.html">Photographers</a>
+      <a href="personal.html" aria-current="page">Personal use</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#questions">Questions</a>
+    </nav>
+    <a class="btn btn-sm" href="#pricing">Try it free</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <h1>Filter a pile of photos by face</h1>
+      <p class="lede">Add a folder of photos and a picture of someone’s face. Get back every photo they’re in.</p>
+      <div class="hero-actions">
+        <a class="btn" href="#pricing">Try it free</a>
+        <a class="btn btn-line" href="#how">See how it works</a>
+      </div>
+      <ul class="ticks">
+        <li>100 photos free</li>
+        <li>No app to install</li>
+        <li>No subscription</li>
+      </ul>
+
+      <div class="search" data-state="idle" data-pile="All photos" data-add-face="Add a face" data-face="Face" data-looking="Looking for this face" data-found="photos with this face" role="img" aria-label="A photo of a face is added, every photo in the pile is checked for it, and only the 8 photos with that face remain.">
+        <div class="search-bar" aria-hidden="true">
+          <p><span class="search-label">All photos</span><span class="search-count">5,214 photos</span></p>
+          <div class="search-face"><span class="search-face-label">Add a face</span><i class="search-slot"><img src="assets/face.jpg" alt=""></i></div>
+        </div>
+        <div class="search-grid" aria-hidden="true"></div>
+      </div>
+      <p class="demo-note">Example search with sample photos and counts.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="uses">
+    <div class="wrap">
+      <div class="head-row">
+        <h2>Any pile of photos with people in it</h2>
+        <p>Find one person in thousands of photos, or share a link so everyone can find themselves.</p>
+      </div>
+      <ul class="uses">
+        <li><b>Your wedding album</b><span>Send each guest a link to the photos they’re in.</span></li>
+        <li><b>Years of family photos</b><span>Pull out every photo of your grandmother.</span></li>
+        <li><b>A trip with friends</b><span>Everyone gets their own photos, not the whole camera roll.</span></li>
+        <li><b>Your kid’s football season</b><span>Find your kid in every team photo and match shot.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec ink how-ink" id="how">
+    <div class="wrap">
+      <div class="head-row">
+        <h2>How it works</h2>
+        <p>Upload the photos, then show it the face you’re looking for.</p>
+      </div>
+      <ol class="steps">
+        <li class="step">
+          <div class="step-art" aria-hidden="true">
+              <div class="mock upload" data-phase="idle">
+              <div class="upload-head"><b>All photos</b><span class="upload-count">0 photos</span></div>
+              <div class="upload-zone">
+                <p class="upload-hint">Drop ZIP files here</p>
+                <div class="upload-tiles"></div>
+                <div class="upload-drag"><img src="assets/t08.jpg" alt=""><img src="assets/u06.jpg" alt=""><img src="assets/t13.jpg" alt=""><span class="upload-badge">5,214</span><svg class="upload-cursor" viewBox="0 0 16 22" aria-hidden="true"><path d="M1 1v16.5l4.2-4 2.8 6.6 2.6-1.1-2.8-6.5H14z" fill="#151515" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+              </div>
+              <p class="upload-status"><span class="upload-label">Waiting for photos</span><span class="upload-detail"></span></p>
+              <span class="upload-progress"><i></i></span>
+            </div>
+          </div>
+          <div class="step-text">
+            <h3>Upload the photos</h3>
+            <p class="step-body">Drop in a ZIP of your photos. We find the faces in every photo and let you know when they’re ready.</p>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-art" aria-hidden="true">
+              <div class="mock lookup" data-phase="idle">
+              <div class="lookup-ref"><span class="lookup-slot"><img src="assets/face.jpg" alt=""></span><span><b class="lookup-title">Add your selfie</b><small class="lookup-file">JPEG, PNG, or WebP</small></span></div>
+              <p class="lookup-count">Waiting for your selfie</p>
+              <div class="lookup-grid"><span style="--k:0"><img src="assets/ev-01.jpg" alt=""></span><span style="--k:1"><img src="assets/ev-02.jpg" alt=""></span><span style="--k:2"><img src="assets/ev-03.jpg" alt=""></span><span style="--k:3"><img src="assets/ev-04.jpg" alt=""></span><span style="--k:4"><img src="assets/ev-05.jpg" alt=""></span><span style="--k:5"><img src="assets/ev-06.jpg" alt=""></span><span style="--k:6"><img src="assets/ev-07.jpg" alt=""></span><span style="--k:7"><img src="assets/ev-08.jpg" alt=""></span></div>
+            </div>
+          </div>
+          <div class="step-text">
+            <h3>Add a face</h3>
+            <p class="step-body">A selfie, or a clear photo of the person you’re looking for. You get back every photo they’re in.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec center" id="pricing">
+    <div class="wrap">
+      <h2 class="head">Free to try. One payment, no subscription</h2>
+      <p class="lede">Try up to 100 photos first, with no card needed. For a bigger pile, pick the size that fits.</p>
+      <div class="plans">
+        <div class="plan">
+          <h3>Free trial</h3>
+          <p class="price">$0</p>
+          <ul><li>Up to 100 photos</li><li>2&nbsp;GB in total</li><li>50 searches</li><li>Available for 7 days</li><li>No card needed</li></ul>
+          <a class="btn btn-line" href="#preview" data-preview="Free trial">Try 100 photos free</a>
+        </div>
+        <div class="plan">
+          <h3>Small event</h3>
+          <p class="price">$19 <small>once</small></p>
+          <ul><li>Up to 1,000 photos</li><li>5&nbsp;GB in total</li><li>300 searches</li><li>Available for 30 days</li></ul>
+          <a class="btn btn-line" href="#preview" data-preview="Small event">Choose Small event</a>
+        </div>
+        <div class="plan main">
+          <h3>Event</h3>
+          <p class="price">$49 <small>once</small></p>
+          <ul><li>Up to 5,000 photos</li><li>25&nbsp;GB in total</li><li>1,000 searches</li><li>Available for 90 days</li></ul>
+          <a class="btn" href="#preview" data-preview="Event">Choose Event</a>
+        </div>
+        <div class="plan">
+          <h3>Large event</h3>
+          <p class="price">$149 <small>once</small></p>
+          <ul><li>Up to 20,000 photos</li><li>100&nbsp;GB in total</li><li>5,000 searches</li><li>Available for 90 days</li></ul>
+          <a class="btn btn-line" href="#preview" data-preview="Large event">Choose Large event</a>
+        </div>
+      </div>
+      <p class="pricing-note">People you share the link with never pay. Need more searches? Add 1,000 for $15. Plans for whole photo libraries are in the works. Prices are drafts for this preview.</p>
+    </div>
+  </section>
+
+  <section class="sec grey" id="questions">
+    <div class="wrap">
+      <h2 class="faq-title">Questions</h2>
+      <div class="faq">
+        <div class="faq-list">
+          <h3>Uploading</h3>
+          <details><summary>What do I upload, and how many photos can I add?</summary><p>ZIP files with JPEG or PNG photos. Each ZIP can be up to 2 GB with up to 10,000 files, and you can add more ZIPs later. Each plan has a photo limit and a total size: 100 photos and 2 GB on the free trial, 1,000 and 5 GB on Small event, 5,000 and 25 GB on Event, and 20,000 and 100 GB on Large event.</p></details>
+          <details><summary>What counts as a search?</summary><p>Each selfie someone checks against your photos is one search. Every plan includes a number of searches, and the people searching never pay. If you run out, you can add 1,000 more searches for $15.</p></details>
+          <details><summary>How long does processing take?</summary><p>It depends on how many photos you upload. Each ZIP shows its progress, and searching works as soon as it says Ready.</p></details>
+          <details><summary>Who can see my photos?</summary><p>Only people you share the link with. They can open the page, see the preview photos you chose, and search with a selfie.</p></details>
+          <details><summary>How long do my photos stay online?</summary><p>7 days on the free trial, 30 days on Small event, and 90 days on Event and Large event. After that, searching stops.</p></details>
+        </div>
+        <div class="faq-list">
+          <h3>Searching</h3>
+          <details><summary>Can I search for someone other than me?</summary><p>Yes. Add a clear photo of their face, and you’ll get back the photos they’re in.</p></details>
+          <details><summary>Can other people search too?</summary><p>Yes. Share the link, and anyone you send it to can search with their own selfie.</p></details>
+          <details><summary>Does it find people in group photos?</summary><p>Yes, search can find you in group shots too. Small or blurry faces, side views, and sunglasses can make matching harder.</p></details>
+          <details><summary>Can it miss photos or show someone else?</summary><p>Yes. Search can miss a photo or include someone who looks similar. A clear, well-lit selfie helps. Try another photo if you’re not finding the shots you expected.</p></details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec final">
+    <div class="wrap">
+      <h2>Find the photos you’re looking for</h2>
+      <p>Upload a few photos and try a search with one face.</p>
+      <a class="btn" href="#pricing">Try it free</a>
+      <small>Up to 100 photos free. No card needed.</small>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="logo" href="combined.html">FindPhotosOfMe</a>
+    <span>Search photos by face.</span>
+    <nav aria-label="Footer">
+      <a href="organizers.html">Event organizers</a>
+      <a href="photographers.html">Photographers</a>
+      <a href="personal.html" aria-current="page">Personal use</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#questions">Questions</a>
+    </nav>
+  </div>
+</footer>
+
+<dialog id="preview" aria-labelledby="preview-title">
+  <h2 id="preview-title">Try the free trial</h2>
+  <p>This is a design preview. Event setup and checkout aren’t connected here, and paid prices are still being finalized.</p>
+  <form method="dialog"><button class="btn">Back to the page</button></form>
+</dialog>
+
+<script src="site.js"></script>
+</body>
+</html>

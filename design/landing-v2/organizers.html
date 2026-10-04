@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FindPhotosOfMe: find yourself in event photos without endless scrolling</title>
-<meta name="description" content="Search thousands of event photos with a selfie. For attendees, event organizers, and photographers.">
+<title>FindPhotosOfMe for event organizers: let every attendee find their photos</title>
+<meta name="description" content="Upload your event photos and share one link. Attendees find the photos they’re in with a selfie.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
   <div class="wrap">
     <a class="logo" href="combined.html">FindPhotosOfMe</a>
     <nav aria-label="Main">
-      <a href="organizers.html">Event organizers</a>
+      <a href="organizers.html" aria-current="page">Event organizers</a>
       <a href="photographers.html">Photographers</a>
       <a href="personal.html">Personal use</a>
       <a href="#pricing">Pricing</a>
@@ -29,41 +29,42 @@
 <main>
   <section class="hero">
     <div class="wrap">
-      <h1>Find yourself in event photos without endless scrolling</h1>
-      <p class="lede">Search thousands of event photos with a selfie. For attendees, event organizers, and photographers.</p>
+      <h1>Let every attendee find their own photos</h1>
+      <p class="lede">Upload the photos from your conference or meetup and share one link. Attendees add a selfie and get the photos they’re in.</p>
       <div class="hero-actions">
         <a class="btn" href="#pricing">Try it free</a>
         <a class="btn btn-line" href="#how">See how it works</a>
       </div>
       <ul class="ticks">
-        <li>No subscription</li>
         <li>Free for attendees</li>
-        <li>No app to install</li>
+        <li>No app or sign-up</li>
+        <li>One payment per event</li>
       </ul>
 
-      <div class="search" data-state="idle" role="img" aria-label="A photo of a face is added, every photo in the event is checked for that face, and only the 8 photos of that person remain.">
-        <div class="search-bar" aria-hidden="true">
-          <p><span class="search-label">Event photos</span><span class="search-count">5,214 photos</span></p>
-          <div class="search-face"><span class="search-face-label">Add your photo</span><i class="search-slot"><img src="assets/face.jpg" alt=""></i></div>
+      <div class="browser" role="img" aria-label="The public page for Harbor Summit Lisbon, with preview photos and a button to find your photos.">
+        <div class="browser-bar" aria-hidden="true"><i></i><i></i><i></i><span>harborsummit.findphotosofme.com</span></div>
+        <div class="evpage" aria-hidden="true">
+          <div>
+            <p class="evpage-date">May 14–15, 2026 in Lisbon</p>
+            <p class="evpage-title">Harbor Summit Lisbon</p>
+            <p class="evpage-count">5,214 photos</p>
+            <div class="evpage-find">
+              <span class="evpage-slot"></span>
+              <span><b>Find your photos</b><small>Add a selfie to see the photos you’re in.</small></span>
+            </div>
+            <span class="btn evpage-btn">Find my photos</span>
+          </div>
+          <figure class="evpage-mosaic">
+            <img src="assets/nx-04.jpg" alt="">
+            <img src="assets/t21.jpg" alt="">
+            <img src="assets/nx-07.jpg" alt="">
+            <img src="assets/t24.jpg" alt="">
+            <img src="assets/nx-01.jpg" alt="">
+            <img src="assets/u31.jpg" alt="">
+            <figcaption>Preview photos you choose</figcaption>
+          </figure>
         </div>
-        <div class="search-grid" aria-hidden="true"></div>
       </div>
-      <p class="demo-note">Example search with sample photos and counts.</p>
-    </div>
-  </section>
-
-  <section class="sec" id="problem">
-    <div class="wrap">
-      <div class="center-head">
-        <h2>Ever scrolled through hundreds of photos looking for yourself?</h2>
-        <p>The event is over. Someone shares a folder of photos. You open it, hoping to find the ones you’re in. But there are hundreds to look through, and it’s easy to miss a good one.</p>
-      </div>
-      <figure class="viewer" aria-label="A photo viewer flipping through the event folder one photo at a time">
-        <div class="viewer-bar"><b>Event photos</b><span class="viewer-count">Photo 247 of 5,214</span></div>
-        <img class="viewer-photo" src="assets/p03.jpg" alt="">
-        <div class="viewer-strip" aria-hidden="true"><div class="viewer-track"></div></div>
-        <figcaption>“I know I’m in here somewhere.”</figcaption>
-      </figure>
     </div>
   </section>
 
@@ -71,7 +72,7 @@
     <div class="wrap">
       <div class="head-row">
         <h2>How it works</h2>
-        <p>Whoever has the photos uploads them once. Everyone in them can find their own with a selfie.</p>
+        <p>You upload the photos once. Every attendee finds their own with a selfie.</p>
       </div>
       <ol class="steps">
         <li class="step">
@@ -88,8 +89,8 @@
             </div>
           </div>
           <div class="step-text">
-            <h3>Upload the photos</h3>
-            <p class="step-body">From a conference, a wedding, or a weekend trip. We find every face in every photo.</p>
+            <h3>Upload the event photos</h3>
+            <p class="step-body">Drop in the ZIP files from your photographer. We find the faces in every photo and show you when the event is ready to search.</p>
           </div>
         </li>
         <li class="step">
@@ -101,69 +102,48 @@
             </div>
           </div>
           <div class="step-text">
-            <h3>Search with a selfie</h3>
-            <p class="step-body">Anyone with the link adds a selfie and sees the photos they’re in, group shots included.</p>
+            <h3>Attendees search with a selfie</h3>
+            <p class="step-body">They open your event link and add a selfie. They see every photo they’re in, group shots included, and download the ones they want.</p>
           </div>
         </li>
       </ol>
     </div>
   </section>
 
-  <section class="sec grey" id="who">
+  <section class="sec" id="share">
     <div class="wrap">
       <div class="head-row">
-        <h2>Who it’s for</h2>
-        <p>The same face search, set up for the people who take the photos, the people who host the event, and anyone with a pile of photos to sort.</p>
+        <h2>Share it where attendees already look</h2>
+        <p>Your event page has one short link. Put it in the follow-up email, on the closing slide, or on a printed card at the exit.</p>
       </div>
-      <div class="audiences">
-        <a class="audience" href="organizers.html">
-          <img src="assets/nx-01.jpg" alt="">
-          <span class="audience-body"><b>Event organizers</b><span class="audience-text">Conferences, meetups, and community events. Share one link, and attendees find their own photos.</span><span class="audience-link">For event organizers</span></span>
-        </a>
-        <a class="audience" href="photographers.html">
-          <img src="assets/case-race.jpg" alt="">
-          <span class="audience-body"><b>Photographers</b><span class="audience-text">Deliver every shoot as a gallery guests can search, with your name on it and all your events in one account.</span><span class="audience-link">For photographers</span></span>
-        </a>
-        <a class="audience" href="personal.html">
-          <img src="assets/case-wedding.jpg" alt="">
-          <span class="audience-body"><b>Personal use</b><span class="audience-text">A wedding album, a family archive, or a trip with friends. Filter a pile of photos down to one face.</span><span class="audience-link">For personal use</span></span>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <section class="page-sec" id="gallery">
-    <div class="wrap head-row">
-      <h2>Publish a searchable gallery for your event</h2>
-      <p>Your event gets its own page and link. Attendees add a selfie to find and download the photos they’re in.</p>
-    </div>
-    <div class="page-stage">
-      <div class="wrap">
-        <div class="browser" role="img" aria-label="The public page for Harbor Summit Lisbon, with preview photos and a button to find your photos.">
-          <div class="browser-bar" aria-hidden="true"><i></i><i></i><i></i><span>harborsummit.findphotosofme.com</span></div>
-          <div class="evpage" aria-hidden="true">
-            <div>
-              <p class="evpage-date">May 14–15, 2026 in Lisbon</p>
-              <p class="evpage-title">Harbor Summit Lisbon</p>
-              <p class="evpage-count">5,214 photos</p>
-              <div class="evpage-find">
-                <span class="evpage-slot"></span>
-                <span><b>Find your photos</b><small>Add a selfie to see the photos you’re in.</small></span>
-              </div>
-              <span class="btn evpage-btn">Find my photos</span>
-            </div>
-            <figure class="evpage-mosaic">
-              <img src="assets/nx-04.jpg" alt="">
-              <img src="assets/t21.jpg" alt="">
-              <img src="assets/nx-07.jpg" alt="">
-              <img src="assets/t24.jpg" alt="">
-              <img src="assets/nx-01.jpg" alt="">
-              <img src="assets/u31.jpg" alt="">
-              <figcaption>Preview photos you choose</figcaption>
-            </figure>
+      <ul class="scenes">
+        <li>
+          <div class="scene" aria-hidden="true">
+            <div class="mail"><small>From Harbor Summit</small><b>Thanks for coming to Lisbon!</b><i></i><i></i><span>Find your photos</span></div>
           </div>
-        </div>
-      </div>
+          <h3>In the follow-up email</h3>
+          <p>Everyone gets the link the day after.</p>
+        </li>
+        <li>
+          <div class="scene" aria-hidden="true">
+            <div class="slide"><div><b>Thank you, Lisbon!</b><small>Scan to find your photos</small></div><svg class="qr" viewBox="-2 -2 29 29"></svg></div>
+          </div>
+          <h3>On the closing slide</h3>
+          <p>A QR code while the whole room is watching.</p>
+        </li>
+        <li>
+          <div class="scene" aria-hidden="true">
+            <div class="qr-card" aria-hidden="true">
+              <b>Harbor Summit Lisbon</b>
+              <p class="qr-title">Find your photos</p>
+              <svg class="qr" viewBox="-2 -2 29 29"></svg>
+              <small>Scan with your phone camera</small>
+            </div>
+          </div>
+          <h3>On a card at the exit</h3>
+          <p>Print it for the coffee tables and the door.</p>
+        </li>
+      </ul>
     </div>
   </section>
 
@@ -171,8 +151,8 @@
     <section class="sec ink" data-variant="Dark">
       <div class="wrap">
         <div class="center-head">
-          <h2>A photo search bot for your event</h2>
-          <p>Want to make it even easier? Add a Telegram or WhatsApp bot for your event. People send it a selfie and get their photos right in the chat.</p>
+          <h2>A photo bot for your event</h2>
+          <p>Want to make it even easier? Add a Telegram or WhatsApp bot for your event. Attendees send it a selfie and get their photos right in the chat.</p>
         </div>
         <div class="annotated">
           <div class="notes notes-left">
@@ -190,8 +170,8 @@
     <section class="sec sun" data-variant="Yellow">
       <div class="wrap">
         <div class="center-head">
-          <h2>A photo search bot for your event</h2>
-          <p>Want to make it even easier? Add a Telegram or WhatsApp bot for your event. People send it a selfie and get their photos right in the chat.</p>
+          <h2>A photo bot for your event</h2>
+          <p>Want to make it even easier? Add a Telegram or WhatsApp bot for your event. Attendees send it a selfie and get their photos right in the chat.</p>
         </div>
         <div class="annotated">
           <div class="notes notes-left">
@@ -247,19 +227,21 @@
       <h2 class="faq-title">Questions</h2>
       <div class="faq">
         <div class="faq-list">
-          <h3>Uploading</h3>
+          <h3>For organizers</h3>
           <details><summary>What do I upload, and how many photos can I add?</summary><p>ZIP files with JPEG or PNG photos. Each ZIP can be up to 2 GB with up to 10,000 files, and you can add more ZIPs later. Each plan has a photo limit and a total size: 100 photos and 2 GB on the free trial, 1,000 and 5 GB on Small event, 5,000 and 25 GB on Event, and 20,000 and 100 GB on Large event.</p></details>
           <details><summary>What counts as a search?</summary><p>Each selfie someone checks against your photos is one search. Every plan includes a number of searches, and the people searching never pay. If you run out, you can add 1,000 more searches for $15.</p></details>
           <details><summary>How long does processing take?</summary><p>It depends on how many photos you upload. Each ZIP shows its progress, and searching works as soon as it says Ready.</p></details>
-          <details><summary>How long do my photos stay online?</summary><p>7 days on the free trial, 30 days on Small event, and 90 days on Event and Large event. After that, searching stops.</p></details>
+          <details><summary>How long does my event stay online?</summary><p>7 days on the free trial, 30 days on Small event, and 90 days on Event and Large event. After that, searching stops.</p></details>
           <details><summary>Who can see the photos?</summary><p>Anyone with the event link can open its page, see the preview photos you chose, and search with a selfie. Search matches the face in the submitted photo; it doesn’t check who that person is.</p></details>
+          <details><summary>How do I set up the Telegram bot?</summary><p>Create a bot with @BotFather in Telegram, copy its token, and paste it into your event settings. Then share the bot link along with your event link.</p></details>
         </div>
         <div class="faq-list">
-          <h3>Searching</h3>
+          <h3>For attendees</h3>
           <details><summary>What kind of selfie should I use?</summary><p>A clear, well-lit photo of one face, looking at the camera. If there are several faces in the photo, the search uses only one of them. JPEG, PNG, or WebP, up to 10 MB.</p></details>
           <details><summary>Does it find people in group photos?</summary><p>Yes, search can find you in group shots too. Small or blurry faces, side views, and sunglasses can make matching harder.</p></details>
           <details><summary>Can it miss photos or show someone else?</summary><p>Yes. Search can miss a photo or include someone who looks similar. A clear, well-lit selfie helps. Try another photo if you’re not finding the shots you expected.</p></details>
           <details><summary>Do I need an account to search?</summary><p>No. Open the event link and add a selfie. If the event has a photo bot, you can send your selfie there instead.</p></details>
+          <details><summary>I’m not the organizer. Can I still upload the photos?</summary><p>Yes, if you have permission to upload and share them. Create an event and share the link with the other attendees.</p></details>
         </div>
       </div>
     </div>
@@ -267,8 +249,8 @@
 
   <section class="sec final">
     <div class="wrap">
-      <h2>Make your photos easier to find</h2>
-      <p>Start with a few photos. Try a selfie search and see what you find.</p>
+      <h2>Give your attendees their photos</h2>
+      <p>Start with a few photos from your event. Try a selfie search and see what you find.</p>
       <a class="btn" href="#pricing">Try it free</a>
       <small>Up to 100 photos free. No card needed.</small>
     </div>
@@ -280,7 +262,7 @@
     <a class="logo" href="combined.html">FindPhotosOfMe</a>
     <span>Search photos by face.</span>
     <nav aria-label="Footer">
-      <a href="organizers.html">Event organizers</a>
+      <a href="organizers.html" aria-current="page">Event organizers</a>
       <a href="photographers.html">Photographers</a>
       <a href="personal.html">Personal use</a>
       <a href="#pricing">Pricing</a>
