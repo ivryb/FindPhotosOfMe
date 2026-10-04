@@ -19,12 +19,16 @@ export const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // A strong ink outline that works on white and on brand yellow
+        line: "border-2 border-foreground bg-transparent text-foreground hover:bg-foreground/8",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
         sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
         lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
         icon: "size-9",
+        // Large marketing calls to action
+        xl: "h-14 rounded-md px-7 text-base font-bold font-stretch-[110%] has-[>svg]:px-5",
       },
     },
     defaultVariants: {

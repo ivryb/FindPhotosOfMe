@@ -4,120 +4,84 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* FindPhotosOfMe: yellow and ink, set in Archivo. Brand yellow is for large surfaces and highlights; actions are ink. */
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(0 0% 0%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(0 0% 0%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(0 0% 0%);
-  --primary: hsl(0 100% 60%);
-  --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(60 100% 50%);
-  --secondary-foreground: hsl(0 0% 0%);
-  --muted: hsl(0 0% 94.1176%);
-  --muted-foreground: hsl(0 0% 20%);
-  --accent: hsl(216 100% 50%);
-  --accent-foreground: hsl(0 0% 100%);
-  --destructive: hsl(0 0% 0%);
-  --destructive-foreground: hsl(0 0% 100%);
-  --border: hsl(0 0% 0%);
-  --input: hsl(0 0% 0%);
-  --ring: hsl(0 100% 60%);
-  --chart-1: hsl(0 100% 60%);
-  --chart-2: hsl(60 100% 50%);
-  --chart-3: hsl(216 100% 50%);
-  --chart-4: hsl(120 100% 40%);
-  --chart-5: hsl(300 100% 40%);
-  --sidebar: hsl(0 0% 94.1176%);
-  --sidebar-foreground: hsl(0 0% 0%);
-  --sidebar-primary: hsl(0 100% 60%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(216 100% 50%);
-  --sidebar-accent-foreground: hsl(0 0% 100%);
-  --sidebar-border: hsl(0 0% 0%);
-  --sidebar-ring: hsl(0 100% 60%);
-  --font-sans: DM Sans, sans-serif;
+  --background: #ffffff;
+  --foreground: #151515;
+  --card: #ffffff;
+  --card-foreground: #151515;
+  --popover: #ffffff;
+  --popover-foreground: #151515;
+  --primary: #151515;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f3f1;
+  --secondary-foreground: #151515;
+  --muted: #f3f3f1;
+  --muted-foreground: #5e5e5a;
+  --accent: #fff3bf;
+  --accent-foreground: #151515;
+  --destructive: #c4291c;
+  --destructive-foreground: #ffffff;
+  --border: #d6d6d2;
+  --input: #d6d6d2;
+  --ring: #151515;
+  --brand: #ffd21f;
+  --brand-foreground: #151515;
+  --chart-1: #ffd21f;
+  --chart-2: #151515;
+  --chart-3: #5e5e5a;
+  --chart-4: #b3b3ad;
+  --chart-5: #e0a800;
+  --sidebar: #f3f3f1;
+  --sidebar-foreground: #151515;
+  --sidebar-primary: #151515;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fff3bf;
+  --sidebar-accent-foreground: #151515;
+  --sidebar-border: #d6d6d2;
+  --sidebar-ring: #151515;
+  --font-sans: "Archivo", system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: Space Mono, monospace;
-  --radius: 0px;
-  --shadow-x: 4px;
-  --shadow-y: 4px;
-  --shadow-blur: 0px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 1;
-  --shadow-color: hsl(0 0% 0%);
-  --shadow-2xs: 4px 4px 0px 0px hsl(0 0% 0% / 0.5);
-  --shadow-xs: 4px 4px 0px 0px hsl(0 0% 0% / 0.5);
-  --shadow-sm:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 1px 2px -1px hsl(0 0% 0% / 1);
-  --shadow: 4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 1px 2px -1px hsl(0 0% 0% / 1);
-  --shadow-md:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 2px 4px -1px hsl(0 0% 0% / 1);
-  --shadow-lg:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 4px 6px -1px hsl(0 0% 0% / 1);
-  --shadow-xl:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 8px 10px -1px hsl(0 0% 0% / 1);
-  --shadow-2xl: 4px 4px 0px 0px hsl(0 0% 0% / 2.5);
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 0.625rem;
+  --lift: 0 1px 2px rgb(0 0 0 / 0.18), 0 18px 36px -16px rgb(0 0 0 / 0.35);
 }
 
 .dark {
-  --background: hsl(0 0% 0%);
-  --foreground: hsl(0 0% 100%);
-  --card: hsl(0 0% 20%);
-  --card-foreground: hsl(0 0% 100%);
-  --popover: hsl(0 0% 20%);
-  --popover-foreground: hsl(0 0% 100%);
-  --primary: hsl(0 100% 70%);
-  --primary-foreground: hsl(0 0% 0%);
-  --secondary: hsl(60 100% 60%);
-  --secondary-foreground: hsl(0 0% 0%);
-  --muted: hsl(0 0% 10.1961%);
-  --muted-foreground: hsl(0 0% 80%);
-  --accent: hsl(210 100% 60%);
-  --accent-foreground: hsl(0 0% 0%);
-  --destructive: hsl(0 0% 100%);
-  --destructive-foreground: hsl(0 0% 0%);
-  --border: hsl(0 0% 100%);
-  --input: hsl(0 0% 100%);
-  --ring: hsl(0 100% 70%);
-  --chart-1: hsl(0 100% 70%);
-  --chart-2: hsl(60 100% 60%);
-  --chart-3: hsl(210 100% 60%);
-  --chart-4: hsl(120 60% 50%);
-  --chart-5: hsl(300 60% 50%);
-  --sidebar: hsl(0 0% 0%);
-  --sidebar-foreground: hsl(0 0% 100%);
-  --sidebar-primary: hsl(0 100% 70%);
-  --sidebar-primary-foreground: hsl(0 0% 0%);
-  --sidebar-accent: hsl(210 100% 60%);
-  --sidebar-accent-foreground: hsl(0 0% 0%);
-  --sidebar-border: hsl(0 0% 100%);
-  --sidebar-ring: hsl(0 100% 70%);
-  --font-sans: DM Sans, sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: Space Mono, monospace;
-  --radius: 0px;
-  --shadow-x: 4px;
-  --shadow-y: 4px;
-  --shadow-blur: 0px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 1;
-  --shadow-color: hsl(0 0% 0%);
-  --shadow-2xs: 4px 4px 0px 0px hsl(0 0% 0% / 0.5);
-  --shadow-xs: 4px 4px 0px 0px hsl(0 0% 0% / 0.5);
-  --shadow-sm:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 1px 2px -1px hsl(0 0% 0% / 1);
-  --shadow: 4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 1px 2px -1px hsl(0 0% 0% / 1);
-  --shadow-md:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 2px 4px -1px hsl(0 0% 0% / 1);
-  --shadow-lg:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 4px 6px -1px hsl(0 0% 0% / 1);
-  --shadow-xl:
-    4px 4px 0px 0px hsl(0 0% 0% / 1), 4px 8px 10px -1px hsl(0 0% 0% / 1);
-  --shadow-2xl: 4px 4px 0px 0px hsl(0 0% 0% / 2.5);
+  --background: #151515;
+  --foreground: #ffffff;
+  --card: #1f1f1d;
+  --card-foreground: #ffffff;
+  --popover: #1f1f1d;
+  --popover-foreground: #ffffff;
+  --primary: #ffd21f;
+  --primary-foreground: #151515;
+  --secondary: #262624;
+  --secondary-foreground: #ffffff;
+  --muted: #262624;
+  --muted-foreground: #b3b3ad;
+  --accent: #33302a;
+  --accent-foreground: #ffffff;
+  --destructive: #e5584b;
+  --destructive-foreground: #ffffff;
+  --border: #3a3a38;
+  --input: #3a3a38;
+  --ring: #ffd21f;
+  --brand: #ffd21f;
+  --brand-foreground: #151515;
+  --chart-1: #ffd21f;
+  --chart-2: #ffffff;
+  --chart-3: #b3b3ad;
+  --chart-4: #5e5e5a;
+  --chart-5: #e0a800;
+  --sidebar: #1f1f1d;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffd21f;
+  --sidebar-primary-foreground: #151515;
+  --sidebar-accent: #33302a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #3a3a38;
+  --sidebar-ring: #ffd21f;
 }
 
 @theme inline {
@@ -140,6 +104,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -163,14 +129,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --shadow-2xs: var(--shadow-2xs);
-  --shadow-xs: var(--shadow-xs);
-  --shadow-sm: var(--shadow-sm);
-  --shadow: var(--shadow);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
-  --shadow-xl: var(--shadow-xl);
-  --shadow-2xl: var(--shadow-2xl);
+  --shadow-lift: var(--lift);
 }
 
 @layer base {
@@ -178,8 +137,16 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground font-sans;
-    letter-spacing: var(--tracking-normal);
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  /* Headings use Archivo's wide cut, which carries the brand */
+  h1,
+  h2 {
+    font-weight: 800;
+    font-stretch: 118%;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    text-wrap: balance;
   }
   .container {
     @apply max-w-3xl! mx-auto px-4;
