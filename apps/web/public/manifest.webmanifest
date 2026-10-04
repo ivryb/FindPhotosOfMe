@@ -1,0 +1,25 @@
+{
+  "name": "FindPhotosOfMe",
+  "short_name": "FindPhotosOfMe",
+  "start_url": "/",
+  "theme_color": "#FFD21F",
+  "background_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ]
+}
