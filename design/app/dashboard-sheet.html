@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your events</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+/* D3: an ink sidebar with every event, and the open event's space drawn as the pricing calculator's
+   tile sheet: ink tiles are photos ready to search, yellow ones are having faces found, empty ones are room left. */
+body { background: var(--grey); }
+.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 64px); }
+aside { position: sticky; top: 64px; align-self: start; height: calc(100vh - 64px); overflow-y: auto; padding: 20px 14px; background: var(--ink); color: #fff; }
+aside :focus-visible { outline-color: var(--yellow); }
+aside .btn { width: 100%; margin-bottom: 18px; }
+aside h2 { padding: 0 10px 8px; color: #8e8e89; font-size: .85rem; font-weight: 600; font-stretch: 100%; letter-spacing: 0; }
+.side-list a { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; text-decoration: none; }
+.side-list a:hover { background: #222220; }
+.side-list a[aria-current="page"] { background: #2a2a28; box-shadow: inset 3px 0 0 var(--yellow); }
+.side-list img, .side-list .blank { flex: none; width: 48px; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+.side-list .blank { border: 2px dashed #4a4a47; }
+.side-list b { display: block; font-size: .95rem; line-height: 1.25; }
+.side-list small { display: block; margin-top: 2px; color: #8e8e89; font-size: .82rem; }
+.side-list small.busy { color: var(--yellow); }
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  aside { position: static; height: auto; display: flex; gap: 8px; overflow-x: auto; padding: 12px; }
+  aside .btn { width: auto; margin: 0; }
+  aside h2 { display: none; }
+  .side-list { display: flex; gap: 6px; }
+  .side-list a { white-space: nowrap; }
+  .side-list small { display: none; }
+}
+
+main { width: 100%; max-width: 980px; padding: clamp(24px, 4vw, 48px) clamp(20px, 4vw, 48px) 80px; }
+.event-head h1 { font-size: clamp(2.2rem, 4.6vw, 3.6rem); }
+.share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 16px; }
+.share .url { margin-right: 6px; font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+
+.card { margin-top: 20px; padding: clamp(20px, 3vw, 32px); background: var(--paper); border-radius: 14px; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 18px; }
+.card-head h2 { font-size: 1.6rem; font-stretch: 112%; letter-spacing: -.02em; }
+.card-head p { color: var(--muted); }
+.card-head p b { color: var(--ink); font-size: 1.15rem; font-weight: 800; font-stretch: 112%; font-variant-numeric: tabular-nums; }
+
+.sheet { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; }
+.sheet i { aspect-ratio: 3 / 2; background: var(--grey); border-radius: 2px; transition: background-color .3s; }
+.sheet i.ready { background: var(--ink); }
+.sheet i.busy { background: var(--yellow); animation: pulse 1.6s ease-in-out infinite; animation-delay: calc(var(--n) * 40ms); }
+@media (max-width: 600px) { .sheet { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 14px; font-size: .92rem; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend span::before { content: ""; width: 14px; height: 10px; border-radius: 2px; background: var(--grey); }
+.legend .ready::before { background: var(--ink); }
+.legend .busy::before { background: var(--yellow); }
+.legend em { margin-left: auto; color: var(--muted); font-style: normal; }
+.photo-actions { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 24px; }
+.photo-actions .drop { flex-direction: row; justify-content: center; gap: 14px; padding: 18px; text-align: left; }
+.photo-actions .drop svg { margin: 0; }
+.photo-actions .drop small { display: block; }
+.uploads { margin-top: 14px; }
+
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.pair .card { margin-top: 20px; }
+.stat b { display: block; margin: 4px 0 10px; font-size: 1.6rem; font-weight: 800; font-stretch: 112%; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.stat p { color: var(--muted); font-size: .92rem; }
+.stat .btn { margin-top: 18px; }
+@media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+
+details.card { padding: 0; }
+details summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px clamp(20px, 3vw, 32px); list-style: none; cursor: pointer; }
+details summary::-webkit-details-marker { display: none; }
+details summary h2 { font-size: 1.35rem; font-stretch: 112%; letter-spacing: -.02em; }
+details summary span { color: var(--muted); font-size: .92rem; }
+details summary::after { content: ""; flex: none; width: 10px; height: 10px; border-right: 2.5px solid; border-bottom: 2.5px solid; rotate: 45deg; translate: 0 -3px; transition: rotate .2s; }
+details[open] summary::after { rotate: 225deg; translate: 0 3px; }
+details form { padding: 0 clamp(20px, 3vw, 32px) 28px; }
+.delete { display: flex; justify-content: flex-end; margin-top: 24px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap" style="max-width:none">
+    <a class="logo" href="#">FindPhotosOfMe</a>
+    <div class="account"><span>Lumen Studio</span><div class="avatar" aria-hidden="true">LS</div></div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside>
+    <button class="btn btn-yellow btn-sm" data-open="new-event"><i data-icon="plus"></i>New event</button>
+    <h2>Events</h2>
+    <nav class="side-list" id="side" aria-label="Events"></nav>
+  </aside>
+  <main id="view"></main>
+</div>
+
+<script src="app.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+hydrateIcons();
+
+// One tile per `unit` photos, picked so a full sheet has at most 120 tiles
+const unitFor = (limit) => [10, 25, 50, 100, 250, 500, 1000].find((u) => limit / u <= 120);
+const sheetParts = (e) => {
+  const done = e.ready + (e.processing?.done ?? 0);
+  const busy = e.processing ? e.processing.total - e.processing.done : 0;
+  return { done, busy, free: Math.max(0, e.limit - done - busy) };
+};
+
+function sheet(e) {
+  const unit = unitFor(e.limit);
+  const { done, busy, free } = sheetParts(e);
+  const readyTiles = Math.round(done / unit);
+  const busyTiles = busy ? Math.max(1, Math.round(busy / unit)) : 0;
+  const tiles = Array.from({ length: e.limit / unit }, (_, n) =>
+    `<i class="${n < readyTiles ? "ready" : n < readyTiles + busyTiles ? "busy" : ""}" style="--n:${n % 20}"></i>`).join("");
+  return `
+    <div class="sheet" role="img" aria-label="${fmt(done)} photos ready, ${fmt(busy)} having faces found, room for ${fmt(free)} more">${tiles}</div>
+    <p class="legend"><span class="ready">${fmt(done)} ready</span>${busy ? `<span class="busy">${fmt(busy)} finding faces</span>` : ""}<span>Room for ${fmt(free)} more</span><em>Each tile is ${unit} photos</em></p>`;
+}
+
+function sideList(current) {
+  return EVENTS.map((e) => {
+    const status = statusOf(e);
+    return `<a href="#${e.id}" ${e.id === current ? 'aria-current="page"' : ""}>
+      ${e.covers[0] ? `<img src="${photo(e.covers[0])}" alt="">` : `<span class="blank"></span>`}
+      <span><b>${e.name}</b><small class="${status.tone}">${e.ready ? `${fmt(spaceUsed(e))} photos, ` : ""}${status.label.toLowerCase()}</small></span></a>`;
+  }).join("");
+}
+
+function eventView(e) {
+  const { done, busy } = sheetParts(e);
+  const [, searches, until] = usage(e);
+  return `
+    <div class="event-head">
+      <h1>${e.name}</h1>
+      <div class="share">
+        <a class="url" href="event-cover.html">${e.link}</a>
+        <button class="btn btn-sm btn-line" data-copy="${e.link}">${icon("copy")}<span>Copy link</span></button>
+        <a class="btn btn-sm btn-line" href="event-cover.html">${icon("open")}Open page</a>
+      </div>
+    </div>
+
+    <section class="card">
+      <div class="card-head"><h2>Photos</h2><p><b id="used">${fmt(done + busy)}</b> of ${fmt(e.limit)}</p></div>
+      <div id="sheet">${sheet(e)}</div>
+      <div class="photo-actions">
+        <button class="drop" type="button" data-do="upload">${icon("upload")}<span><b>Add photos</b><small>Drop ZIP files here or choose them. JPEG or PNG, up to 2 GB per ZIP.</small></span></button>
+      </div>
+      <div id="uploads">${uploadList(e)}</div>
+    </section>
+
+    <div class="pair">
+      <section class="card stat">
+        <p>Searches used</p><b>${searches.value}</b>
+        <div class="meter"><i style="--p:${searches.p * 100}%"></i></div>
+        <p style="margin-top:10px">Each selfie someone checks is one search.</p>
+      </section>
+      <section class="card stat">
+        <p>${until.label}</p><b>${until.value}</b>
+        <p>${e.plan === "trial" ? "Free trial. Buy more from $10, paid once." : "Paid once. Nothing renews."}</p>
+        <a class="btn btn-sm" href="#">${e.plan === "trial" ? "Buy photos and searches" : "Add photos or searches"}</a>
+      </section>
+    </div>
+
+    <details class="card">
+      <summary><h2>Event page</h2><span>Name, address, description</span></summary>
+      <form onsubmit="return false">
+        <div class="field"><label for="f-name">Event name</label><input class="input" id="f-name" value="${e.name}"></div>
+        <div class="field"><label for="f-addr">Page address</label><div class="addr"><input class="input" id="f-addr" value="${e.link.split(".")[0]}"><span>.findphotosofme.com</span></div><p class="hint">Changing it breaks links you’ve already shared.</p></div>
+        <div class="field"><label for="f-desc">Description</label><textarea class="input" id="f-desc" placeholder="Where and when it was, and who took the photos">${e.description}</textarea></div>
+        <button class="btn btn-sm" style="margin-top:20px">Save changes</button>
+      </form>
+    </details>
+    <details class="card">
+      <summary><h2>Telegram bot</h2><span>Not connected</span></summary>
+      <form onsubmit="return false">
+        <p class="muted" style="margin-bottom:16px">People send the bot a selfie and get their photos in the chat. Create a bot with @BotFather and paste its token here.</p>
+        <div class="field"><label for="f-token">Bot token</label><input class="input" id="f-token" placeholder="123456:ABC-DEF1234ghIkl" autocomplete="off"></div>
+        <div class="field"><label for="f-welcome">Welcome message</label><textarea class="input" id="f-welcome">Hi! Send me a selfie and I’ll find your photos from ${e.name}.</textarea></div>
+        <button class="btn btn-sm" style="margin-top:20px">${icon("send")}Connect bot</button>
+      </form>
+    </details>
+    <div class="delete"><button class="btn btn-sm btn-line" data-open="delete-event">${icon("trash")}Delete event</button></div>`;
+}
+
+// Prototype only: "Add photos" pretends a ZIP fills the room left (up to 400 photos) and the sheet fills as faces are found
+let fake;
+function fakeUpload(e) {
+  const size = Math.min(400, e.limit - spaceUsed(e));
+  if (e.processing || size <= 0) return;
+  const upload = { file: "more-photos.zip", size: `${Math.ceil(size * 1.05)} MB`, state: "busy", done: 0, photos: size };
+  e.uploads.push(upload);
+  e.processing = { done: 0, total: size };
+  const tick = () => {
+    upload.done = e.processing.done = Math.min(size, e.processing.done + Math.ceil(size / 30));
+    $("sheet").innerHTML = sheet(e);
+    $("uploads").innerHTML = uploadList(e);
+    $("used").textContent = fmt(spaceUsed(e));
+    if (upload.done < size) return (fake = setTimeout(tick, 120));
+    upload.state = "ready";
+    e.ready += size;
+    e.processing = null;
+    route();
+  };
+  fake = setTimeout(tick, 300);
+}
+
+const mark = protoBar("Dashboard D3: photo sheet", [["harbor", "Finding faces"], ["race", "Large event"], ["wedding", "Nearly full"], ["offsite", "Free trial"], ["launch", "No photos yet"]],
+  (state) => (location.hash = state));
+function current() { return EVENTS.find((e) => e.id === location.hash.slice(1)) ?? EVENTS[0]; }
+function route() {
+  clearTimeout(fake);
+  const event = current();
+  $("side").innerHTML = sideList(event.id);
+  $("view").innerHTML = eventView(event);
+  mark(event.id);
+}
+$("view").addEventListener("click", (e) => { if (e.target.closest('[data-do="upload"]')) fakeUpload(current()); });
+addEventListener("hashchange", () => { route(); scrollTo(0, 0); });
+mountDashboard();
+route();
+</script>
+</body>
+</html>

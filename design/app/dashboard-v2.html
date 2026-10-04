@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your galleries</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+/* The sidebar dashboard, second round. One balance of photos and searches is shared by every gallery
+   and topped up from the sidebar. Each gallery shows its photo sheet, link, and QR code; its page and
+   bot settings sit in tabs, a side column, or a drawer, switched from the prototype strip. */
+body { background: var(--grey); }
+.proto span { margin-left: 10px; }
+.proto span:first-of-type { margin-left: 0; }
+
+.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 64px); }
+aside { position: sticky; top: 64px; align-self: start; display: flex; flex-direction: column; height: calc(100vh - 64px); overflow-y: auto; padding: 20px 14px; background: var(--ink); color: #fff; }
+aside :focus-visible { outline-color: var(--yellow); }
+aside > .btn { width: 100%; margin-bottom: 18px; }
+aside h2 { padding: 0 10px 8px; color: #8e8e89; font-size: .85rem; font-weight: 600; font-stretch: 100%; letter-spacing: 0; }
+.side-list a { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; text-decoration: none; }
+.side-list a:hover { background: #222220; }
+.side-list a[aria-current="page"] { background: #2a2a28; box-shadow: inset 3px 0 0 var(--yellow); }
+.side-list img, .side-list .blank { flex: none; width: 48px; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+.side-list .blank { border: 2px dashed #4a4a47; }
+.side-list b { display: block; font-size: .95rem; line-height: 1.25; }
+.side-list small { display: block; margin-top: 2px; color: #8e8e89; font-size: .82rem; }
+.side-list small.busy { color: var(--yellow); }
+
+.balance { margin-top: auto; padding: 18px; background: #222220; border-radius: 12px; }
+.balance h2 { padding: 0; margin-bottom: 8px; }
+.balance p { color: #b3b3ad; }
+.balance p b { color: #fff; font-size: 1.5rem; font-weight: 800; font-stretch: 112%; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.balance p.out b { color: var(--yellow); }
+.balance .btn { width: 100%; margin-top: 14px; }
+.balance small { display: block; margin-top: 10px; color: #8e8e89; font-size: .82rem; }
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  aside { position: static; flex-direction: row; align-items: center; gap: 8px; height: auto; overflow-x: auto; padding: 12px; }
+  aside > .btn { width: auto; margin: 0; }
+  aside h2, .side-list small, .balance small, .balance h2 { display: none; }
+  .side-list { display: flex; gap: 6px; }
+  .side-list a { white-space: nowrap; }
+  .balance { display: flex; align-items: center; gap: 12px; margin: 0; padding: 8px 8px 8px 14px; white-space: nowrap; }
+  .balance p b { font-size: 1rem; }
+  .balance .btn { width: auto; margin: 0; }
+}
+
+main { width: 100%; max-width: 1080px; padding: clamp(24px, 4vw, 44px) clamp(20px, 4vw, 48px) 80px; }
+.g-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 24px 32px; }
+.g-head h1 { margin-top: 12px; font-size: clamp(2.2rem, 4.6vw, 3.6rem); }
+.share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 16px; }
+.share .url { margin-right: 6px; font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.meta { margin-top: 14px; color: var(--muted); }
+.edit-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.edit-row .pill { margin-left: 4px; }
+@media (max-width: 760px) { .g-head { grid-template-columns: 1fr; } .g-head > .qr-card { display: none; } }
+
+.qr-card { width: 196px; padding: 14px 14px 16px; background: var(--paper); border-radius: 14px; text-align: center; }
+.qr-card > svg { width: 100%; }
+.qr-card p { margin: 8px 0 10px; color: var(--muted); font-size: .85rem; line-height: 1.35; }
+.qr-card .btn { width: 100%; }
+.side-col .qr-card { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 4px 16px; width: auto; padding: 16px; text-align: left; }
+.side-col .qr-card > svg { grid-row: span 2; }
+.side-col .qr-card p { margin: 0; align-self: end; }
+.side-col .qr-card .btn { align-self: start; }
+
+.card { margin-top: 20px; padding: clamp(20px, 3vw, 32px); background: var(--paper); border-radius: 14px; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 18px; }
+.card-head h2 { font-size: 1.6rem; font-stretch: 112%; letter-spacing: -.02em; }
+.card-head p { color: var(--muted); }
+.card-head p b { color: var(--ink); font-size: 1.15rem; font-weight: 800; font-stretch: 112%; font-variant-numeric: tabular-nums; }
+
+.sheet { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; }
+.sheet i { aspect-ratio: 3 / 2; background: var(--grey); border-radius: 2px; transition: background-color .3s; }
+.sheet i.ready { background: var(--ink); }
+.sheet i.busy { background: var(--yellow); animation: pulse 1.6s ease-in-out infinite; animation-delay: calc(var(--n) * 40ms); }
+@media (max-width: 600px) { .sheet { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 14px; font-size: .92rem; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend span::before { content: ""; width: 14px; height: 10px; background: var(--grey); border-radius: 2px; }
+.legend .ready::before { background: var(--ink); }
+.legend .busy::before { background: var(--yellow); }
+.legend em { margin-left: auto; color: var(--muted); font-style: normal; }
+.photo-actions { margin-top: 24px; }
+.photo-actions .drop { flex-direction: row; justify-content: center; gap: 14px; padding: 18px; text-align: left; }
+.photo-actions .drop svg { margin: 0; }
+.photo-actions .drop small { display: block; }
+.out-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 18px 20px; background: var(--yellow-soft); border: 2px solid var(--yellow); border-radius: 10px; }
+.uploads { margin-top: 14px; }
+
+.tabs { display: flex; gap: 4px; margin-top: 28px; border-bottom: 2px solid var(--ink); }
+.tabs button { padding: 12px 18px; background: none; border: 0; border-radius: 8px 8px 0 0; color: var(--muted); font-weight: 700; font-stretch: 110%; cursor: pointer; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--ink); color: #fff; }
+.tabs + .card { margin-top: 0; border-top-left-radius: 0; }
+@media (max-width: 600px) { .tabs { overflow-x: auto; } .tabs button { white-space: nowrap; } }
+
+.side-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; gap: 20px; margin-top: 8px; }
+.side-col { display: grid; gap: 20px; margin-top: 20px; }
+.side-col .card { margin-top: 0; }
+.side-col .card-head h2 { font-size: 1.3rem; }
+@media (max-width: 1100px) { .side-layout { grid-template-columns: 1fr; } }
+
+.page-edit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; gap: 28px clamp(24px, 4vw, 48px); }
+@media (max-width: 860px) { .page-edit { grid-template-columns: 1fr; } }
+.browser { overflow: hidden; background: var(--ink); border-radius: 10px; box-shadow: var(--lift); }
+.browser-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #e6e6e2; color: var(--muted); font-size: .8rem; }
+.browser-bar i { width: 10px; height: 10px; background: #c9c9c4; border-radius: 50%; }
+.browser-bar span { flex: 1; max-width: 280px; margin-left: 10px; padding: 3px 12px; overflow: hidden; background: #fff; border-radius: 6px; text-overflow: ellipsis; white-space: nowrap; }
+.mini { position: relative; padding: 18px 18px 70px; color: #fff; }
+.mini-title { font-size: 1.6rem; font-weight: 800; font-stretch: 116%; letter-spacing: -.03em; line-height: 1; overflow-wrap: anywhere; }
+.mini-desc { margin: 8px 0 14px; color: #b3b3ad; font-size: .82rem; line-height: 1.4; }
+.mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+.mini-grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.mini-pill { position: absolute; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; padding: 9px 16px; background: var(--yellow); color: var(--ink); border-radius: 999px; font-size: .82rem; font-weight: 800; white-space: nowrap; translate: -50% 0; }
+.mini-pill svg { width: 16px; height: 16px; }
+.preview-note { margin-top: 10px; color: var(--muted); font-size: .88rem; }
+
+.steps { counter-reset: step; margin-bottom: 20px; }
+.steps li { display: grid; grid-template-columns: auto 1fr; gap: 14px; padding-block: 12px; border-top: 1px solid var(--line); color: var(--muted); counter-increment: step; }
+.steps li::before { content: counter(step); font-size: 1.5rem; font-weight: 900; font-stretch: 125%; line-height: 1; }
+.steps li b { display: block; color: var(--ink); }
+.bot-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px clamp(24px, 4vw, 48px); }
+@media (max-width: 860px) { .bot-grid { grid-template-columns: 1fr; } }
+.side-col .bot-grid, .drawer .bot-grid, .drawer .page-edit { grid-template-columns: 1fr; }
+.side-col .steps { display: none; }
+
+.danger { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.danger p { color: var(--muted); }
+.danger b { display: block; color: var(--ink); }
+
+/* Settings drawer from the right */
+.drawer { width: min(600px, 100%); max-width: none; height: 100%; max-height: none; margin: 0 0 0 auto; padding: 0; border-radius: 16px 0 0 16px; }
+.drawer[open] { animation: slide-in .3s cubic-bezier(.3, .8, .2, 1); }
+@keyframes slide-in { from { translate: 100% 0; } }
+.drawer-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; background: var(--paper); border-bottom: 2px solid var(--ink); }
+.drawer-head h2 { margin: 0; font-size: 1.5rem; }
+.drawer .card { margin: 0; border-radius: 0; }
+.drawer .card-head { display: none; }
+.icon-btn { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: var(--grey); color: inherit; border: 0; border-radius: 50%; cursor: pointer; }
+.icon-btn svg { width: 22px; height: 22px; }
+
+/* Top up: the pricing calculator's yellow slip */
+#top-up { width: min(560px, calc(100% - 32px)); }
+.range-row + .range-row { margin-top: 22px; }
+.range-row label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-weight: 650; }
+.range-row output { font-weight: 800; font-variant-numeric: tabular-nums; }
+.range-row input { width: 100%; accent-color: var(--ink); }
+.range-row small { color: var(--muted); font-size: .85rem; }
+.slip { margin-top: 24px; padding: 18px 20px; background: var(--yellow); border-radius: 12px; }
+.slip .total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.slip .total b { font-size: 2.6rem; font-weight: 850; font-stretch: 118%; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.slip p { margin-top: 8px; color: #4f4826; font-size: .88rem; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap" style="max-width:none">
+    <a class="logo" href="#">FindPhotosOfMe</a>
+    <div class="account"><span>Lumen Studio</span><div class="avatar" aria-hidden="true">LS</div></div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside id="side"></aside>
+  <main id="view"></main>
+</div>
+
+<dialog class="drawer" id="drawer" aria-labelledby="drawer-title">
+  <div class="drawer-head"><h2 id="drawer-title"></h2><button class="icon-btn" data-do="close-drawer" aria-label="Close"><i data-icon="close"></i></button></div>
+  <div id="drawer-body"></div>
+</dialog>
+
+<dialog id="top-up" aria-labelledby="top-up-title"><form method="dialog">
+  <h2 id="top-up-title">Top up your balance</h2>
+  <p class="muted">All your galleries share one balance. You pay once, and nothing renews.</p>
+  <div class="range-row" style="margin-top:24px">
+    <label for="tu-photos">Photos <output id="tu-photos-out"></output></label>
+    <input type="range" id="tu-photos" min="0" max="20000" step="500" value="2000">
+    <small>$5 per 1,000 photos</small>
+  </div>
+  <div class="range-row">
+    <label for="tu-searches">Searches <output id="tu-searches-out"></output></label>
+    <input type="range" id="tu-searches" min="0" max="2000" step="50" value="300">
+    <small>$1.50 per 100 searches. Each selfie someone checks is one search.</small>
+  </div>
+  <div class="slip">
+    <div class="total"><span>You pay</span><b id="tu-total"></b></div>
+    <p id="tu-note"></p>
+  </div>
+  <div class="actions"><button class="btn btn-line" value="cancel" formnovalidate>Cancel</button><button class="btn" value="pay" id="tu-pay"></button></div>
+</form></dialog>
+
+<script src="app.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+hydrateIcons();
+
+// ---- Prototype settings: which gallery, where its settings go, and the balance ----
+const state = { id: location.hash.slice(1) || "harbor", layout: "tabs", balance: "plenty", tab: "photos" };
+const BALANCES = { plenty: { photos: 2340, searches: 410 }, empty: { photos: 0, searches: 36 } };
+const account = { ...BALANCES.plenty };
+const word = (plural = false) => (plural ? "galleries" : "gallery");
+const Word = (plural = false) => (plural ? "Galleries" : "Gallery");
+
+const GROUPS = [
+  { key: "layout", label: "Settings in", options: [["tabs", "Tabs"], ["side", "Side column"], ["drawer", "Drawer"]] },
+  { key: "balance", label: "Balance", options: [["plenty", "Some left"], ["empty", "Out of photos"]] },
+];
+const proto = document.createElement("div");
+proto.className = "proto";
+proto.innerHTML = `<a href="index.html">All variations</a>` + GROUPS.map((g) => `<span>${g.label}</span>` +
+  g.options.map(([value, text]) => `<button type="button" data-group="${g.key}" data-value="${value}">${text}</button>`).join("")).join("");
+proto.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  state[b.dataset.group] = b.dataset.value;
+  if (b.dataset.group === "balance") Object.assign(account, BALANCES[b.dataset.value]);
+  render();
+});
+document.body.prepend(proto);
+const markProto = () => proto.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(state[b.dataset.group] === b.dataset.value)));
+
+// ---- Pieces ----
+const qr = (() => {
+  const SIZE = 25, CORNERS = [[0, 0], [SIZE - 7, 0], [0, SIZE - 7]];
+  let seed = 11;
+  const random = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const near = (x, y) => CORNERS.some(([cx, cy]) => x >= cx - 1 && x <= cx + 7 && y >= cy - 1 && y <= cy + 7);
+  let d = "";
+  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) if (!near(x, y) && random() < .5) d += `M${x} ${y}h1v1h-1z`;
+  d += CORNERS.map(([x, y]) => `M${x} ${y}h7v7h-7zM${x + 1} ${y + 1}v5h5v-5zM${x + 2} ${y + 2}h3v3h-3z`).join("");
+  return `<svg viewBox="-1 -1 27 27" aria-hidden="true"><path d="${d}" fill="#151515" fill-rule="evenodd"/></svg>`;
+})();
+const qrCard = () => `<div class="qr-card">${qr}<p>People scan this to open your ${word()}.</p><a class="btn btn-sm btn-line" href="#">${icon("download")}Download</a></div>`;
+
+const sheetParts = (e) => {
+  const done = e.ready + (e.processing?.done ?? 0);
+  const busy = e.processing ? e.processing.total - e.processing.done : 0;
+  return { done, busy };
+};
+// One tile per `unit` photos, picked so the sheet has at most 120 tiles. Empty tiles are what the balance still covers.
+const unitFor = (count) => [10, 25, 50, 100, 250, 500, 1000].find((u) => count / u <= 120) ?? 1000;
+
+function photosCard(e) {
+  const { done, busy } = sheetParts(e);
+  const unit = unitFor(done + busy + account.photos);
+  const readyTiles = Math.round(done / unit);
+  const busyTiles = busy ? Math.max(1, Math.round(busy / unit)) : 0;
+  const total = readyTiles + busyTiles + Math.round(account.photos / unit);
+  const tiles = Array.from({ length: Math.max(total, 1) }, (_, n) =>
+    `<i class="${n < readyTiles ? "ready" : n < readyTiles + busyTiles ? "busy" : ""}" style="--n:${n % 20}"></i>`).join("");
+  const add = account.photos
+    ? `<button class="drop" type="button" data-do="upload">${icon("upload")}<span><b>Add photos</b><small>Drop ZIP files here or choose them. JPEG or PNG, up to 2 GB per ZIP.</small></span></button>`
+    : `<div class="out-note"><p><b>Your balance is out of photos.</b> Top up to add more to this ${word()}.</p><button class="btn btn-sm" data-open="top-up">Top up</button></div>`;
+  return `<section class="card">
+    <div class="card-head"><h2>Photos</h2><p><b id="count">${fmt(done + busy)}</b> photos</p></div>
+    <div class="sheet" role="img" aria-label="${fmt(done)} photos ready, ${fmt(busy)} having faces found, your balance covers ${fmt(account.photos)} more">${tiles}</div>
+    <p class="legend"><span class="ready">${fmt(done)} ready</span>${busy ? `<span class="busy">${fmt(busy)} finding faces</span>` : ""}${account.photos ? `<span>Your balance covers ${fmt(account.photos)} more</span>` : ""}<em>Each tile is ${unit} photos</em></p>
+    <div class="photo-actions">${add}</div>
+    <div id="uploads">${uploadList(e)}</div>
+  </section>`;
+}
+
+function preview(e) {
+  const photos = (e.covers.length ? [...e.covers, ...PREVIEWS] : []).slice(0, 8);
+  return `<div><div class="browser" aria-label="Preview of your ${word()} page">
+    <div class="browser-bar" aria-hidden="true"><i></i><i></i><i></i><span id="p-url">${e.link}</span></div>
+    <div class="mini">
+      <p class="mini-title" id="p-title">${e.name}</p>
+      <p class="mini-desc" id="p-desc">${e.description}</p>
+      <div class="mini-grid">${photos.map((c) => `<img src="${photo(c)}" alt="">`).join("")}</div>
+      <span class="mini-pill">${icon("camera")}Find photos with you</span>
+    </div>
+  </div><p class="preview-note">The preview changes as you type.</p></div>`;
+}
+
+function pageSettings(e, withPreview) {
+  return `<section class="card">
+    <div class="card-head"><h2>${Word()} page</h2><p>What people see when they open your link.</p></div>
+    <div class="${withPreview ? "page-edit" : ""}">
+      <form onsubmit="return false">
+        <div class="field"><label for="f-name">Name</label><input class="input" id="f-name" value="${e.name}"></div>
+        <div class="field"><label for="f-addr">Page address</label><div class="addr"><input class="input" id="f-addr" value="${e.link.split(".")[0]}"><span>.findphotosofme.com</span></div><p class="hint">Changing it breaks links you’ve already shared.</p></div>
+        <div class="field"><label for="f-desc">Description</label><textarea class="input" id="f-desc" placeholder="Where and when it was, and who took the photos">${e.description}</textarea></div>
+        <button class="btn btn-sm" style="margin-top:20px">Save changes</button>
+      </form>
+      ${withPreview ? preview(e) : ""}
+    </div>
+    <div class="danger"><p><b>Delete this ${word()}</b>Its page stops working and its photos are deleted.</p><button class="btn btn-sm btn-line" data-open="delete-event">${icon("trash")}Delete</button></div>
+  </section>`;
+}
+
+function botSettings(e) {
+  return `<section class="card">
+    <div class="card-head"><h2>Telegram bot</h2><span class="pill idle">Not connected</span></div>
+    <div class="bot-grid">
+      <ol class="steps">
+        <li><p><b>Create a bot</b>Open @BotFather in Telegram and send /newbot.</p></li>
+        <li><p><b>Paste its token here</b>BotFather sends it after you name the bot.</p></li>
+        <li><p><b>Share the bot link</b>People send it a selfie and get their photos in the chat.</p></li>
+      </ol>
+      <form onsubmit="return false">
+        <div class="field"><label for="f-token">Bot token</label><input class="input" id="f-token" placeholder="123456:ABC-DEF1234ghIkl" autocomplete="off"></div>
+        <div class="field"><label for="f-welcome">Welcome message</label><textarea class="input" id="f-welcome">Hi! Send me a selfie and I’ll find your photos from ${e.name}.</textarea><p class="hint">The first message people see when they open the bot.</p></div>
+        <button class="btn btn-sm" style="margin-top:20px">${icon("send")}Connect bot</button>
+      </form>
+    </div>
+  </section>`;
+}
+
+function head(e, { withQr = true, withEdit = false } = {}) {
+  const meta = e.ready
+    ? `${fmt(spaceUsed(e))} photos and ${fmt(e.searches)} searches so far. Online until ${e.until}.`
+    : `No photos yet. Online until ${e.until}.`;
+  return `<div class="g-head">
+    <div>
+      ${pill(statusOf(e))}
+      <h1>${e.name}</h1>
+      <div class="share">
+        <a class="url" href="event-gallery.html">${e.link}</a>
+        <button class="btn btn-sm btn-line" data-copy="${e.link}">${icon("copy")}<span>Copy link</span></button>
+        <a class="btn btn-sm btn-line" href="event-gallery.html">${icon("open")}Open page</a>
+      </div>
+      <p class="meta">${meta}</p>
+      ${withEdit ? `<div class="edit-row">
+        <button class="btn btn-sm" data-drawer="page">${icon("settings")}Edit ${word()} page</button>
+        <button class="btn btn-sm btn-line" data-drawer="bot">${icon("send")}Telegram bot<span class="pill idle">Not connected</span></button>
+      </div>` : ""}
+    </div>
+    ${withQr ? qrCard() : ""}
+  </div>`;
+}
+
+const LAYOUTS = {
+  tabs: (e) => {
+    const TABS = [["photos", "Photos"], ["page", `${Word()} page`], ["bot", "Telegram bot"]];
+    const panel = { photos: () => photosCard(e), page: () => pageSettings(e, true), bot: () => botSettings(e) }[state.tab]();
+    return `${head(e)}
+      <div class="tabs" role="tablist">${TABS.map(([id, label]) => `<button role="tab" data-tab="${id}" aria-selected="${state.tab === id}">${label}</button>`).join("")}</div>
+      <div role="tabpanel">${panel}</div>`;
+  },
+  side: (e) => `${head(e, { withQr: false })}
+    <div class="side-layout">
+      <div>${photosCard(e)}</div>
+      <div class="side-col">${qrCard()}${pageSettings(e, false)}${botSettings(e)}</div>
+    </div>`,
+  drawer: (e) => `${head(e, { withEdit: true })}${photosCard(e)}`,
+};
+
+function sidebar(current) {
+  const list = EVENTS.map((e) => {
+    const status = statusOf(e);
+    return `<a href="#${e.id}" ${e.id === current ? 'aria-current="page"' : ""}>
+      ${e.covers[0] ? `<img src="${photo(e.covers[0])}" alt="">` : `<span class="blank"></span>`}
+      <span><b>${e.name}</b><small class="${status.tone}">${e.ready ? `${fmt(spaceUsed(e))} photos, ` : ""}${status.label.toLowerCase()}</small></span></a>`;
+  }).join("");
+  return `
+    <button class="btn btn-yellow btn-sm" data-open="new-event">${icon("plus")}New ${word()}</button>
+    <h2>${Word(true)}</h2>
+    <nav class="side-list" aria-label="${Word(true)}">${list}</nav>
+    <section class="balance">
+      <h2>Balance</h2>
+      <p class="${account.photos ? "" : "out"}"><b>${fmt(account.photos)}</b> photos</p>
+      <p><b>${fmt(account.searches)}</b> searches</p>
+      <button class="btn btn-yellow btn-sm" data-open="top-up">Top up</button>
+      <small>Shared by all your ${word(true)}.</small>
+    </section>`;
+}
+
+// The dialogs from app.js say "event"; this page calls them galleries
+function nameDialogs() {
+  $("new-event-title").textContent = `New ${word()}`;
+  document.querySelector('label[for="ne-name"]').textContent = "Name";
+  document.querySelector('#new-event button[value="create"]').textContent = `Create ${word()}`;
+  $("delete-title").textContent = `Delete this ${word()}?`;
+  document.querySelector('#delete-event button[value="delete"]').textContent = `Delete ${word()}`;
+}
+
+const current = () => EVENTS.find((e) => e.id === state.id) ?? EVENTS[0];
+function render() {
+  clearTimeout(fake);
+  const e = current();
+  $("side").innerHTML = sidebar(e.id);
+  $("view").innerHTML = LAYOUTS[state.layout](e);
+  document.title = `Your ${word(true)}`;
+  nameDialogs();
+  markProto();
+}
+
+// ---- Behaviour ----
+function openDrawer(kind) {
+  const e = current();
+  $("drawer-title").textContent = kind === "page" ? `${Word()} page` : "Telegram bot";
+  $("drawer-body").innerHTML = kind === "page" ? pageSettings(e, true) : botSettings(e);
+  $("drawer").showModal();
+}
+
+// Prototype only: "Add photos" pretends a ZIP of up to 400 photos arrives, paid from the balance
+let fake;
+function fakeUpload(e) {
+  const size = Math.min(400, account.photos);
+  if (e.processing || !size) return;
+  account.photos -= size;
+  const upload = { file: "more-photos.zip", size: `${Math.ceil(size * 1.05)} MB`, state: "busy", done: 0, photos: size };
+  e.uploads.push(upload);
+  e.processing = { done: 0, total: size };
+  render();
+  const tick = () => {
+    upload.done = e.processing.done = Math.min(size, e.processing.done + Math.ceil(size / 30));
+    if (upload.done < size) {
+      $("view").querySelector(".card").outerHTML = photosCard(e);
+      return (fake = setTimeout(tick, 120));
+    }
+    upload.state = "ready";
+    e.ready += size;
+    e.processing = null;
+    if (!e.covers.length) e.covers.push("p20", "p02", "p30");
+    render();
+  };
+  fake = setTimeout(tick, 300);
+}
+
+// Top up: the calculator's prices with its $10 minimum
+function topUpPrice() {
+  const photos = Number($("tu-photos").value), searches = Number($("tu-searches").value);
+  const subtotal = (photos / 1000) * 5 + (searches / 100) * 1.5;
+  return { photos, searches, subtotal, total: Math.max(10, subtotal) };
+}
+const money = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+function showTopUp() {
+  const p = topUpPrice();
+  $("tu-photos-out").textContent = fmt(p.photos);
+  $("tu-searches-out").textContent = fmt(p.searches);
+  $("tu-total").textContent = money(p.total);
+  $("tu-note").textContent = p.subtotal < 10 ? `Topped up to the $10 minimum.` : `Adds ${fmt(p.photos)} photos and ${fmt(p.searches)} searches to your balance.`;
+  $("tu-pay").textContent = `Pay ${money(p.total)}`;
+}
+$("top-up").addEventListener("input", showTopUp);
+$("top-up").addEventListener("close", () => {
+  if ($("top-up").returnValue !== "pay") return;
+  const p = topUpPrice();
+  account.photos += p.photos;
+  account.searches += p.searches;
+  render();
+});
+showTopUp();
+
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { state.tab = tab.dataset.tab; return render(); }
+  const drawer = e.target.closest("[data-drawer]");
+  if (drawer) return openDrawer(drawer.dataset.drawer);
+  const action = e.target.closest("[data-do]")?.dataset.do;
+  if (action === "upload") fakeUpload(current());
+  if (action === "close-drawer") $("drawer").close();
+});
+// The preview follows the form as you type
+document.addEventListener("input", (e) => {
+  const target = { "f-name": "p-title", "f-desc": "p-desc" }[e.target.id];
+  if (target) document.getElementById(target).textContent = e.target.value;
+  if (e.target.id === "f-addr") document.getElementById("p-url").textContent = `${e.target.value}.findphotosofme.com`;
+});
+addEventListener("hashchange", () => { state.id = location.hash.slice(1); state.tab = "photos"; render(); scrollTo(0, 0); });
+
+mountDashboard();
+// Prototype only: creating a gallery adds it to the list and opens it
+$("new-event").addEventListener("close", () => {
+  if ($("new-event").returnValue !== "create") return;
+  const name = $("ne-name").value.trim();
+  const id = $("ne-addr").value || slug(name);
+  EVENTS.push({ id, name, link: `${id}.findphotosofme.com`, covers: [], ready: 0, processing: null, searches: 0, until: "Nov 3", description: "", uploads: [] });
+  $("new-event").querySelector("form").reset();
+  location.hash = id;
+});
+render();
+</script>
+</body>
+</html>

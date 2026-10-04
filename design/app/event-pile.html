@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbor Summit Lisbon photos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+/* B: the page is the pile of photos. A yellow bar pinned to the bottom holds the selfie search,
+   and the landing demo's scan line crosses the real photos while it runs. */
+body { background: var(--ink); color: #fff; }
+:focus-visible { outline-color: var(--yellow); }
+.top { display: flex; align-items: center; height: 64px; }
+.top .logo { font-size: 1rem; }
+.intro { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: end; gap: 16px clamp(32px, 6vw, 80px); padding-block: clamp(20px, 4vw, 48px) clamp(28px, 4vw, 40px); }
+h1 { font-size: clamp(2.4rem, 6.4vw, 5rem); }
+.intro p { max-width: 46ch; color: #b3b3ad; }
+.intro b { display: block; margin-bottom: 4px; color: #fff; font-size: 1.15rem; font-weight: 800; font-stretch: 112%; }
+@media (max-width: 760px) { .intro { grid-template-columns: 1fr; } }
+
+.wide { max-width: 1400px; margin-inline: auto; padding-inline: clamp(8px, 2vw, 24px); }
+.pile { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; }
+.pile img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.pile-note { padding: 12px clamp(12px, 2vw, 16px) 0; color: #8e8e89; font-size: .9rem; }
+@media (max-width: 760px) { .pile { grid-template-columns: repeat(4, minmax(0, 1fr)); } .pile li:nth-child(n + 25) { display: none; } }
+[data-state="found"] .pile, [data-state="found"] .pile-note { display: none; }
+
+.results { padding: 8px clamp(12px, 2vw, 16px) 0; }
+.results-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.results h2 { font-size: clamp(2rem, 4.4vw, 3.2rem); }
+.results-head p { margin-top: 8px; color: #b3b3ad; }
+
+/* Sticks to the bottom of the screen until the page ends, then rests under the photos */
+.dock { position: sticky; bottom: 16px; z-index: 10; display: flex; align-items: center; gap: 16px; max-width: 760px; margin: 28px auto 32px; padding: 12px 12px 12px 14px; background: var(--yellow); color: var(--ink); border-radius: 16px; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .7); }
+.dock :focus-visible { outline-color: var(--ink); }
+.dock .slot { width: 60px; height: 60px; border-color: rgb(21 21 21 / .4); color: var(--ink); }
+.dock .slot:has(img) { border-color: var(--ink); }
+.dock-text { flex: 1; min-width: 0; line-height: 1.3; }
+.dock-text b { display: block; font-size: 1.1rem; font-weight: 800; font-stretch: 112%; }
+.dock-text span { display: block; margin-top: 2px; color: #4f4826; font-size: .95rem; }
+.dock .meter { margin-top: 8px; background: rgb(21 21 21 / .15); }
+.dock-actions { display: flex; align-items: center; gap: 14px; }
+@media (max-width: 600px) {
+  .dock { flex-wrap: wrap; margin-inline: 8px; }
+  .dock-text { flex-basis: calc(100% - 80px); }
+  .dock-actions { flex-basis: 100%; }
+  .dock-actions .btn { flex: 1; }
+}
+.foot { padding: 0 0 40px; color: #8e8e89; font-size: .9rem; text-align: center; }
+.foot a { color: #fff; font-weight: 700; }
+</style>
+</head>
+<body>
+<header class="wrap top"><a class="logo" href="#">FindPhotosOfMe</a></header>
+
+<section class="wrap intro">
+  <h1>Harbor Summit Lisbon</h1>
+  <p><b>5,214 photos</b>Photos from both days of Harbor Summit, May 14 and 15 at the Lisbon Congress Centre. Taken by Lumen Studio.</p>
+</section>
+
+<main class="wide">
+  <ul class="pile sweep" id="pile"></ul>
+  <p class="pile-note">48 of the 5,214 photos. The search checks all of them.</p>
+
+  <section class="results" id="results" hidden>
+    <div class="results-head">
+      <div>
+        <h2>8 photos of you</h2>
+        <p>Tap a photo to download it.</p>
+      </div>
+      <a class="btn btn-yellow" href="#"><i data-icon="download"></i>Download all 8</a>
+    </div>
+    <ul class="matches" id="matches"></ul>
+  </section>
+
+  <div class="dock" aria-live="polite">
+    <div class="slot" id="slot"></div>
+    <div class="dock-text">
+      <b id="dock-title"></b>
+      <span id="dock-text"></span>
+      <div class="meter" id="meter" hidden><i></i></div>
+    </div>
+    <div class="dock-actions" id="dock-actions"></div>
+  </div>
+  <input type="file" id="selfie" accept="image/*" class="sr" tabindex="-1">
+</main>
+
+<footer class="foot">Photo search by <a href="index.html">FindPhotosOfMe</a></footer>
+
+<script src="app.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+$("pile").innerHTML = PREVIEWS.map((name) => `<li><img src="${photo(name)}" alt="" loading="lazy"></li>`).join("");
+hydrateIcons();
+
+const COPY = {
+  start: ["Find the photos you’re in", "Add a clear selfie. No account needed."],
+  selfie: ["Your selfie is added", `We’ll look for you in all ${fmt(EVENT.total)} photos.`],
+  searching: [`Looking for you in ${fmt(EVENT.total)} photos`, ""],
+  found: ["Searched with this selfie", "Not the photos you expected? Try a different selfie."],
+  none: ["No photos of you found", "Try a selfie with one face, looking at the camera, in good light."],
+  error: ["No face found in this photo", "Use a photo where your face is clear and looking at the camera."],
+};
+const ACTIONS = {
+  start: `<button class="btn" data-do="pick">${icon("camera")}Add a selfie</button>`,
+  selfie: `<button class="link-btn" data-do="pick">Change</button><button class="btn" data-do="search">Find my photos</button>`,
+  searching: "",
+  found: `<button class="btn btn-line" data-do="pick">Try another selfie</button>`,
+  none: `<button class="btn" data-do="pick">Try another selfie</button>`,
+  error: `<button class="btn" data-do="pick">Choose another photo</button>`,
+};
+
+const mark = protoBar("Event page B: the photo pile", SEARCH_STATES, (state) => search.jump(state));
+let shown;
+function render(s) {
+  $("dock-text").textContent = s.state === "searching"
+    ? `${fmt(s.checked)} checked, ${s.found} found so far`
+    : COPY[s.state][1];
+  $("meter").firstElementChild.style.setProperty("--p", `${(s.checked / EVENT.total) * 100}%`);
+  if (s.state === shown) return;
+  shown = s.state;
+  mark(s.state);
+  $("dock-title").textContent = COPY[s.state][0];
+  $("dock-actions").innerHTML = ACTIONS[s.state];
+  $("slot").innerHTML = s.selfie ? `<img src="${s.selfie}" alt="Your selfie">` : icon("camera");
+  $("meter").hidden = s.state !== "searching";
+  $("results").hidden = s.state !== "found";
+  $("matches").innerHTML = s.state === "found" ? matchTiles() : "";
+  if (s.state === "found") $("results").scrollIntoView({ behavior: "smooth" });
+}
+const search = createSearch(render);
+
+document.addEventListener("click", (e) => {
+  const action = e.target.closest("[data-do]")?.dataset.do;
+  if (action === "pick") $("selfie").click();
+  if (action === "search") search.search();
+});
+$("selfie").addEventListener("change", (e) => search.pickFile(e.target));
+</script>
+</body>
+</html>

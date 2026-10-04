@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Harbor Summit Lisbon photos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+/* The gallery is the page: every photo, loading as you scroll, each opening full screen.
+   The selfie search lives in a yellow banner that floats over it and opens into a sheet.
+   While a search runs, the sheet can be minimized and the banner shows the progress, then the result. */
+body { background: var(--ink); color: #fff; }
+body:has(dialog[open]) { overflow: hidden; }
+:focus-visible { outline-color: var(--yellow); }
+.top { display: flex; align-items: center; height: 64px; }
+.top .logo { font-size: 1rem; }
+/* The gallery name gets the full width; the count and description sit under it */
+.intro { padding-block: clamp(16px, 3vw, 36px) clamp(24px, 3vw, 36px); }
+.intro h1 { font-size: clamp(2.4rem, 6.4vw, 5.4rem); }
+.intro p { display: flex; flex-wrap: wrap; gap: 4px 20px; max-width: 72ch; margin-top: clamp(14px, 2vw, 22px); color: #b3b3ad; }
+.intro b { color: #fff; font-weight: 800; font-stretch: 112%; }
+
+
+.wide { max-width: 1600px; margin-inline: auto; padding: 0 clamp(4px, 1.5vw, 20px) 180px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 30%), 1fr)); gap: 4px; }
+.tile { display: block; width: 100%; padding: 0; overflow: hidden; background: #222220; border: 0; cursor: zoom-in; }
+.tile img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; transition: scale .3s; }
+.tile:hover img { scale: 1.03; }
+.more { padding: 32px; color: #8e8e89; font-size: .9rem; text-align: center; }
+
+/* The banner and the sheet share a view-transition name, so opening one morphs into the other */
+.banner { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; z-index: 30; display: flex; align-items: center; gap: 16px; width: min(780px, calc(100% - 24px)); padding: 12px; background: var(--yellow); color: var(--ink); border-radius: 18px; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .8); translate: -50% 0; view-transition-name: finder; }
+.banner :focus-visible { outline-color: var(--ink); }
+.banner-main { flex: 1; display: flex; align-items: center; gap: 16px; min-width: 0; padding: 0; background: none; color: inherit; border: 0; border-radius: 10px; text-align: left; cursor: pointer; }
+.banner .slot { width: 64px; height: 64px; border-color: rgb(21 21 21 / .4); color: var(--ink); }
+.banner .ring { width: 64px; height: 64px; }
+.banner-text { flex: 1; min-width: 0; line-height: 1.3; }
+.banner-text b { display: block; font-size: 1.15rem; font-weight: 800; font-stretch: 112%; }
+.banner-text small { display: block; margin-top: 2px; color: #4f4826; font-size: .95rem; font-variant-numeric: tabular-nums; }
+.banner .meter { margin-top: 8px; background: rgb(21 21 21 / .15); }
+.banner-side { display: flex; align-items: center; gap: 14px; }
+.stack { display: flex; padding-left: 10px; }
+.stack img { width: 44px; height: 44px; margin-left: -10px; object-fit: cover; border: 2px solid var(--yellow); border-radius: 8px; }
+.banner-chevron, .narrow-only { display: none; }
+/* On phones and narrow windows the banner is one slim row, so most of the screen stays on the photos.
+   The longer descriptions go; while searching and when done, the whole banner opens the sheet. */
+@media (max-width: 760px) {
+  .wide { padding-bottom: 110px; }
+  .banner { bottom: max(10px, env(safe-area-inset-bottom)); gap: 10px; width: calc(100% - 16px); padding: 8px; border-radius: 16px; }
+  .banner-main { gap: 10px; }
+  .banner .slot, .banner .ring { width: 44px; height: 44px; }
+  .banner .slot svg { width: 20px; height: 20px; }
+  .banner-text b { display: -webkit-box; overflow: hidden; font-size: 1rem; line-height: 1.15; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .banner-text small { overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+  /* Before a search and after a miss, the button carries the camera, so the slot and description go */
+  .banner:is([data-state="start"], [data-state="none"], [data-state="error"]) :is(small, .slot, .ring) { display: none; }
+  .banner:is([data-state="start"], [data-state="none"], [data-state="error"]) .banner-main { padding-left: 8px; }
+  .banner .meter { height: 4px; margin-top: 6px; }
+  .banner-side .btn { min-height: 44px; padding: 0 14px; font-size: .95rem; }
+  .banner-side .btn svg { width: 18px; height: 18px; }
+  .wide-only, .stack, .banner-side.expand { display: none; }
+  .narrow-only { display: inline; }
+  .banner-chevron { display: grid; flex: none; place-items: center; width: 36px; height: 36px; }
+  .banner-chevron svg { width: 22px; height: 22px; }
+}
+@media (max-width: 380px) {
+  .banner-text b { font-size: .95rem; font-stretch: 100%; }
+  .banner-text small { font-size: .78rem; }
+  .banner-side .btn { padding: 0 12px; }
+  .banner .ring { width: 40px; height: 40px; }
+}
+
+/* A selfie in a ring that fills as photos are checked */
+.ring { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 3px; background: conic-gradient(var(--ink) calc(var(--p, 0) * 1%), rgb(21 21 21 / .15) 0); border-radius: 50%; }
+.ring img { width: 100%; height: 100%; object-fit: cover; border: 2px solid var(--yellow); border-radius: 50%; }
+.ring.done { background: var(--ink); }
+.ring.big { width: 72px; height: 72px; padding: 4px; }
+
+.sheet { display: flex; flex-direction: column; width: min(780px, calc(100% - 32px)); max-width: none; max-height: min(86vh, 860px); margin: auto auto 16px; padding: 0; overflow: hidden; background: var(--yellow); color: var(--ink); border-radius: 24px; box-shadow: 0 30px 80px -20px rgb(0 0 0 / .8); view-transition-name: finder; }
+.sheet:not([open]) { display: none; }
+.sheet::backdrop { background: rgb(0 0 0 / .6); }
+.sheet :focus-visible { outline-color: var(--ink); }
+.sheet:focus { outline: none; }
+.grab-zone { display: none; }
+.grab { width: 40px; height: 5px; background: rgb(21 21 21 / .25); border-radius: 3px; }
+.icon-btn { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: rgb(21 21 21 / .08); color: inherit; border: 0; border-radius: 50%; cursor: pointer; }
+.icon-btn:hover { background: rgb(21 21 21 / .15); }
+.icon-btn svg { width: 22px; height: 22px; }
+/* Sits on the title's line and stays put while the results scroll under it */
+.minimize { position: absolute; top: 20px; right: 20px; z-index: 2; background: #efc61d; }
+.minimize:hover { background: #e6bd14; }
+.sheet-body { display: flex; flex-direction: column; flex: 1; overflow-y: auto; padding: 26px 32px 32px; }
+.sheet-body > :first-child { padding-right: 56px; }
+.sheet h2 { font-size: clamp(1.9rem, 4vw, 2.4rem); }
+.sheet-body > p, .sheet .sub { margin-top: 8px; color: #4f4826; font-size: 1.05rem; }
+
+/* A white card on the yellow, like the product screen on the landing hero */
+.pick { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+.pick-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 28px 20px 24px; background: var(--paper); color: var(--ink); border: 0; border-radius: 18px; text-align: center; cursor: pointer; transition: box-shadow .2s; }
+.pick-card:hover { box-shadow: 0 14px 30px -16px rgb(0 0 0 / .45); }
+.sheet.over .pick-card { outline: 3px solid var(--ink); outline-offset: -3px; }
+.face-guide { display: grid; place-items: center; width: 84px; height: 84px; margin-bottom: 12px; border: 2px dashed #b4b4ae; border-radius: 50%; transition: border-color .2s; }
+.pick-card:hover .face-guide { border-color: var(--ink); }
+.face-guide svg { width: 30px; height: 30px; }
+.pick-card b { font-size: 1.2rem; font-weight: 800; font-stretch: 112%; }
+.pick-card small { color: var(--muted); font-size: .92rem; }
+.tips { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 18px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .9rem; }
+.tips li::before { content: "✓ "; font-weight: 800; }
+
+/* What happens to the selfie, said before anyone uploads one */
+.privacy { margin-block: 28px 8px; }
+.privacy li { display: flex; align-items: flex-start; gap: 12px; line-height: 1.35; }
+.privacy svg { flex: none; width: 22px; height: 22px; margin-top: 1px; }
+.privacy b { display: block; font-weight: 700; }
+.privacy span { color: #4f4826; font-size: .92rem; }
+/* Centered under the card where the sheet is wide; on phones it lines up with the text above */
+@media (min-width: 641px) { .privacy { display: flex; justify-content: center; } }
+@media (pointer: fine) { .touch-only { display: none !important; } }
+@media (pointer: coarse) { .fine-only { display: none; } }
+.result-head { display: flex; align-items: center; gap: 18px; }
+.sheet .meter { margin-top: 20px; background: rgb(21 21 21 / .15); }
+.sheet .actions { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 10px; margin-top: 22px; padding-right: 0; }
+.sheet .actions .btn { flex: 1 1 200px; }
+.found { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 30%), 1fr)); gap: 6px; margin-top: 22px; }
+.found li { animation: pop .45s cubic-bezier(.2, .9, .3, 1.2) both; }
+.found .tile { border-radius: 6px; }
+.keep { margin-top: 22px; color: #4f4826; }
+@media (max-width: 640px) {
+  /* The sheet opens to most of the screen, so its first lines sit where people read, not at the bottom edge */
+  .sheet { width: 100%; min-height: 82dvh; max-height: 92dvh; margin: auto 0 0; border-radius: 24px 24px 0 0; }
+  /* On phones the sheet sits on the bottom edge, so it gets a handle that really drags */
+  .grab-zone { display: grid; flex: none; place-items: center; height: 24px; touch-action: none; cursor: grab; }
+  .minimize { top: 28px; right: 16px; }
+  .sheet-body { padding: 8px 20px max(20px, env(safe-area-inset-bottom)); }
+}
+
+::view-transition-group(finder) { animation-duration: .45s; animation-timing-function: cubic-bezier(.3, .8, .2, 1); }
+::view-transition-group(root) { animation-duration: .3s; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
+
+/* Full screen viewer for the gallery and for the photos you're in */
+.viewer { width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; background: #0a0a0a; color: #fff; border-radius: 0; box-shadow: none; }
+.viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.viewer::backdrop { background: #0a0a0a; }
+.viewer :focus-visible { outline-color: var(--yellow); }
+.viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px clamp(12px, 2vw, 20px); }
+.viewer-bar span { color: #b3b3ad; font-size: .95rem; font-variant-numeric: tabular-nums; }
+.viewer-bar div { display: flex; gap: 8px; }
+.viewer .icon-btn { background: rgb(255 255 255 / .1); }
+.viewer .icon-btn:hover { background: rgb(255 255 255 / .2); }
+.stage { position: relative; display: grid; place-items: center; min-height: 0; padding: 0 clamp(0px, 6vw, 88px) clamp(12px, 3vw, 32px); touch-action: pan-y; }
+.stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; }
+.nav { position: absolute; top: 50%; translate: 0 -50%; }
+.nav.prev { left: clamp(8px, 2vw, 24px); }
+.nav.next { right: clamp(8px, 2vw, 24px); }
+@media (pointer: coarse) { .nav { display: none; } }
+</style>
+</head>
+<body>
+<header class="wrap top"><a class="logo" href="#">FindPhotosOfMe</a></header>
+
+<section class="wrap intro">
+  <h1>Harbor Summit Lisbon</h1>
+  <p><b>5,214 photos</b>Photos from both days of Harbor Summit, May 14 and 15 at the Lisbon Congress Centre. Taken by Lumen Studio.</p>
+</section>
+
+<main class="wide">
+  <ul class="gallery" id="gallery"></ul>
+  <p class="more" id="more">Loading more photos</p>
+</main>
+
+<div class="banner" id="banner" aria-live="polite"></div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheet-title" tabindex="-1" autofocus>
+  <div class="grab-zone" id="grab" aria-hidden="true"><span class="grab"></span></div>
+  <button class="icon-btn minimize" data-do="minimize" aria-label="Minimize"><i data-icon="down"></i></button>
+  <div class="sheet-body" id="sheet-body"></div>
+</dialog>
+<input type="file" id="pick" accept="image/*" class="sr" tabindex="-1">
+<input type="file" id="camera" accept="image/*" capture="user" class="sr" tabindex="-1">
+
+<dialog class="viewer" id="viewer" aria-label="Photo viewer">
+  <div class="viewer-bar">
+    <span id="viewer-count"></span>
+    <div>
+      <a class="icon-btn" id="viewer-download" download aria-label="Download this photo"><i data-icon="download"></i></a>
+      <button class="icon-btn" data-do="close-viewer" aria-label="Close"><i data-icon="close"></i></button>
+    </div>
+  </div>
+  <div class="stage" id="stage">
+    <img id="viewer-img" alt="">
+    <button class="icon-btn nav prev" data-do="prev" aria-label="Previous photo"><i data-icon="left"></i></button>
+    <button class="icon-btn nav next" data-do="next" aria-label="Next photo"><i data-icon="right"></i></button>
+  </div>
+</dialog>
+
+<script src="app.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+hydrateIcons();
+
+// ---- The gallery: 30 more photos whenever the end comes near. Prototype photos repeat. ----
+const POOL = [...PREVIEWS, "t29", "ev-01", "t30", "p02", "t31", "p03", "ev-04", "t34", "p09", "t35", "p11", "ev-06", "t36", "p16", "t37", "p20", "p26", "p30"];
+const photos = [];
+function loadMore() {
+  const start = photos.length;
+  for (let i = 0; i < 30 && photos.length < EVENT.total; i++) photos.push(POOL[photos.length % POOL.length]);
+  $("gallery").insertAdjacentHTML("beforeend", photos.slice(start).map((name, i) =>
+    `<li><button class="tile" data-view="gallery" data-i="${start + i}" aria-label="Open photo ${start + i + 1}"><img src="${photo(name)}" alt="" loading="lazy"></button></li>`).join(""));
+  $("more").hidden = photos.length >= EVENT.total;
+}
+new IntersectionObserver(([entry]) => entry.isIntersecting && loadMore(), { rootMargin: "1200px" }).observe($("more"));
+
+// ---- Full screen viewer. Arrow keys and swipes move through whichever list opened it. ----
+let viewing = { list: photos, total: EVENT.total, at: 0 };
+function showPhoto(at) {
+  const { list } = viewing;
+  viewing.at = (at + list.length) % list.length;
+  const src = photo(list[viewing.at]);
+  $("viewer-img").src = src;
+  $("viewer-download").href = src;
+  $("viewer-count").textContent = `${fmt(viewing.at + 1)} of ${fmt(viewing.total)}`;
+}
+function openViewer(list, total, at) {
+  viewing = { list, total, at };
+  showPhoto(at);
+  $("viewer").showModal();
+}
+$("viewer").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") showPhoto(viewing.at + 1);
+  if (e.key === "ArrowLeft") showPhoto(viewing.at - 1);
+});
+let swipeFrom = null;
+$("stage").addEventListener("pointerdown", (e) => (swipeFrom = e.clientX));
+$("stage").addEventListener("pointerup", (e) => {
+  const dx = e.clientX - (swipeFrom ?? e.clientX);
+  if (Math.abs(dx) > 50) showPhoto(viewing.at + (dx < 0 ? 1 : -1));
+  swipeFrom = null;
+});
+
+// ---- The banner and its sheet ----
+function setOpen(open) {
+  const apply = () => {
+    if (open) { $("sheet").showModal(); $("sheet").focus(); } else $("sheet").close();
+    $("banner").hidden = open;
+    if (!open) document.querySelector(".banner-main").focus();
+  };
+  if (reduced || !document.startViewTransition) return apply();
+  // A transition that gets interrupted is skipped, which rejects `ready`; the change itself still applies
+  document.startViewTransition(apply).ready.catch(() => {});
+}
+$("sheet").addEventListener("cancel", (e) => { e.preventDefault(); setOpen(false); });
+// A click on the dimmed backdrop lands on the dialog itself
+$("sheet").addEventListener("click", (e) => { if (e.target === $("sheet")) setOpen(false); });
+
+const pct = (s) => Math.round((s.checked / EVENT.total) * 100);
+const ring = (s, big = false) => `<span class="ring ${s.state === "searching" ? "" : "done"} ${big ? "big" : ""}" style="--p:${pct(s)}"><img src="${s.selfie}" alt="Your selfie"></span>`;
+const foundTiles = (from, to) => MATCHES.slice(from, to).map((name, i) =>
+  `<li><button class="tile" data-view="found" data-i="${from + i}" aria-label="Open photo ${from + i + 1} of you"><img src="${photo(name)}" alt=""></button></li>`).join("");
+
+// The banner while the sheet is closed. Every part of it opens the sheet, which explains the next step.
+const thumbs = (n) => `<span class="stack">${MATCHES.slice(0, n).map((name) => `<img src="${photo(name)}" alt="">`).join("")}</span>`;
+const BANNER = {
+  start: () => ({
+    face: `<span class="slot">${icon("camera")}</span>`,
+    title: "Find photos with you", text: "Upload a photo of your face to see only photos you’re in.",
+    side: `<button class="btn" data-do="expand">${icon("camera")}<span class="wide-only">Search with a selfie</span><span class="narrow-only">Search</span></button>`,
+  }),
+  searching: (s) => ({
+    face: ring(s), title: "Looking for you", text: "", meter: true, expand: true,
+    side: `<button class="btn btn-line" data-do="expand">${icon("up")}Show</button>`,
+  }),
+  found: (s) => ({
+    face: ring(s), title: `${MATCHES.length} photos of you`, text: `Found in ${fmt(EVENT.total)} photos.`, expand: true,
+    side: `${thumbs(3)}<button class="btn" data-do="expand">See your photos</button>`,
+  }),
+  none: (s) => ({
+    face: ring(s), title: "No photos of you found", text: "A different selfie can help: one face, in good light.",
+    side: `<button class="btn" data-do="expand">${icon("camera")}New selfie</button>`,
+  }),
+  error: (s) => ({
+    face: ring(s), title: "No face in this photo", text: "Use a photo where your face is clear.",
+    side: `<button class="btn" data-do="expand">${icon("camera")}New selfie</button>`,
+  }),
+};
+const banner = (b) => `
+  <button class="banner-main" data-do="expand" aria-haspopup="dialog">${b.face}
+    <span class="banner-text"><b>${b.title}</b><small id="banner-text">${b.text}</small>${b.meter ? `<span class="meter" style="display:block"><i id="banner-meter"></i></span>` : ""}</span>
+    ${b.expand ? `<span class="banner-chevron">${icon("up")}</span>` : ""}
+  </button>
+  <div class="banner-side ${b.expand ? "expand" : ""}">${b.side}</div>`;
+const PICK = `
+  <div class="pick">
+    <button class="pick-card" data-do="pick">
+      <span class="face-guide">${icon("camera")}</span>
+      <b>Choose a photo of your face</b>
+      <small>JPEG, PNG, or WebP, up to 10 MB<span class="fine-only">, or drop it here</span></small>
+      <ul class="tips"><li>One face</li><li>Looking at the camera</li><li>Good light</li></ul>
+    </button>
+    <button class="btn touch-only" data-do="camera">${icon("camera")}Take a selfie now</button>
+  </div>
+  <ul class="privacy">
+    <li>${icon("shield")}<p><b>Used only for this search</b><span>We don’t save your photo or any data about your face.</span></p></li>
+  </ul>`;
+const SHEET = {
+  start: () => `
+    <h2 id="sheet-title">Find photos with you</h2>
+    <p>Upload a photo of your face to see only photos you’re in.</p>
+    ${PICK}`,
+  searching: (s) => `
+    <div class="result-head">${ring(s, true)}<div><h2 id="sheet-title">Looking for you</h2><p class="sub" id="progress-text"></p></div></div>
+    <div class="meter"><i id="progress"></i></div>
+    <ul class="found" id="live"></ul>
+    <p class="keep">You can keep browsing while we look. <button class="link-btn" data-do="minimize">Keep browsing</button></p>`,
+  found: (s) => `
+    <div class="result-head">${ring(s, true)}<div><h2 id="sheet-title">${MATCHES.length} photos of you</h2><p class="sub">Found in ${fmt(EVENT.total)} photos.</p></div></div>
+    <div class="actions"><a class="btn" href="#">${icon("download")}Download all ${MATCHES.length}</a><button class="btn btn-line" data-do="pick">Try another selfie</button></div>
+    <ul class="found">${foundTiles(0, MATCHES.length)}</ul>`,
+  none: (s) => `
+    <div class="result-head">${ring(s, true)}<div><h2 id="sheet-title">No photos of you found</h2><p class="sub">We checked all ${fmt(EVENT.total)} photos. A different selfie can help: one face, looking at the camera, in good light.</p></div></div>
+    ${PICK}`,
+  error: (s) => `
+    <div class="result-head">${ring(s, true)}<div><h2 id="sheet-title">No face in this photo</h2><p class="sub">Use a photo where your face is clear and looking at the camera.</p></div></div>
+    ${PICK}`,
+};
+
+const mark = protoBar("Gallery page", [["start", "Start"], ["searching", "Searching"], ["found", "Found"], ["none", "No matches"], ["error", "No face"]], (state) => search.jump(state));
+let shown, live = 0;
+function render(s) {
+  if (s.state !== shown) {
+    shown = s.state;
+    mark(s.state);
+    $("banner").innerHTML = banner(BANNER[s.state](s));
+    $("banner").dataset.state = s.state;
+    $("sheet-body").innerHTML = SHEET[s.state](s);
+    live = 0;
+  }
+  if (s.state === "searching") {
+    const progress = `${fmt(s.checked)} of ${fmt(EVENT.total)} photos checked, ${s.found} found so far`;
+    $("progress-text").textContent = progress;
+    $("banner-text").textContent = `${fmt(s.checked)} of ${fmt(EVENT.total)} checked, ${s.found} found`;
+    $("progress").style.setProperty("--p", `${pct(s)}%`);
+    $("banner-meter").style.setProperty("--p", `${pct(s)}%`);
+    document.querySelectorAll(".ring").forEach((el) => el.style.setProperty("--p", pct(s)));
+    if (s.found > live) $("live").insertAdjacentHTML("beforeend", foundTiles(live, (live = s.found)));
+  }
+}
+const search = createSearch(render, { ms: 9000 });
+
+// Choosing a selfie starts the search right away, in the open sheet so the photos show up as they're found
+function startWith(file) {
+  if (!file?.type.startsWith("image/")) return;
+  search.s.selfie = URL.createObjectURL(file);
+  search.search();
+  if (!$("sheet").open) setOpen(true);
+}
+$("pick").addEventListener("change", (e) => { startWith(e.target.files[0]); e.target.value = ""; });
+$("camera").addEventListener("change", (e) => { startWith(e.target.files[0]); e.target.value = ""; });
+// Dragging the handle down minimizes the sheet; a short drag springs back
+let drag = null;
+$("grab").addEventListener("pointerdown", (e) => {
+  drag = { y: e.clientY, at: performance.now() };
+  $("grab").setPointerCapture(e.pointerId);
+  $("sheet").style.transition = "none";
+});
+$("grab").addEventListener("pointermove", (e) => {
+  if (drag) $("sheet").style.translate = `0 ${Math.max(0, e.clientY - drag.y)}px`;
+});
+$("grab").addEventListener("pointerup", (e) => {
+  if (!drag) return;
+  const dy = Math.max(0, e.clientY - drag.y);
+  const flicked = dy > 40 && dy / (performance.now() - drag.at) > .5;
+  drag = null;
+  $("sheet").style.transition = "translate .25s cubic-bezier(.3, .8, .2, 1)";
+  $("sheet").style.translate = "";
+  if (dy > 120 || flicked) setOpen(false);
+});
+$("sheet").addEventListener("dragover", (e) => { e.preventDefault(); $("sheet").classList.add("over"); });
+$("sheet").addEventListener("dragleave", () => $("sheet").classList.remove("over"));
+$("sheet").addEventListener("drop", (e) => { e.preventDefault(); $("sheet").classList.remove("over"); startWith(e.dataTransfer.files[0]); });
+
+document.addEventListener("click", (e) => {
+  const tile = e.target.closest("[data-view]");
+  if (tile) {
+    const found = tile.dataset.view === "found";
+    return openViewer(found ? MATCHES : photos, found ? MATCHES.length : EVENT.total, Number(tile.dataset.i));
+  }
+  const action = e.target.closest("[data-do]")?.dataset.do;
+  if (action === "pick") $("pick").click();
+  if (action === "camera") $("camera").click();
+  if (action === "minimize") setOpen(false);
+  if (action === "expand") setOpen(true);
+  if (action === "close-viewer") $("viewer").close();
+  if (action === "prev") showPhoto(viewing.at - 1);
+  if (action === "next") showPhoto(viewing.at + 1);
+});
+loadMore();
+</script>
+</body>
+</html>

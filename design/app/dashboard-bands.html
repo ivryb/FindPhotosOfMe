@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your events</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+/* D2: the landing page's rhythm used as an app. Events are photo covers. An event opens as a stack of
+   full-width bands: yellow for sharing, white for photos, grey for the page with a live preview, ink for the bot. */
+.page { padding-block: clamp(32px, 5vw, 56px) 80px; }
+.page h1 { margin-bottom: clamp(28px, 4vw, 44px); font-size: clamp(2.4rem, 5vw, 3.8rem); }
+
+.covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 36px 20px; }
+.cover { display: block; text-decoration: none; }
+.collage { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; aspect-ratio: 3 / 2; overflow: hidden; border-radius: 10px; }
+.collage img { width: 100%; height: 100%; object-fit: cover; }
+.collage img:first-child { grid-row: span 2; }
+.collage img:only-child { grid-column: span 2; }
+.collage.blank { display: grid; place-items: center; border: 2px dashed var(--dash); color: var(--muted); }
+.collage.blank svg { width: 32px; height: 32px; }
+.cover h3 { margin-top: 14px; font-size: 1.35rem; }
+.cover:hover h3 { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.cover p { display: flex; align-items: center; gap: 10px; margin-top: 6px; color: var(--muted); }
+.new { display: flex; flex-direction: column; justify-content: end; gap: 6px; aspect-ratio: 3 / 2; padding: 24px; background: var(--yellow); border: 0; border-radius: 10px; text-align: left; cursor: pointer; }
+.new svg { width: 40px; height: 40px; margin-bottom: auto; }
+.new b { font-size: clamp(1.6rem, 2.6vw, 2.1rem); font-weight: 800; font-stretch: 118%; letter-spacing: -.03em; line-height: 1; }
+.new span { color: #4f4826; }
+.new:hover { background: #ffdc4d; }
+
+.band { padding-block: clamp(40px, 6vw, 72px); }
+.band.yellow { padding-top: clamp(24px, 3vw, 36px); background: var(--yellow); }
+.band.grey { background: var(--grey); }
+.band.ink { background: var(--ink); color: #fff; }
+.band.ink :focus-visible { outline-color: var(--yellow); }
+.head-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 12px clamp(32px, 6vw, 88px); margin-bottom: clamp(24px, 3vw, 36px); }
+.head-row h2 { font-size: clamp(1.9rem, 3.6vw, 2.8rem); }
+.head-row p { max-width: 46ch; color: var(--muted); }
+.ink .head-row p { color: #b3b3ad; }
+@media (max-width: 760px) { .head-row { grid-template-columns: 1fr; } }
+
+.back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: clamp(24px, 4vw, 44px); font-weight: 600; text-decoration: none; }
+.back svg { width: 18px; height: 18px; }
+.back:hover { text-decoration: underline; }
+.share-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 32px; }
+.share-grid h1 { max-width: 14ch; font-size: clamp(2.6rem, 7vw, 5.6rem); letter-spacing: -.04em; }
+.share-grid .pill { margin-bottom: 16px; background: rgb(255 255 255 / .65); }
+.share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 24px; }
+.share .url { margin-right: 6px; font-size: 1.15rem; font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.qr-card { width: 210px; padding: 14px 14px 16px; background: var(--paper); border-radius: 12px; text-align: center; }
+.qr-card > svg { width: 100%; }
+.qr-card p { margin: 8px 0 10px; color: var(--muted); font-size: .85rem; line-height: 1.35; }
+.qr-card .btn { width: 100%; }
+@media (max-width: 760px) { .share-grid { grid-template-columns: 1fr; } .qr-card { display: none; } }
+
+.photos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: start; gap: 24px clamp(24px, 4vw, 56px); }
+.photos .uploads li:first-child { padding-top: 0; border-top: 0; }
+@media (max-width: 860px) { .photos { grid-template-columns: 1fr; } }
+
+.page-edit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: start; gap: 32px clamp(24px, 4vw, 56px); }
+@media (max-width: 860px) { .page-edit { grid-template-columns: 1fr; } }
+.browser { overflow: hidden; background: #fff; border-radius: 10px; box-shadow: var(--lift); }
+.browser-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #e6e6e2; color: var(--muted); font-size: .8rem; }
+.browser-bar i { width: 10px; height: 10px; background: #c9c9c4; border-radius: 50%; }
+.browser-bar span { flex: 1; max-width: 300px; margin-left: 10px; padding: 3px 12px; overflow: hidden; background: #fff; border-radius: 6px; text-overflow: ellipsis; white-space: nowrap; }
+.mini { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 22px; }
+.mini-title { margin: 6px 0 8px; font-size: 1.7rem; font-weight: 800; font-stretch: 116%; letter-spacing: -.03em; line-height: 1; overflow-wrap: anywhere; }
+.mini-desc { color: var(--muted); font-size: .85rem; line-height: 1.4; }
+.mini-btn { display: grid; place-items: center; height: 44px; margin-top: 16px; background: var(--ink); color: #fff; border-radius: 6px; font-size: .9rem; font-weight: 700; }
+.mini-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+.mini-photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 3px; }
+.mini-photos img:first-child { grid-column: span 2; }
+.preview-note { margin-top: 12px; color: var(--muted); font-size: .88rem; }
+
+.ink .input { background: #222220; color: #fff; border-color: #3a3a38; }
+.ink .input:focus { border-color: var(--yellow); }
+.ink .hint { color: #b3b3ad; }
+.bot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px clamp(24px, 4vw, 56px); }
+.bot ol { counter-reset: step; }
+.bot li { display: grid; grid-template-columns: auto 1fr; gap: 14px; padding-block: 14px; border-top: 1px solid #3a3a37; color: #b3b3ad; counter-increment: step; }
+.bot li::before { content: counter(step); color: var(--yellow); font-size: 1.6rem; font-weight: 900; font-stretch: 125%; line-height: 1; }
+.bot li b { display: block; color: #fff; }
+@media (max-width: 860px) { .bot { grid-template-columns: 1fr; } }
+
+.plan { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: 24px 32px; padding: clamp(22px, 3vw, 32px); background: var(--yellow); border-radius: 16px; }
+.plan dt { color: #4f4826; font-size: .9rem; }
+.plan dd { margin-top: 2px; font-size: clamp(1.4rem, 2.4vw, 1.9rem); font-weight: 800; font-stretch: 112%; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.plan .meter { margin-top: 10px; background: rgb(21 21 21 / .14); }
+@media (max-width: 860px) { .plan { grid-template-columns: 1fr; } }
+.delete { display: flex; justify-content: flex-end; margin-top: 28px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap">
+    <a class="logo" href="#">FindPhotosOfMe</a>
+    <nav><a href="#" aria-current="page">Events</a></nav>
+    <div class="account"><span>Lumen Studio</span><div class="avatar" aria-hidden="true">LS</div></div>
+  </div>
+</header>
+
+<div id="view"></div>
+
+<script src="app.js"></script>
+<script>
+const view = document.getElementById("view");
+
+// The landing's decorative QR code: three corner markers and a fixed pattern. It doesn't scan.
+const qr = (() => {
+  const SIZE = 25, CORNERS = [[0, 0], [SIZE - 7, 0], [0, SIZE - 7]];
+  let seed = 11;
+  const random = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const near = (x, y) => CORNERS.some(([cx, cy]) => x >= cx - 1 && x <= cx + 7 && y >= cy - 1 && y <= cy + 7);
+  let d = "";
+  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) if (!near(x, y) && random() < .5) d += `M${x} ${y}h1v1h-1z`;
+  d += CORNERS.map(([x, y]) => `M${x} ${y}h7v7h-7zM${x + 1} ${y + 1}v5h5v-5zM${x + 2} ${y + 2}h3v3h-3z`).join("");
+  return `<svg viewBox="-1 -1 27 27" aria-hidden="true"><path d="${d}" fill="#151515" fill-rule="evenodd"/></svg>`;
+})();
+
+const collage = (e) => e.covers.length
+  ? `<div class="collage">${e.covers.slice(0, 3).map((c) => `<img src="${photo(c)}" alt="">`).join("")}</div>`
+  : `<div class="collage blank">${icon("upload")}</div>`;
+
+function listView() {
+  return `<main class="wrap page">
+    <h1>Your events</h1>
+    <div class="covers">
+      <button class="new" data-open="new-event">${icon("plus")}<b>New event</b><span>Upload photos and get a link to share.</span></button>
+      ${EVENTS.map((e) => `<a class="cover" href="#${e.id}">${collage(e)}<h3>${e.name}</h3>
+        <p>${e.ready ? `<span class="num">${fmt(spaceUsed(e))} photos</span>` : ""}${pill(statusOf(e))}</p></a>`).join("")}
+    </div>
+  </main>`;
+}
+
+function eventView(e) {
+  const busy = e.processing;
+  const photosText = !e.ready && !busy
+    ? "Add a ZIP of photos. Your page starts working when the first one is ready."
+    : `${fmt(e.ready)} photos are ready to search.${busy ? ` Finding faces in ${fmt(busy.total - busy.done)} more.` : ""}`;
+  const previews = (e.covers.length ? e.covers : []).slice(0, 3);
+  return `
+  <section class="band yellow">
+    <div class="wrap">
+      <a class="back" href="#">${icon("back")}All events</a>
+      <div class="share-grid">
+        <div>
+          ${pill(statusOf(e))}
+          <h1>${e.name}</h1>
+          <div class="share">
+            <a class="url" href="event-cover.html">${e.link}</a>
+            <button class="btn btn-sm" data-copy="${e.link}">${icon("copy")}<span>Copy link</span></button>
+            <a class="btn btn-sm btn-line" href="event-cover.html">${icon("open")}Open page</a>
+          </div>
+        </div>
+        <div class="qr-card">${qr}<p>People scan this to open your event page.</p><a class="btn btn-sm btn-line" href="#">${icon("download")}Download</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="head-row"><h2>Photos</h2><p>${photosText}</p></div>
+      <div class="photos">${dropZone}<div>${uploadList(e) || `<p class="muted">Uploaded ZIPs show up here with their progress.</p>`}</div></div>
+    </div>
+  </section>
+
+  <section class="band grey">
+    <div class="wrap">
+      <div class="head-row"><h2>Event page</h2><p>What people see when they open your link. The preview changes as you type.</p></div>
+      <div class="page-edit">
+        <form onsubmit="return false">
+          <div class="field"><label for="f-name">Event name</label><input class="input" id="f-name" value="${e.name}"></div>
+          <div class="field"><label for="f-addr">Page address</label><div class="addr"><input class="input" id="f-addr" value="${e.link.split(".")[0]}"><span>.findphotosofme.com</span></div><p class="hint">Changing it breaks links you’ve already shared.</p></div>
+          <div class="field"><label for="f-desc">Description</label><textarea class="input" id="f-desc" placeholder="Where and when it was, and who took the photos">${e.description}</textarea></div>
+          <button class="btn btn-sm" style="margin-top:20px">Save changes</button>
+        </form>
+        <div>
+          <div class="browser" aria-label="Preview of your event page">
+            <div class="browser-bar" aria-hidden="true"><i></i><i></i><i></i><span id="p-url">${e.link}</span></div>
+            <div class="mini">
+              <div>
+                <p class="mini-desc">${e.ready ? fmt(spaceUsed(e)) : 0} photos</p>
+                <p class="mini-title" id="p-title">${e.name}</p>
+                <p class="mini-desc" id="p-desc">${e.description}</p>
+                <span class="mini-btn">Find my photos</span>
+              </div>
+              <div class="mini-photos">${previews.map((c) => `<img src="${photo(c)}" alt="">`).join("") || `<p class="mini-desc">Preview photos show here once your photos are ready.</p>`}</div>
+            </div>
+          </div>
+          <p class="preview-note">Preview photos are picked from your uploads.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band ink">
+    <div class="wrap">
+      <div class="head-row"><h2>Telegram bot</h2><p>People send the bot a selfie and get their photos right in the chat. It’s optional.</p></div>
+      <div class="bot">
+        <ol>
+          <li><p><b>Create a bot</b>Open @BotFather in Telegram and send /newbot.</p></li>
+          <li><p><b>Paste its token here</b>BotFather sends it after you name the bot.</p></li>
+          <li><p><b>Share the bot link</b>Put it next to your event link.</p></li>
+        </ol>
+        <form onsubmit="return false">
+          <div class="field"><label for="f-token">Bot token</label><input class="input" id="f-token" placeholder="123456:ABC-DEF1234ghIkl" autocomplete="off"></div>
+          <div class="field"><label for="f-welcome">Welcome message</label><textarea class="input" id="f-welcome">Hi! Send me a selfie and I’ll find your photos from ${e.name}.</textarea><p class="hint">The first message people see when they open the bot.</p></div>
+          <button class="btn btn-sm btn-yellow" style="margin-top:20px">${icon("send")}Connect bot</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="head-row"><h2>${planName(e)}</h2><p>${e.plan === "trial" ? "Buy more photos and searches when you need them, from $10. You pay once." : "Paid once. Nothing renews. Add more photos or searches at any time."}</p></div>
+      <dl class="plan">
+        ${usage(e).map((u) => `<div><dt>${u.label}</dt><dd>${u.value}</dd>${u.p !== undefined ? `<div class="meter"><i style="--p:${u.p * 100}%"></i></div>` : ""}</div>`).join("")}
+        <a class="btn" href="#">${e.plan === "trial" ? "Buy photos and searches" : "Add more"}</a>
+      </dl>
+      <div class="delete"><button class="btn btn-sm btn-line" data-open="delete-event">${icon("trash")}Delete event</button></div>
+    </div>
+  </section>`;
+}
+
+const mark = protoBar("Dashboard D2: bands", [["list", "Events list"], ["harbor", "Event: finding faces"], ["wedding", "Event: ready"], ["launch", "Event: no photos yet"]],
+  (state) => (location.hash = state === "list" ? "" : state));
+function route() {
+  const event = EVENTS.find((e) => e.id === location.hash.slice(1));
+  view.innerHTML = event ? eventView(event) : listView();
+  mark(event?.id ?? "list");
+  scrollTo(0, 0);
+}
+// The preview follows the form as you type
+view.addEventListener("input", (e) => {
+  const target = { "f-name": "p-title", "f-desc": "p-desc" }[e.target.id];
+  if (target) document.getElementById(target).textContent = e.target.value;
+  if (e.target.id === "f-addr") document.getElementById("p-url").textContent = `${e.target.value}.findphotosofme.com`;
+});
+addEventListener("hashchange", route);
+mountDashboard();
+route();
+</script>
+</body>
+</html>

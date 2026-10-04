@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FindPhotosOfMe app page variations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+body { padding: clamp(24px, 6vw, 72px); }
+h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
+h2 { margin: clamp(40px, 6vw, 64px) 0 8px; font-size: clamp(1.6rem, 3vw, 2.2rem); }
+.lede { max-width: 64ch; margin-top: 14px; color: var(--muted); }
+ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 24px; }
+a.option { display: flex; flex-direction: column; min-height: 230px; padding: 26px; border-radius: 16px; text-decoration: none; }
+a.option b { margin-bottom: 10px; font-size: 1.45rem; font-weight: 800; font-stretch: 114%; letter-spacing: -.02em; line-height: 1.1; }
+a.option small { margin-bottom: 26px; font-weight: 700; }
+a.option span { font-size: .95rem; }
+a.option:hover b { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.yellow { background: var(--yellow); }
+.ink { background: var(--ink); color: #fff; }
+.ink:focus-visible { outline-color: var(--ink); }
+.grey { background: var(--grey); }
+</style>
+</head>
+<body>
+  <h1>Event page and dashboard variations</h1>
+  <p class="lede">All six use the landing page’s yellow, ink, and Archivo. They differ in layout and in the one thing each page is built around. Use the grey strip at the top of each page to switch between states.</p>
+
+  <h2>Round 2</h2>
+  <p class="lede">Built from your picks: the photo pile for the gallery page, and the sidebar dashboard with a shared balance.</p>
+  <ul>
+    <li><a class="option ink" href="event-gallery.html"><small>Gallery page</small><b>Every photo, and a banner for the search</b><span>All photos load as you scroll and open full screen. Choosing a selfie in the yellow banner starts the search, and the banner opens into a sheet. Minimize it to keep browsing while the banner shows progress, then the result.</span></a></li>
+    <li><a class="option grey" href="dashboard-v2.html"><small>Dashboard</small><b>Sidebar, shared balance, QR code</b><span>One balance of photos and searches for all galleries, topped up from the sidebar. Gallery page and bot settings in tabs, a side column, or a drawer: switch them in the strip at the top.</span></a></li>
+  </ul>
+
+  <h2>Round 1: event page</h2>
+  <p class="lede">What attendees see when they open the event link, mostly on their phones.</p>
+  <ul>
+    <li><a class="option yellow" href="event-cover.html"><small>A</small><b>Yellow cover</b><span>The event name fills a yellow band with the selfie search in it. Preview photos hang over its edge, like the landing hero.</span></a></li>
+    <li><a class="option ink" href="event-pile.html"><small>B</small><b>The photo pile</b><span>A dark page that’s mostly the event’s photos. A yellow selfie bar stays at the bottom, and the scan line from the landing demo crosses the photos while searching.</span></a></li>
+    <li><a class="option grey" href="event-classic.html"><small>C</small><b>As on the landing page</b><span>The event page mockup from the landing, built for real. The photo side turns into the dark scan panel while searching, then into your photos.</span></a></li>
+  </ul>
+
+  <h2>Round 1: dashboard</h2>
+  <p class="lede">The events list and one event’s page for whoever uploads the photos. Each has states for an event finding faces, a ready one, and an empty one.</p>
+  <ul>
+    <li><a class="option grey" href="dashboard-table.html"><small>D1</small><b>Table</b><span>The dashboard mockup from the landing, made real. An event opens into photos on the left and the plan and settings on the right.</span></a></li>
+    <li><a class="option yellow" href="dashboard-bands.html"><small>D2</small><b>Bands</b><span>Events as photo covers. An event opens as landing-style bands: sharing with a QR code, photos, the event page with a live preview, and the bot.</span></a></li>
+    <li><a class="option ink" href="dashboard-sheet.html"><small>D3</small><b>Photo sheet</b><span>A sidebar of events. Each event’s space is drawn as the pricing calculator’s tile sheet, filling as faces are found. Click Add photos to watch it fill.</span></a></li>
+  </ul>
+</body>
+</html>
