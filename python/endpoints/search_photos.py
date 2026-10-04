@@ -12,6 +12,10 @@ from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
 
 router = APIRouter(dependencies=[Depends(require_service_token)])
+
+
+class NoFaceError(ValueError):
+    """The selfie has no face to search for; reported to Convex as its own reason."""
 MAX_PHOTO_BYTES = 10 * 1024**2
 PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -26,16 +30,18 @@ def process_search(search_request_id: str, reference_data: bytes) -> dict:
     try:
         collection_id = search["collectionId"]
         collection = convex.get_collection(collection_id)
-        if not collection or collection["status"] != "complete":
-            raise ValueError("Event is not ready")
+        # Galleries stay searchable while more photos are processed; the face index decides what is found.
+        if not collection:
+            raise ValueError("Gallery not found")
         if collection.get("paymentStatus") == "refunded" or collection.get("expiresAt", float("inf")) <= time.time() * 1000:
-            raise ValueError("Event is no longer active")
+            raise ValueError("Gallery is no longer online")
         convex.update_search_request(search_request_id, "processing")
         from services.face_recognition_service import get_face_service
         face_service = get_face_service()
         faces = face_service.extract_embeddings(reference_data)
         if not faces:
-            raise ValueError("No face detected in reference photo")
+            convex.update_search_request(search_request_id, "error", error="no_face")
+            raise NoFaceError("No face detected in reference photo")
         data = R2StorageService().download_file(f"{collection_id}/embeddings.json")
         if data is None:
             raise ValueError("Face index not found")
@@ -47,8 +53,10 @@ def process_search(search_request_id: str, reference_data: bytes) -> dict:
             total_images=len(embeddings), processed_images=len(embeddings),
         )
         return {"ok": True, "matches": len(matches)}
+    except NoFaceError:
+        raise
     except Exception:
-        convex.update_search_request(search_request_id, "error")
+        convex.update_search_request(search_request_id, "error", error="failed")
         raise
 
 

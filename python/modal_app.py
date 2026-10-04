@@ -11,7 +11,7 @@ secret = modal.Secret.from_name("findphotosofme-backend")
 def application_source(path: Path) -> bool:
     relative = path.relative_to(SOURCE) if path.is_absolute() else path
     return not (path.suffix == ".py" and relative.parts[0] in {
-        "main.py", "security.py", "endpoints", "schemas", "services",
+        "main.py", "security.py", "endpoints", "schemas", "services", "maintenance",
     })
 
 base_image = (
@@ -57,3 +57,10 @@ def search(search_request_id: str, reference_data: bytes):
 def web():
     from main import create_app
     return create_app(submit_ingest=ingest.spawn.aio, execute_search=search.remote.aio)
+
+
+@app.function(image=model_image, secrets=[secret], cpu=1, memory=2048, timeout=7200, retries=0)
+def backfill_thumbnails():
+    """One-time: thumbnails and sizes for galleries made before they existed. `modal run python/modal_app.py::backfill_thumbnails`"""
+    from maintenance.backfill_thumbnails import backfill_thumbnails as run
+    return run()

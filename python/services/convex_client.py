@@ -47,9 +47,21 @@ class ConvexService:
             "id": job_id, "error": error, "serviceToken": self.service_token,
         })
 
-    def mark_ingest_completed(self, job_id: str, processed_images: int):
+    def reserve_ingest(self, job_id: str, images: int):
+        """Takes the photos from the owner's balance; raises when the balance can't cover them."""
+        self.client.mutation("balances:reserveIngestForService", {
+            "jobId": job_id, "images": images, "serviceToken": self.service_token,
+        })
+
+    def mark_ingest_completed(self, job_id: str, processed_images: int, saved_images: int, saved_bytes: int):
         self.client.mutation("ingestJobs:markCompleted", {
-            "id": job_id, "processedImages": processed_images, "serviceToken": self.service_token,
+            "id": job_id, "processedImages": processed_images, "savedImages": saved_images,
+            "savedBytes": saved_bytes, "serviceToken": self.service_token,
+        })
+
+    def set_stored_bytes(self, collection_id: str, stored_bytes: int):
+        self.client.mutation("collections:setStoredBytesForService", {
+            "id": collection_id, "storedBytes": stored_bytes, "serviceToken": self.service_token,
         })
 
     def get_search_request(self, search_request_id: str) -> dict | None:
@@ -59,8 +71,11 @@ class ConvexService:
 
     def update_search_request(self, search_request_id: str, status: str, *,
                               images_found: list[str] | None = None,
-                              total_images: int | None = None, processed_images: int | None = None):
+                              total_images: int | None = None, processed_images: int | None = None,
+                              error: str | None = None):
         args = {"id": search_request_id, "status": status, "serviceToken": self.service_token}
+        if error is not None:
+            args["error"] = error
         if images_found is not None:
             args["imagesFound"] = images_found
         if total_images is not None:

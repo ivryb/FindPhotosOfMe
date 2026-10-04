@@ -51,7 +51,7 @@ def backend(monkeypatch):
         'collection': {'status': 'complete', 'imagesCount': 0},
         'search': {'collectionId': 'event', 'status': 'pending', 'imagesFound': []},
         'objects': {'upload.zip': archive.getvalue()}, 'delete_count': 0,
-        'fail_index': False, 'complete_count': 0,
+        'fail_index': False, 'complete_count': 0, 'reserved': [], 'completed': None, 'refuse_reservation': False,
     }
 
     class Storage:
@@ -73,9 +73,13 @@ def backend(monkeypatch):
             state['collection']['status'] = status
             if images_count is not None: state['collection']['imagesCount'] = images_count
         def set_collection_preview_images(self, _, previews): state['previews'] = previews
-        def mark_ingest_completed(self, _, count):
+        def reserve_ingest(self, _, images):
+            if state['refuse_reservation']: raise RuntimeError('This ZIP has 2 photos, but your balance is $0')
+            state['reserved'].append(images)
+        def mark_ingest_completed(self, _, count, saved_images, saved_bytes):
             state['job']['status'] = 'completed'
             state['complete_count'] += 1
+            state['completed'] = (count, saved_images, saved_bytes)
         def mark_ingest_failed(self, _, error): state['job']['status'] = 'failed'
         def get_search_request(self, _): return state['search']
         def update_search_request(self, _, status, **kwargs): state['search'].update(status=status, **kwargs)
@@ -88,6 +92,7 @@ def backend(monkeypatch):
     module = types.ModuleType('services.face_recognition_service')
     module.get_face_service = lambda: Faces()
     monkeypatch.setitem(sys.modules, module.__name__, module)
+    monkeypatch.setattr(ingest, 'make_thumbnail', lambda data: b'small-' + data)
     monkeypatch.setattr(ingest, 'R2StorageService', Storage)
     monkeypatch.setattr(ingest, 'ConvexService', Convex)
     monkeypatch.setattr('endpoints.search_photos.R2StorageService', Storage)
@@ -108,6 +113,23 @@ def test_ingest_saves_index_before_deleting_source_and_completed_replay_is_noop(
     assert backend['delete_count'] == 1
 
 
+def test_ingest_reserves_photos_first_and_saves_a_thumbnail_next_to_each_kept_photo(backend):
+    ingest.process_ingest_job('job', 'event', 'upload.zip')
+    assert backend['reserved'] == [2]
+    assert backend['objects']['event/thumbs/job-photo.jpg'] == b'small-face'
+    assert backend['objects']['event/thumbs/job-photo-1.jpg'] == b'small-face'
+    # Two photos of 4 bytes and two thumbnails of 10 bytes
+    assert backend['completed'] == (2, 2, 28)
+
+
+def test_ingest_saves_nothing_when_the_balance_cannot_cover_the_zip(backend):
+    backend['refuse_reservation'] = True
+    with pytest.raises(RuntimeError, match='balance'):
+        ingest.process_ingest_job('job', 'event', 'upload.zip')
+    assert backend['job']['status'] == 'failed'
+    assert list(backend['objects']) == ['upload.zip']
+
+
 def test_failed_index_preserves_source_and_can_be_retried(backend):
     backend['fail_index'] = True
     with pytest.raises(RuntimeError, match='face index'):
@@ -120,7 +142,9 @@ def test_failed_index_preserves_source_and_can_be_retried(backend):
     backend['job']['status'] = 'running'
     ingest.process_ingest_job('job', 'event', 'upload.zip')
     assert backend['collection']['imagesCount'] == 2
-    assert len([key for key in backend['objects'] if key.endswith('.jpg')]) == 2
+    # The retry overwrites the photos and thumbnails it saved before failing instead of adding copies.
+    saved = [key for key in backend['objects'] if key.endswith('.jpg')]
+    assert sorted(saved) == ['event/job-photo-1.jpg', 'event/job-photo.jpg', 'event/thumbs/job-photo-1.jpg', 'event/thumbs/job-photo.jpg']
 
 
 def test_replay_after_index_write_keeps_other_archives(backend):
@@ -142,6 +166,14 @@ def test_no_face_search_sets_error_instead_of_staying_processing(backend):
     with pytest.raises(ValueError, match='No face'):
         process_search('search', b'not-a-face')
     assert backend['search']['status'] == 'error'
+    assert backend['search']['error'] == 'no_face'
+
+
+def test_other_search_failures_are_reported_as_failed(backend):
+    backend['collection']['expiresAt'] = 0
+    with pytest.raises(ValueError):
+        process_search('search', b'face')
+    assert backend['search']['error'] == 'failed'
 
 
 def test_search_publishes_results_to_convex(backend):

@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from security import require_service_token
 from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
+from services.thumbnails import make_thumbnail, thumbnail_key
 
 router = APIRouter(dependencies=[Depends(require_service_token)])
 MAX_ZIP_BYTES = 2 * 1024**3
@@ -88,12 +89,12 @@ def process_ingest_job(job_id: str, collection_id: str, file_key: str) -> dict:
             r2.download_to_file(file_key, path, max_bytes=MAX_ZIP_BYTES)
             with zipfile.ZipFile(path) as archive:
                 images = image_entries(archive)
-                limit = collection.get("photoLimit")
-                if limit and len(previous) + len(images) > limit:
-                    raise ValueError(f"This event is limited to {limit:,} photos")
+                # Every photo is paid for up front; photos without faces are returned when the job completes.
+                convex.reserve_ingest(job_id, len(images))
                 convex.update_ingest_progress(job_id, total_images=len(images))
                 embeddings = {}
                 names: set[str] = set()
+                saved_bytes = 0
                 last_progress = 0.0
                 for index, member in enumerate(images, 1):
                     name = job_prefix + normalize_filename(member.filename, names)
@@ -101,9 +102,12 @@ def process_ingest_job(job_id: str, collection_id: str, file_key: str) -> dict:
                     faces = face_service.extract_embeddings(image)
                     if faces:
                         content_type = "image/png" if name.lower().endswith(".png") else "image/jpeg"
-                        if not r2.upload_file(image, f"{collection_id}/{name}", content_type):
+                        thumbnail = make_thumbnail(image)
+                        if not r2.upload_file(image, f"{collection_id}/{name}", content_type) \
+                                or not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), "image/jpeg"):
                             raise RuntimeError("Could not save processed photo")
                         embeddings[name] = faces
+                        saved_bytes += len(image) + len(thumbnail)
                     if time.monotonic() - last_progress >= 1 or index == len(images):
                         convex.update_ingest_progress(job_id, processed_images=index)
                         last_progress = time.monotonic()
@@ -114,7 +118,7 @@ def process_ingest_job(job_id: str, collection_id: str, file_key: str) -> dict:
         previews = [f"{collection_id}/{name}" for name in list(merged)[:50]]
         convex.set_collection_preview_images(collection_id, previews)
         convex.update_collection_status(collection_id, "complete", len(merged))
-        convex.mark_ingest_completed(job_id, len(images))
+        convex.mark_ingest_completed(job_id, len(images), len(embeddings), saved_bytes)
     except Exception as exc:
         # A lost response to markCompleted must not turn a completed event into an error.
         saved_job = convex.get_ingest_job(job_id)
