@@ -2,6 +2,16 @@
 import type { NuxtConfig } from "nuxt/schema";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import tailwindcss from "@tailwindcss/vite";
+import { dirname, join } from "node:path";
+
+// The SDK's browser XML parser needs DOMParser, which Workers don't have, so reading R2 listings failed in production.
+// Its other parser is plain JavaScript and runs anywhere.
+const awsXmlParser = {
+  name: "aws-xml-parser",
+  resolveId(source: string, importer?: string) {
+    if (source === "./xml-parser" && importer?.includes("/@aws-sdk/xml-builder/")) return join(dirname(importer), "xml-parser.js");
+  },
+};
 
 export default {
   compatibilityDate: "2025-10-01",
@@ -11,7 +21,7 @@ export default {
       "rollup:before": (nitro, config) => {
         if (nitro.options.dev || !Array.isArray(config.plugins)) return;
         // Workers need the SDK's browser runtime, including its package.json browser mappings.
-        config.plugins = config.plugins.map((plugin) =>
+        config.plugins = [awsXmlParser, ...config.plugins].map((plugin) =>
           plugin && typeof plugin === "object" && "name" in plugin && plugin.name === "node-resolve"
             ? nodeResolve({
                 browser: true,

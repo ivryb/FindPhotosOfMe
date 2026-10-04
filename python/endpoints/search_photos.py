@@ -7,7 +7,6 @@ from starlette.concurrency import run_in_threadpool
 
 from schemas.types import SearchResponse
 from security import require_service_token
-from services import face_index
 from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
 
@@ -42,6 +41,7 @@ def process_search(search_request_id: str, reference_data: bytes) -> dict:
         if not faces:
             convex.update_search_request(search_request_id, "error", error="no_face")
             raise NoFaceError("No face detected in reference photo")
+        from services import face_index
         gallery = face_index.load(R2StorageService(), collection_id)
         matches = gallery.match(faces[0]["embedding"], faces[0]["gender"])
         photos = len(set(gallery.names.tolist()))

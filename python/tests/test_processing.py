@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -36,6 +37,13 @@ def test_http_requires_token_and_submits_without_waiting(monkeypatch):
     assert calls[-1] == ('search', b'image')
     assert client.post('/api/search-photos', headers=headers, data={'search_request_id': 'search'},
                        files={'reference_photo': ('x.jpg', b'x' * (10 * 1024**2 + 1), 'image/jpeg')}).status_code == 413
+
+
+def test_the_web_endpoint_loads_without_numpy_or_the_face_model():
+    # Modal's web endpoint runs on a small image; importing numpy there took search and uploads down.
+    code = "import sys; sys.modules['numpy'] = None; sys.modules['cv2'] = None; import main"
+    result = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.fixture

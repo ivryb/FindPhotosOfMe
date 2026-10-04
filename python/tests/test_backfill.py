@@ -10,6 +10,7 @@ def test_backfill_makes_missing_thumbnails_and_records_gallery_sizes(monkeypatch
     objects = {
         "event/a.jpg": b"aaaa", "event/b.jpg": b"bbbb", "event/thumbs/a.jpg": b"ta",
         "event/embeddings.json": b"{}", "event/faces/index.npz": b"faces", "uploads/event/up/x.jpg": b"x", "gone/c.jpg": b"cc",
+        "backups/event-embeddings.json.bak": b"{}",
     }
     sizes = {}
 

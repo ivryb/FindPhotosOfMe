@@ -13,11 +13,11 @@ from starlette.concurrency import run_in_threadpool
 
 from security import require_service_token
 from services.convex_client import ConvexService
-from services.face_index import Faces, batch_key, index_key
 from services.r2_storage import R2StorageService
 from services.thumbnails import make_thumbnail, thumbnail_key
 
 router = APIRouter(dependencies=[Depends(require_service_token)])
+# The face index and model are imported inside the workers: the web endpoint that loads this module has no numpy.
 # Photos fetched from R2 at once while faces are found
 DOWNLOADS = 8
 
@@ -58,6 +58,7 @@ def process_batch(batch_id: str) -> dict:
     log(f"Batch {batch_id}: {len(photos)} photos for {collection_id}")
     try:
         r2 = R2StorageService()
+        from services.face_index import Faces, batch_key
         from services.face_recognition_service import get_face_service
         face_service = get_face_service()
         found: dict[str, list[dict]] = {}
@@ -99,6 +100,7 @@ def process_batch(batch_id: str) -> dict:
 
 def merge_faces(collection_id: str, batch_ids: list[str]) -> dict:
     """Folds finished batches' face files into the gallery's index. Convex runs one merge per gallery at a time."""
+    from services.face_index import Faces, batch_key, index_key
     r2 = R2StorageService()
     keys = [batch_key(collection_id, batch_id) for batch_id in batch_ids]
     with ThreadPoolExecutor(DOWNLOADS) as pool:

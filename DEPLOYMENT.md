@@ -82,6 +82,33 @@ aperture favicons, Apple touch icon, and web manifest. Production serves the hea
 tags and all seven icon files byte-identical to the repository. Convex and Modal
 are unchanged.
 
+### Galleries, balance, and parallel uploads (4 October 2026)
+
+Released `20985b3` through `a579a4f` plus the production fixes committed with this note: the gallery page,
+the dashboard, the shared balance (payments held until Lemon Squeezy verifies the store), and browser uploads
+processed in parallel batches. Worker version `f9682b04-4bfb-4845-a5a0-375f88467c89`; Modal app redeployed;
+Convex `honorable-firefly-904` (also the local `convex dev` target, so it took each change as it was saved).
+
+Rollout on production: `migrations:moveToBalance` moved the three Lemon Squeezy test galleries;
+`balances:grant` gave ivrybn@gmail.com $100; `convert_face_indexes` turned IT Arena's 160 MB
+`embeddings.json` into an 11 MB `faces/index.npz` (10,764 faces), with the original kept at
+`backups/jd7295ata4ws4510q3g8zzgkpd7s6498-embeddings-2026-10-04.json.bak`; `backfill_thumbnails` was started for
+IT Arena's 2,742 photos; an R2 lifecycle rule now deletes `uploads/` objects after 7 days. CORS already allowed
+photo uploads.
+
+Verified on production: IT Arena browses page by page with signed thumbnails and finds a cropped selfie
+("2 photos of you"); a test gallery acting as the admin took 120 IT Arena photos copied into its upload area,
+registered in three batches. Three workers kept all 120 within about 2.5 minutes, the batches merged into one
+index, the upload area emptied, the balance moved by exactly 120 photos and one search, and the gallery's public
+page found the selfie. A browser on findphotosofme.com put a photo into R2 with a signed link. The test gallery
+was deleted afterwards. Not verified: the dashboard upload screen signed in on production (it was run end to
+end against the test backend), Google sign-in, and Telegram.
+
+Fixed during the release: R2 listings failed on Workers because the SDK's browser XML parser needs `DOMParser`
+(the build now uses its plain-JavaScript parser); the Modal web endpoint crashed because it imported numpy, which
+its image lacks, taking search and uploads down for about 15 minutes; and the thumbnail backfill stopped at the
+index backup, which it now skips as a non-photo.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
@@ -90,7 +117,7 @@ The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
 - Convex `PYTHON_API_URL` points to this endpoint.
 - Set the frontend's private `NUXT_PYTHON_API_URL` to the same URL and use the
   matching `NUXT_SERVICE_TOKEN` (available in ignored `python/.env`).
-- Ingestion returns HTTP 202 and continues in a Modal job; search returns HTTP
+- Batch processing and merges return HTTP 202 and continue in Modal jobs; search returns HTTP
   200 after matching finishes, matching the Convex Telegram handler's contract.
 - CPU workers scale to zero. Models are baked into the image; photos and indexes
   remain in R2 and application state remains in Convex.

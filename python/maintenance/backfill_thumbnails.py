@@ -23,9 +23,12 @@ def backfill_thumbnails(r2=None, convex=None) -> dict:
         gallery["bytes"] += item["Size"]
         if rest.startswith("thumbs/"):
             gallery["thumbs"].add(rest.removeprefix("thumbs/"))
-        elif "/" not in rest:
+        # Other files can sit beside photos, such as backups of old face indexes
+        elif "/" not in rest and rest.lower().endswith((".jpg", ".jpeg", ".png")):
             gallery["photos"].append(rest)
 
+    # A top-level folder without photos isn't a gallery, such as backups/
+    galleries = {collection_id: gallery for collection_id, gallery in galleries.items() if gallery["photos"]}
     made = 0
     for collection_id, gallery in galleries.items():
         for name in gallery["photos"]:
