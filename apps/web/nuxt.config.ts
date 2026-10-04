@@ -9,7 +9,7 @@ export default {
     preset: "cloudflare_module",
     hooks: {
       "rollup:before": (nitro, config) => {
-        if (!Array.isArray(config.plugins)) return;
+        if (nitro.options.dev || !Array.isArray(config.plugins)) return;
         // Workers need the SDK's browser runtime, including its package.json browser mappings.
         config.plugins = config.plugins.map((plugin) =>
           plugin && typeof plugin === "object" && "name" in plugin && plugin.name === "node-resolve"
