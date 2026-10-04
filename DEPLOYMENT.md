@@ -37,6 +37,28 @@ Build, type checks, Worker runtime configuration, real R2 preview streaming, Goo
 
 This hosting verification does not replace the launch acceptance test: complete Google sign-in, signed-in upload/search/download and a real Telegram selfie-to-results journey still need verification. Email OTP delivery credentials are not configured on the shared Convex deployment. See [the migration handoff](docs/cloudflare-handoff.md) for verification details.
 
+### Deployed update (4 October 2026)
+
+Published frontend commit `d7fa05c` to Cloudflare Worker version
+`c20df923-0106-456f-8ce0-53c7b118e0f1`. This includes the current landing pages,
+pricing calculator, and authenticated admin SSR. Convex and Modal deployments
+are unchanged.
+
+Auth now uses same-origin HttpOnly cookies. Existing browser sessions stored in
+localStorage require signing in again. Google retains the existing Convex OAuth
+callback; the app finishes the cookie handoff at `/auth/callback`.
+
+The production build, Wrangler dry run, and nine isolated auth/admin HTTP tests
+passed. Both admin pages received live updates in browser fixture checks. After
+deployment, the root and three audience pages and sign-in returned HTTP 200;
+anonymous admin pages redirected to sign-in, the admin API returned 401, and
+Google sign-in initiation returned its provider URL with a Secure, HttpOnly
+callback cookie. Private responses carry `private, no-store`.
+
+A complete Google sign-in on production has not been reverified for this release.
+Typechecking remains blocked by the existing Nuxt `DefineNuxtConfig` typing issue
+and reports the existing Volar `vue-router` plugin resolution warning.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
