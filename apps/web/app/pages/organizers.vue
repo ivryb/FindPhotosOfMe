@@ -1,0 +1,42 @@
+<script setup lang="ts">
+import { FAQ, whoCanSee } from "@/utils/landing";
+
+useSeoMeta({
+  title: "FindPhotosOfMe for event organizers: let every attendee find their photos",
+  description: "Upload your event photos and share one link. Attendees find the photos they’re in with a selfie.",
+});
+</script>
+
+<template>
+  <LandingPage>
+    <LandingHero
+      title="Let every attendee find their own photos"
+      lede="Upload the photos from your conference or meetup and share one link. Attendees add a selfie and get the photos they’re in."
+      :ticks="['Free for attendees', 'No app or sign-up', 'One payment per event']"
+    >
+      <LandingEventPage />
+    </LandingHero>
+    <LandingHowItWorks
+      intro="You upload the photos once. Every attendee finds their own with a selfie."
+      :upload="{ title: 'Upload the event photos', text: 'Drop in the ZIP files from your photographer. We find the faces in every photo and show you when the event is ready to search.' }"
+      :search="{ title: 'Attendees search with a selfie', text: 'They open your event link and add a selfie. They see every photo they’re in, group shots included, and download the ones they want.' }"
+    />
+    <LandingShareScenes />
+    <LandingPhotoBot
+      title="A photo bot for your event"
+      text="Want to make it even easier? Add a Telegram or WhatsApp bot for your event. Attendees send it a selfie and get their photos right in the chat."
+    />
+    <LandingPricing
+      title="Free to try. One payment per event"
+      text="Try it with up to 500 photos, no card needed. Then pay for the photos and searches you need, from $10. Attendees always search for free."
+      note="Attendees never pay."
+    />
+    <LandingFaq
+      :columns="[
+        { title: 'For organizers', items: [FAQ.upload, FAQ.searches, FAQ.processing, FAQ.online, whoCanSee('event link'), FAQ.bot] },
+        { title: 'For attendees', items: [FAQ.selfie, FAQ.groups, FAQ.misses, FAQ.account, FAQ.notOrganizer] },
+      ]"
+    />
+    <LandingFinalCta title="Give your attendees their photos" text="Start with a few photos from your event. Try a selfie search and see what you find." />
+  </LandingPage>
+</template>
