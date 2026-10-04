@@ -110,7 +110,9 @@ export default defineSchema({
       v.literal("search"),
       v.literal("search_returned"),
       v.literal("storage"),
-      v.literal("migration")
+      v.literal("migration"),
+      // Credit added by hand, such as the admin's own before payments open
+      v.literal("grant")
     ),
     collectionId: v.optional(v.id("collections")),
     // The job, search, or order this entry belongs to; one entry per source and reason

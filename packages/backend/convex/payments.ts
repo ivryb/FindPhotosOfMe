@@ -3,8 +3,8 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, httpAction, internalMutation } from "./_generated/server";
 import { authComponent } from "./auth";
-import { applyEntry, balanceFor, findEntry } from "./balances";
-import { DAY, INCLUDED_DAYS, MAXIMUM_TOP_UP, MINIMUM_TOP_UP, formatMoney } from "./pricing";
+import { applyEntry, balanceFor, endTrial, findEntry } from "./balances";
+import { DAY, MAXIMUM_TOP_UP, MINIMUM_TOP_UP, formatMoney } from "./pricing";
 
 function requiredEnv(name: string) {
   const value = process.env[name];
@@ -94,16 +94,7 @@ export const recordTopUp = internalMutation({
     });
     await applyEntry(ctx, { userId: args.userId, amount: args.subtotal * 10, reason: "top_up", sourceId: args.providerOrderId });
 
-    // The first top-up gives galleries made during the trial their full included time.
-    const balance = await balanceFor(ctx, args.userId);
-    if (!balance.paid) {
-      await ctx.db.patch(balance._id, { paid: true });
-      const galleries = await ctx.db.query("collections").withIndex("by_created_by", (q) => q.eq("createdBy", args.userId)).collect();
-      for (const gallery of galleries.filter((gallery) => gallery.trial)) {
-        const included = gallery._creationTime + INCLUDED_DAYS * DAY;
-        await ctx.db.patch(gallery._id, { trial: undefined, expiresAt: Math.max(gallery.expiresAt ?? 0, included) });
-      }
-    }
+    await endTrial(ctx, args.userId);
     return id;
   },
 });

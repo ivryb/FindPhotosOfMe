@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 const open = defineModel<boolean>("open", { required: true });
 const props = defineProps<{ credit: number }>();
 
+const payments = useRuntimeConfig().public.payments;
+
 const PRESETS = [10, 25, 50, 100];
 const dollars = ref(25);
 const amount = computed(() => Math.round(dollars.value * MILLS_PER_DOLLAR));
@@ -35,7 +37,16 @@ async function pay() {
 <template>
   <Dialog v-model:open="open">
     <DialogContent class="sm:max-w-[540px]">
-      <form class="grid gap-5" @submit.prevent="pay">
+      <div v-if="!payments" class="grid gap-5">
+        <DialogHeader>
+          <DialogTitle class="text-3xl">Top-ups open soon</DialogTitle>
+          <DialogDescription>We’re still setting up payments. Until then, you can use your free credit.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button size="lg" @click="open = false">Got it</Button>
+        </DialogFooter>
+      </div>
+      <form v-else class="grid gap-5" @submit.prevent="pay">
         <DialogHeader>
           <DialogTitle class="text-3xl">Top up your balance</DialogTitle>
           <DialogDescription>All your galleries share one balance. You pay once, and nothing renews.</DialogDescription>

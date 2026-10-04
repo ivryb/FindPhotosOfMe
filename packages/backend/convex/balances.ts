@@ -2,12 +2,14 @@ import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { mutation, query } from "./_generated/server";
+import { components } from "./_generated/api";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { authComponent } from "./auth";
 import { requireCollectionOwner, requireServiceToken } from "./authz";
 import {
   DAY,
   EXTENSION_DAYS,
+  INCLUDED_DAYS,
   PRICES,
   TRIAL_CREDIT,
   extensionCost,
@@ -27,6 +29,18 @@ export async function balanceFor(ctx: MutationCtx, userId: string) {
   const id = await ctx.db.insert("balances", { userId, credit: TRIAL_CREDIT, paid: false });
   await ctx.db.insert("balanceEntries", { userId, amount: TRIAL_CREDIT, reason: "trial", createdAt: Date.now() });
   return (await ctx.db.get(id))!;
+}
+
+/** Marks the account as paying, the first time it adds money, and gives galleries made during the trial their full included time. */
+export async function endTrial(ctx: MutationCtx, userId: string) {
+  const balance = await balanceFor(ctx, userId);
+  if (balance.paid) return;
+  await ctx.db.patch(balance._id, { paid: true });
+  const galleries = await ctx.db.query("collections").withIndex("by_created_by", (q) => q.eq("createdBy", userId)).collect();
+  for (const gallery of galleries.filter((gallery) => gallery.trial)) {
+    const included = gallery._creationTime + INCLUDED_DAYS * DAY;
+    await ctx.db.patch(gallery._id, { trial: undefined, expiresAt: Math.max(gallery.expiresAt ?? 0, included) });
+  }
 }
 
 export async function findEntry(ctx: MutationCtx, sourceId: string, reason: Reason) {
@@ -126,5 +140,25 @@ export const extendStorage = mutation({
       (credit) => `Another ${EXTENSION_DAYS} days costs ${formatMoney(cost)}, but your balance is ${formatMoney(credit)}.`);
     const from = Math.max(collection.expiresAt ?? Date.now(), Date.now());
     await ctx.db.patch(id, { expiresAt: from + EXTENSION_DAYS * DAY });
+  },
+});
+
+/**
+ * Adds credit to an account by hand, such as the admin's own while payments aren't open. The amount is in mills
+ * ($100 is 100000): `bunx convex run balances:grant '{"email":"you@example.com","amount":100000}'`.
+ * It counts as adding money, so the account's galleries leave the trial.
+ */
+export const grant = internalMutation({
+  args: { email: v.string(), amount: v.number() },
+  returns: v.string(),
+  handler: async (ctx, { email, amount }) => {
+    const user = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: "user",
+      where: [{ field: "email", value: email.trim().toLowerCase() }],
+    });
+    if (!user) throw new Error(`No account uses ${email}. Sign in once first.`);
+    await applyEntry(ctx, { userId: user._id, amount, reason: "grant" });
+    await endTrial(ctx, user._id);
+    return `${email} now has ${formatMoney((await balanceFor(ctx, user._id)).credit)}`;
   },
 });

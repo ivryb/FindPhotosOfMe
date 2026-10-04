@@ -65,6 +65,18 @@ Galleries used to be bought one plan at a time; now every account has one balanc
 3. Deploy Modal, then make thumbnails for photos uploaded before thumbnails existed: `modal run python/modal_app.py::backfill_thumbnails`. Until it finishes, the gallery grid shows the full photos in place of the missing thumbnails.
 4. Deploy the web app. Old `/admin/collections/<address>` links redirect to `/admin/galleries/<address>`.
 
+### Launching before payments open
+
+Lemon Squeezy verifies the store only once the site is public, so the first release runs without payments. Leave `NUXT_PUBLIC_PAYMENTS` unset: Top up then says top-ups open soon, and new accounts use their free trial credit (about 500 photos and 50 searches, galleries online 7 days). The top-up variant can wait too.
+
+Sign in once with the admin account, then give it credit from `packages/backend` (amounts are in thousandths of a dollar, so this is $100):
+
+```
+bunx convex run balances:grant '{"email":"ivrybn@gmail.com","amount":100000}' --prod
+```
+
+Credit added this way also takes the account's galleries out of the trial. Run it again when the balance runs low. Once Lemon Squeezy is live, set the top-up variant and `NUXT_PUBLIC_PAYMENTS=true`.
+
 ## 3. Google Auth Platform
 
 Use a Web application OAuth client with this redirect URI:
@@ -119,6 +131,7 @@ Configure all environments that will run the app (Production and the Preview env
 | `NUXT_R2_BUCKET_NAME` | Existing bucket |
 | `NUXT_R2_ACCESS_KEY_ID` | Existing scoped R2 key |
 | `NUXT_R2_SECRET_ACCESS_KEY` | Existing scoped R2 secret |
+| `NUXT_PUBLIC_PAYMENTS` | `true` once Lemon Squeezy is live; unset until then |
 
 Remove the obsolete `NUXT_PUBLIC_API_URL` and `NUXT_ADMIN_PASSWORD`. The browser must never receive the Python URL token or R2 credentials.
 
