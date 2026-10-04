@@ -21,7 +21,7 @@ FindPhotosOfMe/
 - **Backend**: Convex (serverless queries/mutations/actions)
 - **ML Service**: Python FastAPI, InsightFace (face detection/embeddings), OpenCV
 - **Storage**: Cloudflare R2 (S3-compatible)
-- **Package Manager**: pnpm with workspaces
+- **Package Manager**: Bun with workspaces
 
 ## Architecture Flow
 
@@ -100,10 +100,10 @@ FindPhotosOfMe/
 
 ## Development Commands
 
-- `pnpm dev:setup` - Initialize Convex
-- `pnpm dev` - Run all services
-- `pnpm dev:web` - Run Nuxt only
-- `pnpm dev:server` - Run Convex only
+- `bun run dev:setup` - Initialize Convex
+- `bun run dev` - Run all services
+- `bun run dev:web` - Run Nuxt only
+- `bun run dev:server` - Run Convex only
 
 ## Key Files Reference
 

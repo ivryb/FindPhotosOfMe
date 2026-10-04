@@ -19,13 +19,13 @@ Data flow: Photos → R2 storage → Python extracts embeddings → Convex store
 
 ```bash
 # Full stack
-pnpm install          # Install dependencies
-pnpm dev              # Run all services (web + Convex)
-pnpm dev:setup        # Initialize Convex
+bun install          # Install dependencies
+bun run dev              # Run all services (web + Convex)
+bun run dev:setup        # Initialize Convex
 
 # Individual services
-pnpm dev:web          # Frontend only
-pnpm dev:server       # Convex only
+bun run dev:web          # Frontend only
+bun run dev:server       # Convex only
 
 # Python service (from repo root)
 ./deploy-python-local.sh      # Build and run Docker container
@@ -33,7 +33,7 @@ pnpm dev:server       # Convex only
 docker logs -f find-photos-of-me-service  # View logs
 
 # Type checking
-pnpm check-types      # All workspaces
+bun run check-types      # All workspaces
 ```
 
 ## Convex Backend Patterns
@@ -65,7 +65,7 @@ import { useConvexQuery, useConvexMutation } from "convex-vue";
 
 - Use `<script setup lang="ts">` with Composition API
 - UI components from `@/components/ui/` (shadcn-vue)
-- Icons from `lucide-vue-next`
+- Icons from `@lucide/vue`
 
 ## Python Service
 

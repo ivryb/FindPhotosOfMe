@@ -11,7 +11,7 @@ export default defineNuxtConfig({
     },
   },
   devtools: { enabled: false },
-  modules: ["@nuxtjs/tailwindcss", "shadcn-nuxt", "convex-nuxt"],
+  modules: ["shadcn-nuxt", "convex-nuxt"],
   css: ["~/assets/css/tailwind.css"],
   devServer: {
     port: 3001,

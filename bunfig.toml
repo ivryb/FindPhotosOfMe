@@ -1,0 +1,11 @@
+[install]
+linker = "isolated"
+# Existing pnpm-locked versions; remove this exception after 2026-10-11.
+minimumReleaseAgeExcludes = [
+  "@iconify-json/lucide",
+  "vue-tsc",
+  "@aws-sdk/client-s3",
+  "@aws-sdk/s3-request-presigner",
+  "@lucide/vue",
+  "@types/node",
+]

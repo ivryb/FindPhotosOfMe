@@ -7,12 +7,12 @@ The landing page, dashboard, API routes and Telegram webhook share the `findphot
 From the repository root:
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm --filter web build
-pnpm --filter web exec wrangler deploy --dry-run
-pnpm --filter web preview
+bun install --frozen-lockfile
+bun --filter web build
+(cd apps/web && bunx wrangler deploy --dry-run)
+bun --filter web preview
 # Publishes to Cloudflare:
-pnpm --filter web run deploy
+bun --filter web run deploy
 ```
 
 Nitro generates `apps/web/.output/server/wrangler.json` and the Wrangler redirect under `.wrangler/deploy/`. Build before running Wrangler. The checked-in `apps/web/wrangler.jsonc` owns the Worker name and compatibility settings; Nitro supplies the entry point and static assets. This uses Nitro 2's [Workers adapter](https://v2.nitro.build/deploy/providers/cloudflare).

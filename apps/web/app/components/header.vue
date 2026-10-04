@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CameraIcon } from "lucide-vue-next";
+import { CameraIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
 const authClient = useAuthClient();

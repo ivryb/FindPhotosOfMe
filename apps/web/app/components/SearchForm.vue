@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Upload, Search, XCircle, ImageIcon } from "lucide-vue-next";
+import { Upload, Search, XCircle, ImageIcon } from "@lucide/vue";
 import SearchProgress from "@/components/SearchProgress.vue";
 
 const props = defineProps<{

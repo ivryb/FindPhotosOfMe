@@ -19,7 +19,7 @@
     "todo"
   ],
   "auth": "none",
-  "packageManager": "pnpm",
+  "packageManager": "bun",
   "dbSetup": "none",
   "api": "none",
   "webDeploy": "none",

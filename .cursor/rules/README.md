@@ -46,9 +46,9 @@ This directory contains Cursor AI rules to help with development across the mono
 
 ### monorepo-workspace.mdc
 
-**Applied to**: `package.json`, `pnpm-workspace.yaml`, `turbo.json`
+**Applied to**: `package.json`, `turbo.json`
 
-- pnpm workspace management
+- Bun workspace management
 - Turborepo commands
 - Cross-workspace dependencies
 - Development workflow

@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Images } from "lucide-vue-next";
+import { Images } from "@lucide/vue";
 import SearchForm from "@/components/SearchForm.vue";
 
 const subdomain = useSubdomain();

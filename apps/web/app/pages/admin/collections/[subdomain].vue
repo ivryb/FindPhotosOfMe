@@ -32,7 +32,7 @@ import {
   CreditCard,
   Upload,
   Trash2,
-} from "lucide-vue-next";
+} from "@lucide/vue";
 
 const route = useRoute();
 const subdomain = computed(() => route.params.subdomain as string);

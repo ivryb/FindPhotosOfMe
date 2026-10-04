@@ -9,7 +9,7 @@ FindPhotosOfMe is a face recognition service that helps users find photos of the
 - **ML Service**: Python FastAPI with InsightFace for face recognition
 - **Storage**: Cloudflare R2 for photo storage
 - **Telegram Bot**: grammY on Vercel via webhooks
-- **Monorepo**: pnpm workspaces + Turborepo
+- **Monorepo**: Bun workspaces + Turborepo
 
 ### Data Flow
 
@@ -22,13 +22,13 @@ FindPhotosOfMe is a face recognition service that helps users find photos of the
 ### Root Level (Turborepo)
 
 ```bash
-pnpm install              # Install all workspace dependencies
-pnpm dev                  # Run all services (web + backend + python)
-pnpm build                # Build all packages
-pnpm check-types          # Type check all packages
-pnpm dev:web              # Run only frontend
-pnpm dev:server           # Run only Convex backend
-pnpm dev:setup            # Initialize Convex development environment
+bun install              # Install all workspace dependencies
+bun run dev                  # Run all services (web + backend + python)
+bun run build                # Build all packages
+bun run check-types          # Type check all packages
+bun run dev:web              # Run only frontend
+bun run dev:server           # Run only Convex backend
+bun run dev:setup            # Initialize Convex development environment
 ```
 
 ### Python Service
@@ -48,16 +48,16 @@ cd python && ./manage-models-volume.sh info
 ### Frontend (apps/web)
 
 ```bash
-npm run dev               # Development server
-npm run build            # Production build
-npm run preview          # Preview production build
+bun run dev               # Development server
+bun run build            # Production build
+bun run preview          # Preview production build
 ```
 
 ### Backend (packages/backend)
 
 ```bash
-npm run dev              # Start Convex development
-npm run dev:setup        # Configure Convex project
+bun run dev              # Start Convex development
+bun run dev:setup        # Configure Convex project
 ```
 
 ## Project Structure

@@ -1,19 +1,17 @@
 ---
-globs: package.json,pnpm-workspace.yaml,turbo.json
+globs: package.json,turbo.json
 ---
 
 # Monorepo & Workspace Management
 
-This project uses **pnpm workspaces** and **Turborepo** for monorepo management.
+This project uses **Bun workspaces** and **Turborepo** for monorepo management.
 
 ## Workspace Structure
 
-Defined in `pnpm-workspace.yaml`:
+Defined in `package.json`:
 
-```yaml
-packages:
-  - "apps/*"
-  - "packages/*"
+```json
+{ "workspaces": ["apps/*", "packages/*"] }
 ```
 
 Current workspaces:
@@ -24,23 +22,23 @@ Current workspaces:
 
 ## Package Manager
 
-**pnpm v10.12.4** (specified in `package.json`)
+**Bun v1.4.2** (specified in `package.json`)
 
 ### Install Dependencies
 
 ```bash
-pnpm install  # Install all workspace dependencies
+bun install  # Install all workspace dependencies
 ```
 
 ### Add Dependencies
 
 ```bash
 # Add to specific workspace
-pnpm add <package> --filter web
-pnpm add <package> --filter @FindPhotosOfMe/backend
+(cd apps/web && bun add <package>)
+(cd packages/backend && bun add <package>)
 
 # Add to root
-pnpm add -w <package>
+bun add <package>
 ```
 
 ## Turborepo Commands
@@ -48,12 +46,12 @@ pnpm add -w <package>
 Defined in root `package.json`:
 
 ```bash
-pnpm dev              # Run all dev servers (web + backend)
-pnpm build            # Build all packages
-pnpm check-types      # Type check all packages
-pnpm dev:web          # Run only web (Nuxt)
-pnpm dev:server       # Run only backend (Convex)
-pnpm dev:setup        # Initialize Convex deployment
+bun run dev              # Run all dev servers (web + backend)
+bun run build            # Build all packages
+bun run check-types      # Type check all packages
+bun run dev:web          # Run only web (Nuxt)
+bun run dev:server       # Run only backend (Convex)
+bun run dev:setup        # Initialize Convex deployment
 ```
 
 ### Turbo Filters
@@ -85,7 +83,7 @@ This works because:
 
 ## Python Environment (Separate)
 
-The `python/` directory is **not** part of the pnpm workspace. It uses its own Python virtual environment.
+The `python/` directory is **not** part of the Bun workspace. It uses its own Python virtual environment.
 
 ### Setup Python
 
@@ -115,14 +113,14 @@ Each workspace has its own `tsconfig.json`:
 ### Nuxt (apps/web)
 
 ```bash
-pnpm build  # Builds for production
+bun run build  # Builds for production
 # Output: apps/web/.output/
 ```
 
 ### Convex (packages/backend)
 
 ```bash
-pnpm -F @FindPhotosOfMe/backend dev  # Pushes functions to Convex
+bun --filter @FindPhotosOfMe/backend dev  # Pushes functions to Convex
 # No traditional build step - functions are deployed to Convex cloud
 ```
 
@@ -139,14 +137,14 @@ docker build -t find-photos-worker .
 1. **Initial setup**:
 
    ```bash
-   pnpm install
-   pnpm dev:setup  # Configure Convex
+   bun install
+   bun run dev:setup  # Configure Convex
    ```
 
 2. **Start development**:
 
    ```bash
-   pnpm dev  # Runs web + backend
+   bun run dev  # Runs web + backend
    # Nuxt: http://localhost:3001
    # Convex: Watches for changes
    ```
@@ -162,7 +160,7 @@ docker build -t find-photos-worker .
 
 1. Create directory in `apps/` or `packages/`
 2. Add `package.json` with name (e.g., `@FindPhotosOfMe/new-package`)
-3. Run `pnpm install` at root
+3. Run `bun install` at root
 4. Configure in `turbo.json` if needed
 
 ## Dependencies Management
@@ -172,14 +170,14 @@ docker build -t find-photos-worker .
 Install at root if used by multiple workspaces:
 
 ```bash
-pnpm add -w typescript
+bun add typescript
 ```
 
 ### Workspace-specific
 
 ```bash
-pnpm add vue --filter web
-pnpm add convex --filter @FindPhotosOfMe/backend
+(cd apps/web && bun add vue)
+(cd packages/backend && bun add convex)
 ```
 
 ## Environment Variables
@@ -210,13 +208,13 @@ For shared env vars across workspaces
 
 ### Nuxt (apps/web)
 
-- Build: `pnpm build`
+- Build: `bun run build`
 - Deploy to: Vercel, Netlify, or any Node.js host
 - Env vars: Set in hosting platform
 
 ### Convex (packages/backend)
 
-- Deploy: `npx convex deploy` (from packages/backend/)
+- Deploy: `bunx convex deploy` (from packages/backend/)
 - Automatic on push if CI configured
 - Manage at: https://dashboard.convex.dev
 
@@ -230,22 +228,22 @@ For shared env vars across workspaces
 
 ```bash
 # Install specific workspace
-pnpm install --filter web
+bun install --filter web
 
 # Clean all node_modules
 rm -rf node_modules apps/*/node_modules packages/*/node_modules
 
 # Reinstall everything
-pnpm install
+bun install
 
 # Update all dependencies
-pnpm update
+bun update
 
 # Check which workspaces exist
-pnpm list --recursive --depth 0
+bun pm ls
 
 # Run command in all workspaces
-pnpm -r <command>
+bun --filter "*" <command>
 ```
 
 ## Troubleshooting
@@ -254,18 +252,18 @@ pnpm -r <command>
 
 ```bash
 cd packages/backend
-npx convex dev  # Generates types
+bunx convex dev  # Generates types
 ```
 
 ### TypeScript errors across workspaces
 
 ```bash
-pnpm check-types  # Check all workspaces
+bun run check-types  # Check all workspaces
 ```
 
 ### Stale dependencies
 
 ```bash
-rm -rf node_modules pnpm-lock.yaml
-pnpm install
+rm -rf node_modules bun.lock
+bun install
 ```

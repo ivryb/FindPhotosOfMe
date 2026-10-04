@@ -19,7 +19,7 @@ import {
   Upload,
   ImageIcon,
   Loader2,
-} from "lucide-vue-next";
+} from "@lucide/vue";
 
 const props = defineProps<{
   searchRequestId: Id<"searchRequests">;
