@@ -75,6 +75,13 @@ integration tests, the production build, and frontend/backend typechecks passed.
 The Nuxt configuration typing error is resolved; the existing Volar plugin
 resolution warning still appears without failing typechecking.
 
+### Logo and favicons (4 October 2026)
+
+Worker version `8d23f841-f12b-41ba-aa51-67a9c0c34c98` publishes `a1dc474`: the
+aperture favicons, Apple touch icon, and web manifest. Production serves the head
+tags and all seven icon files byte-identical to the repository. Convex and Modal
+are unchanged.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
