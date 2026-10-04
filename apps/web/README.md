@@ -35,15 +35,17 @@
 
 ### Query Patterns
 
-**SSR Queries (Server-side):**
+### Authenticated admin rendering
 
-```typescript
-// For pages that need SSR data
-const { data: collection } = await useConvexSSRQuery(
-  api.collections.getBySubdomain,
-  { subdomain: subdomain || "" }
-);
-```
+The browser uses Better Auth through the same-origin `/api/auth/**` proxy. Sessions live in HttpOnly cookies; the server uses the session cookie to obtain a Convex JWT for each admin request. No JWT or session token is included in the Nuxt page payload.
+
+Google still calls the existing Convex OAuth callback. Its one-time token returns through `/auth/callback`, which checks the initiating browser, exchanges the token, sets the app's cookies, and redirects to the requested local page. Localhost and production keep separate cookies and use the same Convex deployment. Existing localStorage sessions require signing in once after this change.
+
+The two admin pages use `useFetch` for their initial owner-authorized data and `useLiveQuery` for subsequent updates. The live subscription starts once Convex confirms authentication and preserves the initial data while connecting. Admin and auth responses use `private, no-store`. Existing upload/search endpoints still accept bearer tokens from `getConvexAuthToken()`.
+
+Run `bun test apps/web/tests/auth.test.ts` from the repository root. This starts Nuxt on port 3212 against an isolated HTTP/WebSocket Convex fixture and checks auth cookies, callback redirects, unauthorized requests, and the initial HTML of both admin pages. It does not modify the shared deployment.
+
+For browser verification, run `bun apps/web/tests/backend.ts`, then from `apps/web` run `TEST_BACKEND_URL=http://localhost:3211 bun x nuxt dev tests --port 3212 --dotenv /dev/null`. The fixture accepts any email code. Open both admin pages and POST a new title as plain text to `http://localhost:3211/__fixture/title` to check live updates without reloading. Verify logout and that `document.cookie` cannot read the session. Production Google and email delivery remain separate end-to-end checks.
 
 **Client-side Queries:**
 

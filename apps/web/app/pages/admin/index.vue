@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { FunctionReturnType } from "convex/server";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-import { useConvexMutation, useConvexQuery } from "convex-vue";
+import { useConvexMutation } from "convex-vue";
 import { ref } from "vue";
 
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-const { data: collections } = useConvexQuery(api.collections.getAll, {}, { server: false });
+const responseCookies = import.meta.server ? useResponseHeader("set-cookie") : undefined;
+const { data: initial, error: loadError } = await useFetch<FunctionReturnType<typeof api.collections.getAll>>("/api/admin/collections", {
+  onResponse({ response }) {
+    const cookies = response.headers.getSetCookie();
+    if (responseCookies && cookies.length) responseCookies.value = cookies;
+  },
+});
+if (loadError.value?.statusCode === 401) {
+  await navigateTo({ path: "/sign-in", query: { redirect: useRoute().fullPath } });
+} else if (loadError.value) {
+  throw createError({ statusCode: loadError.value.statusCode, statusMessage: "Could not load collections" });
+}
+const { data: collections, error: liveError } = useLiveQuery(api.collections.getAll, {}, initial);
 
 const isDialogOpen = ref(false);
 
@@ -129,7 +142,8 @@ const navigateToCollection = (subdomain: string) => {
       </div>
     </div>
 
-    <Table>
+    <p v-if="liveError" role="alert">Could not load collections. Please reload the page.</p>
+    <Table v-else>
       <TableHeader>
         <TableRow>
           <TableHead>Subdomain</TableHead>
@@ -141,7 +155,7 @@ const navigateToCollection = (subdomain: string) => {
       <TableBody>
         <TableEmpty
           :colspan="4"
-          v-if="!collections || collections.length === 0"
+          v-if="collections?.length === 0"
         >
           No collections yet. Create your first Collection to get started!
         </TableEmpty>
@@ -166,7 +180,7 @@ const navigateToCollection = (subdomain: string) => {
             {{ Collection.description }}
           </TableCell>
           <TableCell @click="navigateToCollection(Collection.subdomain)">
-            {{ new Date(Collection._creationTime).toLocaleDateString() }}
+            {{ new Date(Collection._creationTime).toLocaleDateString("en-US", { timeZone: "UTC" }) }}
           </TableCell>
         </TableRow>
       </TableBody>

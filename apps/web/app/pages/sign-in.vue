@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { authRedirect } from "#shared/utils/authRedirect";
 import { Mail } from "@lucide/vue";
 
 import { Button } from "@/components/ui/button";
@@ -15,19 +16,16 @@ const code = ref("");
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-const redirectTo = computed(() => {
-  const value = route.query.redirect;
-  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
-    ? value
-    : "/admin";
-});
+const redirectTo = computed(() => authRedirect(route.query.redirect));
 
 async function signInWithGoogle() {
-  await authClient.signIn.social({
+  const callback = new URL("/auth/callback", window.location.origin);
+  callback.searchParams.set("redirect", redirectTo.value);
+  const result = await authClient.signIn.social({
     provider: "google",
-    // Relative callbacks resolve against the shared backend's production SITE_URL.
-    callbackURL: new URL(redirectTo.value, window.location.origin).href,
+    callbackURL: callback.href,
   });
+  if (result.error) error.value = result.error.message ?? "Could not sign in";
 }
 
 async function sendCode() {
@@ -59,7 +57,7 @@ async function verifyCode() {
       otp: code.value,
     });
     if (result.error) throw new Error(result.error.message);
-    authClient.updateSession();
+    await authClient.getSession();
     await navigateTo(redirectTo.value);
   } catch (cause) {
     code.value = "";
@@ -79,6 +77,7 @@ async function verifyCode() {
       </CardHeader>
       <CardContent>
         <div v-if="step === 'choose'" class="space-y-3">
+          <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
           <Button variant="outline" class="w-full" @click="signInWithGoogle">
             Sign in with Google
           </Button>

@@ -1,38 +1,30 @@
-export default defineNuxtPlugin(async () => {
+export default defineNuxtPlugin(() => {
   const authClient = useAuthClient();
   const convex = useConvexClient();
   const session = authClient.useSession();
+  const authenticated = useState("convexAuthenticated", () => false);
 
-  const route = useRoute();
-  const oneTimeToken = route.query.ott;
-
-  if (typeof oneTimeToken === "string") {
-    const result = await authClient.crossDomain.oneTimeToken.verify({
-      token: oneTimeToken,
-    });
-    const token = result.data?.session.token;
-
-    if (token) {
-      await authClient.getSession({
-        fetchOptions: { headers: { Authorization: `Bearer ${token}` } },
-      });
-      authClient.updateSession();
+  function redirectToSignIn() {
+    if (window.location.pathname.startsWith("/admin")) {
+      window.location.replace(`/sign-in?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
     }
-
-    const query = { ...route.query };
-    delete query.ott;
-    await navigateTo({ path: route.path, query }, { replace: true });
   }
 
-  const fetchToken = async ({ forceRefreshToken = false } = {}) =>
-    getConvexAuthToken(forceRefreshToken);
-
   watch(
-    () => session.value.data?.session.id,
-    (sessionId) => {
-      if (sessionId) convex.setAuth(fetchToken);
-      else if (!session.value.isPending) convex.setAuth(async () => null);
+    () => [session.value.data?.session.id, session.value.isPending] as const,
+    ([sessionId, pending]) => {
+      if (pending) return;
+      authenticated.value = false;
+      if (sessionId) {
+        convex.setAuth(getConvexAuthToken, (value) => {
+          authenticated.value = value;
+          if (!value) redirectToSignIn();
+        });
+      } else {
+        convex.setAuth(async () => null);
+        redirectToSignIn();
+      }
     },
-    { immediate: true }
+    { immediate: true },
   );
 });

@@ -1,25 +1,23 @@
-import { convexClient, crossDomainClient } from "@convex-dev/better-auth/client/plugins";
+import { convexClient } from "@convex-dev/better-auth/client/plugins";
 import { emailOTPClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/vue";
 
 let client: ReturnType<typeof createClient> | undefined;
 
-function createClient() {
-  const config = useRuntimeConfig();
-  if (!config.public.convexSiteUrl) throw new Error("NUXT_PUBLIC_CONVEX_SITE_URL is not configured");
+function createClient(origin: string) {
   return createAuthClient({
-    baseURL: config.public.convexSiteUrl,
-    plugins: [emailOTPClient(), convexClient(), crossDomainClient()],
+    baseURL: origin,
+    plugins: [emailOTPClient(), convexClient()],
   });
 }
 
 export function useAuthClient() {
-  client ??= createClient();
-  return client;
+  // Server renders must never share a user's auth state with another request.
+  if (import.meta.server) return createClient(useRequestURL().origin);
+  return client ??= createClient(window.location.origin);
 }
 
-export async function getConvexAuthToken(forceRefresh = false) {
-  void forceRefresh;
+export async function getConvexAuthToken() {
   const { data } = await useAuthClient().convex.token({ fetchOptions: { throw: false } });
   return data?.token ?? null;
 }

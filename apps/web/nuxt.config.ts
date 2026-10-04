@@ -10,6 +10,12 @@ export default defineNuxtConfig({
       nodeCompat: true,
     },
   },
+  routeRules: {
+    "/admin": { headers: { "cache-control": "private, no-store" } },
+    "/admin/**": { headers: { "cache-control": "private, no-store" } },
+    "/api/admin/**": { headers: { "cache-control": "private, no-store" } },
+    "/api/auth/**": { headers: { "cache-control": "private, no-store" } },
+  },
   devtools: { enabled: false },
   modules: ["shadcn-nuxt", "convex-nuxt"],
   css: ["~/assets/css/tailwind.css"],

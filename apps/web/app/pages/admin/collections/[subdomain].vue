@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { FunctionReturnType } from "convex/server";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { useConvexMutation, useConvexClient, useConvexQuery } from "convex-vue";
+import { useConvexMutation, useConvexClient } from "convex-vue";
 import { ref, computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,16 +35,23 @@ import {
   Trash2,
 } from "@lucide/vue";
 
+definePageMeta({ key: route => route.fullPath });
 const route = useRoute();
 const subdomain = computed(() => route.params.subdomain as string);
 
-const { data: collection } = useConvexQuery(
-  api.collections.getBySubdomain,
-  {
-    subdomain: subdomain.value,
+const responseCookies = import.meta.server ? useResponseHeader("set-cookie") : undefined;
+const { data: initial, error: loadError } = await useFetch<FunctionReturnType<typeof api.collections.getBySubdomain>>(`/api/admin/collections/${encodeURIComponent(subdomain.value)}`, {
+  onResponse({ response }) {
+    const cookies = response.headers.getSetCookie();
+    if (responseCookies && cookies.length) responseCookies.value = cookies;
   },
-  { server: false }
-);
+});
+if (loadError.value?.statusCode === 401) {
+  await navigateTo({ path: "/sign-in", query: { redirect: useRoute().fullPath } });
+} else if (loadError.value) {
+  throw createError({ statusCode: loadError.value.statusCode, statusMessage: "Could not load collections" });
+}
+const { data: collection, error: liveError } = useLiveQuery(api.collections.getBySubdomain, { subdomain: subdomain.value }, initial);
 
 const convex = useConvexClient();
 
@@ -320,7 +328,8 @@ const handleDelete = async () => {
       </Button>
     </div>
 
-    <div v-if="!collection" class="text-center py-20">
+    <p v-if="liveError" role="alert">Could not load this collection. Please reload the page.</p>
+    <div v-else-if="!collection" class="text-center py-20">
       <h1 class="text-2xl font-bold mb-4">collection Not Found</h1>
       <p class="text-muted-foreground mb-6">
         The collection with subdomain "{{ subdomain }}" does not exist.
@@ -395,7 +404,7 @@ const handleDelete = async () => {
                 Created
               </h3>
               <p class="text-lg">
-                {{ new Date(collection._creationTime).toLocaleString() }}
+                {{ new Date(collection._creationTime).toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" }) }}
               </p>
             </div>
           </div>
@@ -486,10 +495,10 @@ const handleDelete = async () => {
           <CardDescription>
             {{ planName }}
             <template v-if="collection.photoLimit">
-              · {{ collection.imagesCount.toLocaleString() }} / {{ collection.photoLimit.toLocaleString() }} photos
+              · {{ collection.imagesCount.toLocaleString("en-US") }} / {{ collection.photoLimit.toLocaleString("en-US") }} photos
             </template>
             <template v-if="collection.expiresAt">
-              · {{ isExpired ? "Expired" : `Available until ${new Date(collection.expiresAt).toLocaleDateString()}` }}
+              · {{ isExpired ? "Expired" : `Available until ${new Date(collection.expiresAt).toLocaleDateString("en-US", { timeZone: "UTC" })}` }}
             </template>
           </CardDescription>
         </CardHeader>
