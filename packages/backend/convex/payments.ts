@@ -62,7 +62,7 @@ export const createTopUp = action({
   },
 });
 
-/** Credits a paid order to its buyer's balance. Amounts are in the order's cents; the credit is the price before tax. */
+/** Credits a paid order to its buyer's balance: `subtotal` is the US cents paid before tax; `total` is in the order's currency. */
 export const recordTopUp = internalMutation({
   args: {
     providerOrderId: v.string(),
@@ -201,7 +201,8 @@ export const webhook = httpAction(async (ctx, request) => {
       providerOrderId: String(order.id),
       userId: String(custom.user_id),
       variantId: String(attributes.first_order_item?.variant_id ?? ""),
-      subtotal: Number(attributes.subtotal),
+      // What the buyer paid before tax, in US cents: discounts aren't credited, and other currencies are converted.
+      subtotal: Number(attributes.subtotal_usd ?? attributes.subtotal) - Number(attributes.discount_total_usd ?? attributes.discount_total ?? 0),
       total: Number(attributes.total),
       currency: String(attributes.currency),
       testMode: Boolean(attributes.test_mode),

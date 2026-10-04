@@ -18,7 +18,7 @@ function setup() {
   const gallery = (fields: { createdBy?: string; trial?: boolean; expiresAt?: number } = {}) =>
     t.run((ctx) => ctx.db.insert("collections", {
       subdomain: `gallery-${Math.random().toString(36).slice(2, 8)}`, title: "Harbor Summit", description: "",
-      status: "complete", imagesCount: 120, previewImages: [], createdBy: "owner", ...fields,
+      status: "complete", imagesCount: 120, storedBytes: 0, previewImages: [], createdBy: "owner", ...fields,
     }));
   const credit = (userId = "owner") => t.run(async (ctx) =>
     (await ctx.db.query("balances").withIndex("by_user", (q) => q.eq("userId", userId)).unique())?.credit ?? null);
@@ -39,8 +39,21 @@ describe("searches", () => {
 
     const failed = { id: requestId, serviceToken, status: "error" as const, error: "no_face" as const };
     await t.mutation(api.searchRequests.updateForService, failed);
-    await t.mutation(api.searchRequests.updateForService, failed);
+    await t.mutation(api.searchRequests.updateForService, { ...failed, error: "failed" });
     expect(await credit()).toBe(20);
+    expect((await t.query(api.searchRequests.getForService, { id: requestId, serviceToken }))?.error).toBe("no_face");
+  });
+
+  test("a late failure report keeps a finished search and its charge", async () => {
+    const { t, gallery, credit, setCredit } = setup();
+    const collectionId = await gallery();
+    await setCredit(20);
+    const requestId = await t.mutation(api.searchRequests.create, { collectionId });
+
+    await t.mutation(api.searchRequests.updateForService, { id: requestId, serviceToken, status: "complete", imagesFound: ["a.jpg"] });
+    await t.mutation(api.searchRequests.updateForService, { id: requestId, serviceToken, status: "error", error: "failed" });
+    expect(await credit()).toBe(20 - PRICES.search);
+    expect((await t.query(api.searchRequests.getForService, { id: requestId, serviceToken }))?.status).toBe("complete");
   });
 
   test("pause when the owner's balance can't cover them", async () => {

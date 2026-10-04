@@ -55,7 +55,7 @@ export const createForService = mutation({
   handler: async (ctx, { collectionId, telegramChatId, fileId, messageId, serviceToken }) => {
     requireServiceToken(serviceToken);
     const collection = await ctx.db.get(collectionId);
-    if (!collection || !collection.imagesCount) throw new Error("This gallery has no photos yet");
+    if (!collection || !collection.imagesCount) throw new ConvexError("This gallery has no photos yet.");
     requireActiveCollection(collection);
     const requestId = await ctx.db.insert("searchRequests", {
       collectionId,
@@ -101,10 +101,12 @@ export const updateForService = mutation({
   },
   handler: async (ctx, { id, serviceToken, ...values }) => {
     requireServiceToken(serviceToken);
+    const existing = await ctx.db.get(id);
+    // The first outcome is final: a late failure report must not hide results, or replace "no face" with "failed".
+    if (!existing || existing.status === "complete" || existing.status === "error") return;
     await ctx.db.patch(id, values);
     // A search that couldn't run is given back to the gallery owner.
-    const request = await ctx.db.get(id);
-    if (request && values.status === "error") await returnSearch(ctx, request);
+    if (values.status === "error") await returnSearch(ctx, existing);
   },
 });
 

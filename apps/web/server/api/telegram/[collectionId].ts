@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { Bot, webhookCallback } from "grammy";
 import { ConvexHttpClient } from "convex/browser";
 import { toWebRequest } from "h3";
@@ -35,13 +36,20 @@ export default defineEventHandler(async (event) => {
     const photo = ctx.message?.photo?.at(-1);
     if (!photo) return;
     const initial = await ctx.reply("🔍 Starting search...");
-    await convex.mutation(api.searchRequests.createForService, {
-      collectionId: collection._id,
-      telegramChatId: String(ctx.chat.id),
-      fileId: photo.file_id,
-      messageId: initial.message_id,
-      serviceToken: config.serviceToken,
-    });
+    try {
+      await convex.mutation(api.searchRequests.createForService, {
+        collectionId: collection._id,
+        telegramChatId: String(ctx.chat.id),
+        fileId: photo.file_id,
+        messageId: initial.message_id,
+        serviceToken: config.serviceToken,
+      });
+    } catch (error) {
+      // A refused search (such as the owner's balance running out) is told to the person. Failing the update
+      // instead would make Telegram redeliver it, posting "Starting search..." again each time.
+      if (!(error instanceof ConvexError)) throw error;
+      await ctx.api.editMessageText(ctx.chat.id, initial.message_id, String(error.data));
+    }
   });
 
   // Wait only for the durable handoff; cold Python searches run in the Convex scheduler.

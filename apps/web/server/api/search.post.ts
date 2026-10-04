@@ -37,11 +37,14 @@ export default defineEventHandler(async (event) => {
     photo.filename || "photo.jpg"
   );
   // The search service records every outcome on the request, including why it failed, and the page reads it there.
-  // A request it never reached stays pending, which the page also treats as failed.
-  await fetch(`${config.pythonApiUrl}/api/search-photos`, {
+  // When the service can't be reached (such as a failed cold start), the request is failed here so the owner gets the search back.
+  const response = await fetch(`${config.pythonApiUrl}/api/search-photos`, {
     method: "POST",
     headers: { Authorization: `Bearer ${config.serviceToken}` },
     body,
   }).catch(() => undefined);
+  if (!response?.ok) {
+    await convex.mutation(api.searchRequests.updateForService, { id: requestId, serviceToken: config.serviceToken, status: "error", error: "failed" });
+  }
   return { requestId };
 });
