@@ -18,5 +18,5 @@ export default defineEventHandler(async (event): Promise<GalleryPage> => {
     ? await r2.listPhotos(gallery._id, typeof after === "string" ? after : undefined, PAGE_SIZE)
     : { keys: gallery.previewImages, next: null };
   setHeader(event, "cache-control", "private, no-store");
-  return { photos: await Promise.all(keys.map((key) => r2.photoLinks(key))), next };
+  return { photos: await Promise.all(keys.map((key) => photoLinks(event, key))), next };
 });

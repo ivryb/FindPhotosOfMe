@@ -31,14 +31,26 @@ test("a browsable gallery pages through every photo, skipping thumbnails and the
   expect(keys.some((key) => key.includes("thumbs/") || key.endsWith("embeddings.json"))).toBe(false);
 });
 
-test("each photo's links load its thumbnail and full photo from storage", async () => {
+test("each photo's links load its thumbnail and full photo through this site, cacheable", async () => {
   const { photos }: GalleryPage = await (await page("test-collection")).json();
   const [first] = photos;
-  expect(first!.thumb).toContain("test-collection/thumbs/photo-001.jpg");
-  const [thumb, full] = await Promise.all([fetch(first!.thumb), fetch(first!.full)]);
+  expect(first!.thumb).toStartWith("/media/test-collection/thumbs/photo-001.jpg?");
+  const [thumb, full] = await Promise.all([fetch(app.origin + first!.thumb), fetch(app.origin + first!.full)]);
   expect(thumb.status).toBe(200);
   expect(full.status).toBe(200);
   expect(full.headers.get("content-type")).toContain("image/jpeg");
+  expect(full.headers.get("cache-control")).toContain("public");
+  expect(full.headers.get("content-disposition")).toBeNull();
+});
+
+test("a photo link works only for the photo and use it was signed for", async () => {
+  const { photos }: GalleryPage = await (await page("test-collection")).json();
+  const [first, second] = photos;
+  const signature = new URL(first!.full, app.origin).search;
+  // Another photo with this photo's signature, a changed signature, and a view link turned into a download
+  for (const link of [`/media/${second!.key}${signature}`, first!.full.replace(/s=[^&]+/, "s=forged"), `${first!.full}&download=1`]) {
+    expect((await fetch(app.origin + link)).status).toBe(403);
+  }
 });
 
 test("a gallery that shows only previews returns just those", async () => {

@@ -143,7 +143,8 @@ test("anonymous result downloads only authorize photos from that search", async 
   const [photo] = (await result.json()).photos;
   expect(photo.full).toContain("test-collection/photo-007.jpg");
   expect(photo.thumb).toContain("test-collection/thumbs/photo-007.jpg");
-  expect(photo.download).toContain("attachment");
+  const download = await fetch(`${origin}${photo.download}`);
+  expect(download.headers.get("content-disposition")).toContain("attachment");
   expect((await authorize(["test-collection/photo-008.jpg"])).status).toBe(403);
 });
 

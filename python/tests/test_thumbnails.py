@@ -36,6 +36,10 @@ def test_thumbnail_turns_phone_photos_upright():
     assert size(make_thumbnail(jpeg(4000, 3000, orientation=6))) == (480, THUMBNAIL_EDGE)
 
 
+def test_thumbnails_are_webp_as_their_content_type_says():
+    assert make_thumbnail(jpeg(800, 600))[8:12] == b"WEBP"
+
+
 def test_small_photos_are_not_enlarged():
     assert size(make_thumbnail(jpeg(300, 200))) == (300, 200)
 

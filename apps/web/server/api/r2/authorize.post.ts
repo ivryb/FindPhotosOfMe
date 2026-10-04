@@ -17,6 +17,5 @@ export default defineEventHandler(async (event) => {
   });
   // The query returns false for keys outside this search; it does not throw.
   if (!allowed) throw createError({ statusCode: 403, statusMessage: "Photo access denied" });
-  const r2 = useR2(event);
-  return { photos: await Promise.all(body.keys.map((key) => r2.photoLinks(key))) };
+  return { photos: await Promise.all(body.keys.map((key) => photoLinks(event, key))) };
 });

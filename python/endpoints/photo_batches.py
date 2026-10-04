@@ -14,7 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from security import require_service_token
 from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
-from services.thumbnails import make_thumbnail, thumbnail_key
+from services.thumbnails import THUMBNAIL_TYPE, make_thumbnail, thumbnail_key
 
 router = APIRouter(dependencies=[Depends(require_service_token)])
 # The face index and model are imported inside the workers: the web endpoint that loads this module has no numpy.
@@ -80,7 +80,7 @@ def process_batch(batch_id: str) -> dict:
                         continue
                     name = photo["key"].split("/", 1)[1]
                     thumbnail = make_thumbnail(image)
-                    if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), "image/jpeg") \
+                    if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), THUMBNAIL_TYPE) \
                             or not r2.copy_file(photo["source"], photo["key"]):
                         raise RuntimeError(f"Could not save {photo['key']}")
                     found[name] = faces

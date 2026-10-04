@@ -1,7 +1,12 @@
-"""Small JPEG previews for the gallery grid, saved next to each photo under {collection}/thumbs/."""
+"""Small WebP previews for the gallery grid, saved next to each photo under {collection}/thumbs/.
+
+WebP is about a third smaller than JPEG at the same quality. Thumbnails made before the switch are JPEG under the
+same names; R2 keeps each file's content type, so both kinds are served correctly.
+"""
 
 THUMBNAIL_EDGE = 640
 THUMBNAIL_QUALITY = 80
+THUMBNAIL_TYPE = "image/webp"
 
 
 def thumbnail_key(collection_id: str, name: str) -> str:
@@ -20,7 +25,7 @@ def make_thumbnail(image: bytes) -> bytes:
     scale = THUMBNAIL_EDGE / max(height, width)
     if scale < 1:
         pixels = cv2.resize(pixels, (round(width * scale), round(height * scale)), interpolation=cv2.INTER_AREA)
-    ok, encoded = cv2.imencode(".jpg", pixels, [cv2.IMWRITE_JPEG_QUALITY, THUMBNAIL_QUALITY])
+    ok, encoded = cv2.imencode(".webp", pixels, [cv2.IMWRITE_WEBP_QUALITY, THUMBNAIL_QUALITY])
     if not ok:
         raise ValueError("A thumbnail could not be made")
     return encoded.tobytes()

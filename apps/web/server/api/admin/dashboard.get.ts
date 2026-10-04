@@ -10,10 +10,9 @@ export default defineEventHandler(async (event) => {
     client.query(api.collections.getAll, {}),
     client.query(api.balances.mine, {}),
   ]);
-  const r2 = useR2(event);
   const covers = Object.fromEntries(await Promise.all(galleries.flatMap((gallery) => {
     const first = gallery.previewImages?.[0];
-    return first ? [r2.photoLinks(first).then((links) => [gallery._id, links.thumb] as const)] : [];
+    return first ? [photoLinks(event, first).then((links) => [gallery._id, links.thumb] as const)] : [];
   })));
   return { galleries, balance, covers };
 });
