@@ -69,7 +69,8 @@ function swipeEnd(event: PointerEvent) {
 .photo-viewer-button { display: grid; place-items: center; width: 44px; height: 44px; background: rgb(255 255 255 / .1); color: inherit; border-radius: 50%; cursor: pointer; }
 .photo-viewer-button:hover { background: rgb(255 255 255 / .2); }
 .photo-viewer-button svg { width: 22px; height: 22px; }
-.photo-viewer-stage { position: relative; display: grid; place-items: center; min-height: 0; padding: 0 clamp(0px, 6vw, 88px) clamp(12px, 3vw, 32px); touch-action: pan-y; }
+/* Bound both tracks so a large photo's intrinsic size cannot push it past the viewport. */
+.photo-viewer-stage { position: relative; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; min-height: 0; padding: 0 clamp(0px, 6vw, 88px) clamp(12px, 3vw, 32px); touch-action: pan-y; }
 .photo-viewer-stage img { grid-area: 1 / 1; max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; }
 .photo-viewer-placeholder { width: 100%; height: 100%; filter: blur(12px); opacity: .6; }
 .photo-viewer-photo { opacity: 0; transition: opacity .3s ease; }
