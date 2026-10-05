@@ -1,7 +1,8 @@
 # /// script
 # dependencies = ["fonttools", "brotli", "resvg-py"]
 # ///
-"""Generates the brand kit (design/brand/) and the web favicons (apps/web/public/).
+"""Generates the brand kit (design/brand/), the web favicons (apps/web/public/), and the logo on gallery link previews
+(apps/web/server/assets/og/).
 
 Run from anywhere: `uv run design/brand/generate.py`
 """
@@ -22,6 +23,7 @@ YELLOW, INK, WHITE = "#FFD21F", "#151515", "#FFFFFF"
 NAME = "FindPhotosOfMe"
 KIT = Path(__file__).parent
 PUBLIC = KIT.parents[1] / "apps/web/public"
+SERVER_ASSETS = KIT.parents[1] / "apps/web/server/assets"
 FONT_URL = "https://github.com/google/fonts/raw/main/ofl/archivo/Archivo%5Bwdth,wght%5D.ttf"
 
 
@@ -143,6 +145,7 @@ def brand_kit(font: TTFont) -> None:
         for name, text in svgs.items():
             write(KIT / "svg" / f"{name}.svg", text)
             write(KIT / "png" / f"{name}.png", png(text, height))
+    write(SERVER_ASSETS / "og" / "lockup-white.svg", wide["lockup-white"])
 
 
 def favicons() -> None:

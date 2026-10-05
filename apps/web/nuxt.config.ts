@@ -17,6 +17,8 @@ export default {
   compatibilityDate: "2025-10-01",
   nitro: {
     preset: "cloudflare_module",
+    // Link preview images are drawn by Takumi's WebAssembly build (server/utils/galleryCard.ts)
+    experimental: { wasm: true },
     hooks: {
       "rollup:before": (nitro, config) => {
         if (nitro.options.dev || !Array.isArray(config.plugins)) return;

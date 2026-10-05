@@ -5,13 +5,15 @@ export function mediaLinks(key: string, { requestId }: { requestId?: string } = 
   const query = new URLSearchParams(requestId ? { requestId } : {});
   const view = query.toString();
   query.set("download", "1");
-  const slash = key.indexOf("/");
   return {
     key,
-    thumb: mediaUrl(`${key.slice(0, slash)}/thumbs/${key.slice(slash + 1)}`, view),
+    thumb: mediaUrl(thumbKey(key), view),
     full: mediaUrl(key, view),
     download: mediaUrl(key, query.toString()),
   };
 }
 
 const mediaUrl = (key: string, query: string) => `/media/${key.split("/").map(encodeURIComponent).join("/")}${query ? `?${query}` : ""}`;
+
+/** Where a gallery photo's thumbnail is stored: beside it, under thumbs/. */
+export const thumbKey = (key: string) => key.replace(/^([^/]+)\//, "$1/thumbs/");

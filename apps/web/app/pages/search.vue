@@ -18,6 +18,8 @@ useSeoMeta({
   description: () => `Find the photos you’re in from ${current.value.title} with a selfie.`,
 });
 useHead({ bodyAttrs: { style: "background: #151515" } });
+// The link preview is drawn from the gallery's previews (server/routes/og); without any, the site's image stays.
+if (current.value.previewImages.length) useSeoMeta({ ogImage: `${useRequestURL().origin}/og/${subdomain}` });
 
 const { photos, loaded, failed, load } = useGalleryPhotos(() => current.value._id, { preload: true });
 onMounted(load);

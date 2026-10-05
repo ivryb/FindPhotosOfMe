@@ -20,6 +20,8 @@
     "@lucide/vue": "^1.51.0",
     "@smithy/fetch-http-handler": "^5.8.0",
     "@tailwindcss/typography": "^0.5.20",
+    "@takumi-rs/helpers": "^2.14.0",
+    "@takumi-rs/wasm": "^2.14.0",
     "@tanstack/vue-table": "^9.2.4",
     "@vueuse/core": "^15.0.0",
     "@zip.js/zip.js": "^2.18.2",

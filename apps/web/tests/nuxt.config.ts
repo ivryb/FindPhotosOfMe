@@ -7,7 +7,8 @@ export default defineNuxtConfig({
   // The fixture root is tests/, but the app's logo and other public assets live alongside it.
   dir: { shared: "../shared", public: "../public" },
   devtools: { enabled: false },
-  nitro: { preset: "node-server" },
+  // Keep the app's WebAssembly support, which link preview images need
+  nitro: { preset: "node-server", experimental: config.nitro.experimental },
   convex: { url: process.env.TEST_BACKEND_URL },
   runtimeConfig: {
     pythonApiUrl: process.env.TEST_BACKEND_URL,
