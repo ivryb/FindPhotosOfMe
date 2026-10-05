@@ -135,13 +135,15 @@ Google sign-in, uploads, paid checkout, and selfie matching were not repeated on
 The local continuous `convex dev` watcher remains paused because it targets the live deployment;
 this release used an explicit one-shot deployment.
 
-### Pending web and media update (5 October 2026)
+### HTTPS, mobile menu, and stable media URLs (5 October 2026)
 
-Prepared locally, not deployed: the landing-page hamburger menu, HTTP-to-HTTPS redirects for the canonical host and its event subdomains, and stable media URLs checked against gallery publication, owner identity, or search-result access. Media signing and its expiry have been removed. See [gallery publication](docs/gallery-publication.md) for the access and cache behavior.
+Worker version `1cccb24f-c68d-489d-a557-0dc58790f7b8` publishes application commits `4477680`, `5f97644`, and `ed796d6`: the landing-page hamburger menu, HTTP-to-HTTPS redirects for the canonical host and its event subdomains, and stable media URLs checked against gallery publication, owner identity, or search-result access. Media signing and its expiry have been removed. See [gallery publication](docs/gallery-publication.md) for the access and cache behavior.
 
-When deploying this update, deploy the Convex functions first so `collections.canReadPhoto` is available, then publish the Worker. Use the existing Convex deployment and R2 bucket; Modal and service secrets need no changes. Old signed public preview URLs continue to work according to the current public gallery policy; their signature query parameters are no longer used. Previously issued private search URLs must be replaced with the new request-aware URLs.
+Convex functions were deployed first to the existing `honorable-firefly-904` deployment using `convex dev --once`, followed by the Worker. The R2 bucket, Modal service, and service secrets are unchanged. Old signed public preview URLs continue to work according to the current public gallery policy; their signature query parameters are no longer used. Previously issued private search URLs must be replaced with the new request-aware URLs.
 
 Local verification passed: 34 web HTTP/unit tests, 36 backend tests, type checks, the production build, and a Worker deployment dry run. Browser checks covered the branded mobile menu and stable gallery thumbnails/full photos. A production-built local Worker with isolated R2 data proved that warmed cache entries and conditional requests are denied after unpublishing, while the owner retains access. The review's private-gallery token rate-limit issue was fixed and covered by a regression test.
+
+Production verification: root, www, and event HTTP links return 308 to HTTPS with paths and queries preserved. Landing/audience/sign-in pages return 200; the signed-out dashboard redirects to sign-in and its API returns 401. The mobile menu opens and closes after navigation, with no horizontal overflow. IT Arena lists all 2,742 photo keys without signatures; its thumbnails, originals, downloads, and an existing signed public URL return 200, and ETag revalidation returns 304 with no body. Stored indexes, invalid galleries, and invalid search-result access return 403. Google sign-in, private owner sessions, uploads, selfie matching, and checkout were not repeated on production for this release.
 
 ## Python ML Service on Modal
 
