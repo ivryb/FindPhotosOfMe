@@ -18,6 +18,11 @@ export function useAuthClient() {
 }
 
 export async function getConvexAuthToken() {
-  const { data } = await useAuthClient().convex.token({ fetchOptions: { throw: false } });
-  return data?.token ?? null;
+  try {
+    const { data } = await useAuthClient().convex.token({ fetchOptions: { throw: false } });
+    return data?.token ?? null;
+  } catch {
+    // Network errors still throw with throw:false. Let the auth plugin recheck the session and reconnect.
+    return null;
+  }
 }

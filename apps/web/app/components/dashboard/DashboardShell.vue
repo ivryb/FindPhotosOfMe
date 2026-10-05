@@ -11,6 +11,7 @@ const toppedUp = computed(() => route.query.top_up === "success");
 
 const authClient = useAuthClient();
 const session = authClient.useSession();
+const authInterrupted = useState("authInterrupted", () => false);
 
 async function signOut() {
   await authClient.signOut();
@@ -30,6 +31,7 @@ async function signOut() {
     </header>
 
     <p v-if="toppedUp" class="notice" role="status">Payment received. Your balance updates as soon as Lemon Squeezy confirms it, usually within a minute.</p>
+    <p v-if="authInterrupted" class="notice" role="status">Connection interrupted. Retrying automatically…</p>
 
     <div :class="['shell', { 'gallery-open': current, 'has-galleries': galleries.length }]">
       <aside>
