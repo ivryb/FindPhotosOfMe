@@ -12,8 +12,8 @@
       <li>
         <div class="scene" aria-hidden="true">
           <div class="mail">
-            <small>From Harbor Summit</small>
-            <b>Thanks for coming to Lisbon!</b>
+            <small>From Makers Conf</small>
+            <b>Thanks for coming to Makers Conf!</b>
             <i /><i />
             <span>Find your photos</span>
           </div>
@@ -24,7 +24,7 @@
       <li>
         <div class="scene" aria-hidden="true">
           <div class="slide">
-            <div><b>Thank you, Lisbon!</b><small>Scan to find your photos</small></div>
+            <div><b>Thanks for coming!</b><small>Scan to find your photos</small></div>
             <div class="slide-qr"><LandingQrCode /></div>
           </div>
         </div>
@@ -34,7 +34,7 @@
       <li>
         <div class="scene" aria-hidden="true">
           <div class="card">
-            <b>Harbor Summit Lisbon</b>
+            <b>Makers Conf 2026</b>
             <p class="card-title">Find your photos</p>
             <LandingQrCode />
             <small>Scan with your phone camera</small>

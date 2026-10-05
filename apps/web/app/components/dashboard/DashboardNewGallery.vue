@@ -39,11 +39,11 @@ async function submit() {
         </DialogHeader>
         <div class="grid gap-2">
           <Label for="new-gallery-name">Name</Label>
-          <Input id="new-gallery-name" v-model="name" required placeholder="Harbor Summit Lisbon" autocomplete="off" />
+          <Input id="new-gallery-name" v-model="name" required placeholder="Makers Conf 2026" autocomplete="off" />
         </div>
         <p v-if="error" class="text-sm text-destructive" role="alert">{{ error }}</p>
         <DialogFooter>
-          <Button type="button" variant="line" size="lg" @click="open = false">Cancel</Button>
+          <Button type="button" variant="outline" size="lg" @click="open = false">Cancel</Button>
           <Button type="submit" size="lg" :disabled="saving">{{ saving ? "Creating…" : "Create gallery" }}</Button>
         </DialogFooter>
       </form>

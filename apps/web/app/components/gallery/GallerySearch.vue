@@ -83,7 +83,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
       <span v-if="state.kind === 'found'" class="stack" aria-hidden="true">
         <img v-for="photo in state.photos.slice(0, 3)" :key="photo.key" :src="photo.thumb" alt="">
       </span>
-      <Button v-if="state.kind === 'searching'" size="xl" variant="line" class="banner-button" @click="open = true"><ChevronUp />Show</Button>
+      <Button v-if="state.kind === 'searching'" size="xl" variant="outline" class="banner-button" @click="open = true"><ChevronUp />Show</Button>
       <Button v-else-if="state.kind === 'found'" size="xl" class="banner-button" @click="open = true">See your photos</Button>
       <Button v-else-if="state.kind === 'idle'" size="xl" class="banner-button" @click="open = true">
         <Camera /><span class="wide-only">Search with a selfie</span><span class="narrow-only">Search</span>
@@ -125,7 +125,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
         <template v-if="state.kind === 'found'">
           <div class="selfie-sheet-actions">
             <Button size="xl" @click="downloadAll(state.photos)"><Download />Download all {{ state.photos.length }}</Button>
-            <Button size="xl" variant="line" @click="picker?.click()">Try another selfie</Button>
+            <Button size="xl" variant="outline" @click="picker?.click()">Try another selfie</Button>
           </div>
           <ul class="selfie-sheet-found">
             <li v-for="(photo, index) in state.photos" :key="photo.key">

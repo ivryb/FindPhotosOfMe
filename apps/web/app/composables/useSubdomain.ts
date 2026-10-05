@@ -18,7 +18,7 @@ export const useSubdomain = () => {
 };
 
 /**
- * Where galleries live: `host` is what follows a gallery's address (as in harbor.<host>), and `link` gives a gallery's
+ * Where galleries live: `host` is what follows a gallery's address (as in makersconf.<host>), and `link` gives a gallery's
  * public page. Without a configured origin (in development), galleries open on this site with a query instead.
  */
 export const useGalleryAddress = () => {

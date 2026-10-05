@@ -77,7 +77,7 @@ async function pay() {
         <p v-if="!valid" class="text-sm text-destructive">Top up between {{ formatMoney(MINIMUM_TOP_UP) }} and {{ formatMoney(MAXIMUM_TOP_UP) }}.</p>
         <p v-if="error" class="text-sm text-destructive" role="alert">{{ error }}</p>
         <DialogFooter>
-          <Button type="button" variant="line" size="lg" @click="open = false">Cancel</Button>
+          <Button type="button" variant="outline" size="lg" @click="open = false">Cancel</Button>
           <Button type="submit" size="lg" :disabled="!valid || paying">{{ paying ? "Opening checkout…" : `Pay ${formatMoney(amount)}` }}</Button>
         </DialogFooter>
       </form>

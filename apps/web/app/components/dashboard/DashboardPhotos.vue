@@ -143,7 +143,7 @@ function uploadRow(item: Doc<"uploads">, here?: Sending): Row {
 .legend em { margin-left: auto; color: var(--muted-foreground); font-style: normal; }
 
 .actions { margin-top: 24px; }
-.drop { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; padding: 18px; border: 2px dashed #c2c2bd; border-radius: 10px; text-align: left; cursor: pointer; transition: border-color .2s, background-color .2s; }
+.drop { display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 18px; border: 2px dashed #c2c2bd; border-radius: 10px; text-align: left; cursor: pointer; transition: border-color .2s, background-color .2s; }
 .drop:hover, .drop.over { background: var(--accent); border-color: var(--foreground); }
 .drop svg { flex: none; width: 28px; height: 28px; }
 .drop b { display: block; font-size: 1.1rem; font-weight: 800; font-stretch: 110%; }

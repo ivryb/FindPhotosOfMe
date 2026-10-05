@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // A pile of photos is dragged in, uploaded, and their faces found: idle → drag → upload → faces → ready.
-withDefaults(defineProps<{ name?: string }>(), { name: "Harbor Summit Lisbon" });
+withDefaults(defineProps<{ name?: string }>(), { name: "Makers Conf 2026" });
 
 // Photos with their faces, detected by Apple Vision: [photo, ...faces as [center x %, center y %, width %]]
 const UPLOADED: [string, ...[number, number, number][]][] = [

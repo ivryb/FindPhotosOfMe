@@ -19,13 +19,13 @@ const phase = usePhasesOnView(phone, [["idle", 300], ["play", 0]] as const);
       </div>
       <div class="app-head">
         <span class="back"><svg viewBox="0 0 10 17" width="10" height="17"><path d="M8.5 1.5 1.5 8.5l7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>Chats</span>
-        <p class="who"><b>Harbor Summit</b><small>bot</small></p>
-        <i class="avatar">H</i>
+        <p class="who"><b>Makers Conf</b><small>bot</small></p>
+        <i class="avatar">M</i>
       </div>
       <div class="msgs">
         <p class="day">Today</p>
         <p class="b out" style="--n:0">/start<time>10:24 <svg viewBox="0 0 16 10" width="15" height="10"><path d="M1 5.5 4 8.5 10.5 1.5M6.5 8.5 13.5 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg></time></p>
-        <p class="b in" style="--n:1">Hi! Looking for your photos from <b>Harbor Summit Lisbon</b>?<br><br>Send a selfie to get started 📸<time>10:24</time></p>
+        <p class="b in" style="--n:1">Hi! Looking for your photos from <b>Makers Conf 2026</b>?<br><br>Send a selfie to get started 📸<time>10:24</time></p>
         <div class="b out pic" style="--n:2"><img src="/landing/face.jpg" alt=""><time>10:25 <svg viewBox="0 0 16 10" width="15" height="10"><path d="M1 5.5 4 8.5 10.5 1.5M6.5 8.5 13.5 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg></time></div>
         <p class="b in" style="--n:3">Found <b>8</b> matching photos 🥳<time>10:25</time></p>
         <div class="b in album" style="--n:4">

@@ -28,7 +28,7 @@ useSeoMeta({
     />
     <LandingPricing
       title="Free to try. One payment per event"
-      text="Try it with up to 500 photos, no card needed. Then pay for the photos and searches you need, from $10. Attendees always search for free."
+      text="Try it free first. When you need more, pay once for the photos and searches you use, from $10. Attendees always search for free."
       note="Attendees never pay."
     />
     <LandingFaq
@@ -37,6 +37,6 @@ useSeoMeta({
         { title: 'For attendees', items: [FAQ.selfie, FAQ.groups, FAQ.misses, FAQ.account, FAQ.notOrganizer] },
       ]"
     />
-    <LandingFinalCta title="Give your attendees their photos" text="Start with a few photos from your event. Try a selfie search and see what you find." />
+    <LandingFinalCta title="Try it on photos from your last event" text="Upload up to 500 photos and search for yourself with a selfie. Then share the link with your attendees." />
   </LandingPage>
 </template>

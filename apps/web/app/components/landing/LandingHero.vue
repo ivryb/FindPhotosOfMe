@@ -12,7 +12,7 @@ defineProps<{ title: string; lede: string; ticks: string[] }>();
       <p class="lede">{{ lede }}</p>
       <div class="actions">
         <Button as-child size="xl"><NuxtLink to="/admin">Try it free</NuxtLink></Button>
-        <Button as-child size="xl" variant="line"><a href="#how">See how it works</a></Button>
+        <Button as-child size="xl" variant="outline"><a href="#how">See how it works</a></Button>
       </div>
       <ul class="ticks">
         <li v-for="tick in ticks" :key="tick">{{ tick }}</li>

@@ -31,7 +31,7 @@ useSeoMeta({
     />
     <LandingPricing
       title="Free to try. One payment, no subscription"
-      text="Try up to 500 photos first, with no card needed. For a bigger pile, calculate your price. Paid searches start at $10."
+      text="Try it free first. For a bigger pile, pay once for the photos and searches you use, from $10."
       note="People you share the link with never pay. Plans for whole photo libraries are in the works."
     />
     <LandingFaq
@@ -48,6 +48,6 @@ useSeoMeta({
         ] },
       ]"
     />
-    <LandingFinalCta title="Find the photos you’re looking for" text="Upload a few photos and try a search with one face." />
+    <LandingFinalCta title="Try it on a folder of your photos" text="Upload up to 500 photos and add a photo of one face. You’ll get back every photo that person is in." />
   </LandingPage>
 </template>

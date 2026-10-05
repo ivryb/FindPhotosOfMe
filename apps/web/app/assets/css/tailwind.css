@@ -23,7 +23,7 @@
   --destructive: #c4291c;
   --destructive-foreground: #ffffff;
   --border: #d6d6d2;
-  --input: #d6d6d2;
+  --input: #a4a4a0;
   --ring: #151515;
   --brand: #ffd21f;
   --brand-foreground: #151515;
@@ -151,4 +151,11 @@
   .container {
     @apply max-w-3xl! mx-auto px-4;
   }
+}
+
+/* Shared by shadcn card, dialog, and drawer titles as well as page headings. */
+@utility font-display {
+  font-weight: 800;
+  font-stretch: 118%;
+  letter-spacing: -0.03em;
 }

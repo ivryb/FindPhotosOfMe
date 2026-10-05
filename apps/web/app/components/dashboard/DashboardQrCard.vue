@@ -39,7 +39,7 @@ function download() {
       <path :d="code.path" fill="#151515" />
     </svg>
     <p>People scan this to open your gallery.</p>
-    <Button variant="line" size="sm" class="w-full" @click="download"><Download />Download</Button>
+    <Button variant="outline" size="sm" class="w-full" @click="download"><Download />Download</Button>
   </div>
 </template>
 
