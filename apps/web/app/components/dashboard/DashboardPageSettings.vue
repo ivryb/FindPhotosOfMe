@@ -146,4 +146,5 @@ async function publish(value: boolean) {
 .mini-pill { position: absolute; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; padding: 9px 16px; background: var(--brand); color: var(--foreground); border-radius: 999px; font-size: .82rem; font-weight: 800; white-space: nowrap; translate: -50% 0; }
 .mini-pill svg { width: 16px; height: 16px; }
 .preview-note { margin-top: 10px; color: var(--muted-foreground); font-size: .88rem; }
+@media (max-width: 900px) { .mini-title { font-size: 1.25rem; } }
 </style>

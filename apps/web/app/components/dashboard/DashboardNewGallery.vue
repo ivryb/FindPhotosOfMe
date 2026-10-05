@@ -34,7 +34,7 @@ async function submit() {
     <DialogContent class="sm:max-w-[520px]">
       <form class="grid gap-5" @submit.prevent="submit">
         <DialogHeader>
-          <DialogTitle class="text-3xl">New gallery</DialogTitle>
+          <DialogTitle class="text-xl sm:text-3xl">New gallery</DialogTitle>
           <DialogDescription>Only you can see and search it until you publish.</DialogDescription>
         </DialogHeader>
         <div class="grid gap-2">

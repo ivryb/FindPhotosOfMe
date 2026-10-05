@@ -1,10 +1,12 @@
 # Gallery publication
 
-New galleries need only a name. They start private, with no page address, and owners can upload photos and search them in the Photos tab. Owner searches and their result downloads require the owner's identity, even after publication.
+New galleries need only a name. They start private, with no page address, and owners can add photos in Upload photos and search them in a separate Search section. Owner searches and their result downloads require the owner's identity, even after publication.
 
 The Gallery page tab begins with “Publish this gallery.” Save a unique page address before switching publication on. Only published galleries show a share link and QR code. Unpublishing closes public gallery browsing, new attendee searches (including Telegram), and authorization of existing attendee search results. Previously issued photo links remain valid until their existing expiry; downloaded copies cannot be recalled.
 
 Existing galleries with no `published` value retain their public access. Creation explicitly records `published: false`; no migration is needed. Dashboard routes accept the gallery ID so a private gallery needs no address; old dashboard links using addresses still work.
+
+On mobile, `/admin` shows a vertical gallery list. Opening a gallery shows only that gallery, with an “All galleries” back link. A vertical section menu replaces tabs, with smaller headings and one horizontal content gutter. There is no horizontal scrolling. Desktop retains the sidebar and detail layout.
 
 Deletion is in the separate Settings tab. Publication does not change billing or storage expiry.
 

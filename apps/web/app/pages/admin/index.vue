@@ -2,17 +2,18 @@
 import { Plus } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
-// The dashboard's front door: it opens your newest gallery, or helps you make the first one.
+// The mobile front door is the gallery list in DashboardShell; desktop keeps that list beside this prompt.
 const { galleries, creating } = useDashboard();
-watch(() => galleries.value[0], (first) => {
-  if (first) navigateTo(`/admin/galleries/${first.subdomain ?? first._id}`, { replace: true, redirectCode: 302 });
-}, { immediate: true });
 
 useSeoMeta({ title: "Your galleries · FindPhotosOfMe" });
 </script>
 
 <template>
-  <section class="empty">
+  <section v-if="galleries.length" class="empty">
+    <h1>Your galleries</h1>
+    <p>Choose a gallery to manage its photos and page.</p>
+  </section>
+  <section v-else class="empty">
     <h1>Make your first gallery</h1>
     <p>Upload your event photos as ZIP files. Search privately, then publish to share a link and QR code so people can find their photos with a selfie.</p>
     <Button size="xl" @click="creating = true"><Plus />New gallery</Button>

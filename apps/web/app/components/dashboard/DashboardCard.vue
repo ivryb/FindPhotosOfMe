@@ -19,4 +19,5 @@ defineProps<{ title: string }>();
 h2 { font-size: 1.6rem; font-stretch: 112%; letter-spacing: -.02em; }
 .card-head :slotted(p) { color: var(--muted-foreground); }
 .card-head :slotted(p b) { color: var(--foreground); font-size: 1.15rem; font-weight: 800; font-stretch: 112%; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .card { padding: 20px 0; border-radius: 0; } }
 </style>

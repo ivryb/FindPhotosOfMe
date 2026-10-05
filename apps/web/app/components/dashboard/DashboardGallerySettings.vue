@@ -38,7 +38,7 @@ async function remove() {
   <Dialog v-model:open="deleting">
     <DialogContent class="sm:max-w-[480px]">
       <DialogHeader>
-        <DialogTitle class="text-3xl">Delete this gallery?</DialogTitle>
+        <DialogTitle class="text-xl sm:text-3xl">Delete this gallery?</DialogTitle>
         <DialogDescription>Its page stops working and all of its photos are deleted. You can’t undo this.</DialogDescription>
       </DialogHeader>
       <p v-if="deleteError" class="text-sm text-destructive" role="alert">{{ deleteError }}</p>

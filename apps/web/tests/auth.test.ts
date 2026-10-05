@@ -63,10 +63,12 @@ for (const page of ["/admin", "/admin/galleries/itarena"]) {
   });
 }
 
-test("the dashboard opens the owner's newest gallery, and old collection links still work", async () => {
+test("the dashboard opens the gallery list, and old collection links still work", async () => {
   const front = await fetch(`${origin}/admin`, { redirect: "manual", headers: { cookie: sessionCookie } });
-  expect(front.status).toBe(302);
-  expect(front.headers.get("location")).toBe("/admin/galleries/itarena");
+  expect(front.status).toBe(200);
+  const html = await front.text();
+  expect(html).toContain("Your galleries");
+  expect(html).toContain("/admin/galleries/itarena");
   const old = await fetch(`${origin}/admin/collections/itarena`, { redirect: "manual" });
   expect(old.headers.get("location")).toBe("/admin/galleries/itarena");
 });

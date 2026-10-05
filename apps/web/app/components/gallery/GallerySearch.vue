@@ -94,7 +94,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
 
   <Drawer v-model:open="open">
     <DrawerContent
-      :class="['selfie-sheet', { dragging }]"
+      :class="['selfie-sheet', { dragging, 'owner-search': owner }]"
       @dragover.prevent="dragging = true"
       @dragleave="dragging = false"
       @drop.prevent="drop"
@@ -253,6 +253,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
 @media (pointer: fine) { .selfie-sheet .touch-only { display: none; } }
 @media (pointer: coarse) { .selfie-sheet .fine-only { display: none; } }
 
+@media (max-width: 900px) { .selfie-sheet.owner-search h2 { font-size: 1.5rem; } }
 @media (max-width: 640px) {
   /* The sheet opens to most of the screen, so its first lines sit where people read */
   .selfie-sheet.selfie-sheet { inset: auto 0 0; width: 100%; min-height: 82dvh; max-height: 92dvh; border-radius: 24px 24px 0 0; }

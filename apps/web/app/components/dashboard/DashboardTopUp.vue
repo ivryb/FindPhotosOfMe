@@ -39,7 +39,7 @@ async function pay() {
     <DialogContent class="sm:max-w-[540px]">
       <div v-if="!payments" class="grid gap-5">
         <DialogHeader>
-          <DialogTitle class="text-3xl">Top-ups open soon</DialogTitle>
+          <DialogTitle class="text-xl sm:text-3xl">Top-ups open soon</DialogTitle>
           <DialogDescription>We’re still setting up payments. Until then, you can use your free credit.</DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -48,7 +48,7 @@ async function pay() {
       </div>
       <form v-else class="grid gap-5" @submit.prevent="pay">
         <DialogHeader>
-          <DialogTitle class="text-3xl">Top up your balance</DialogTitle>
+          <DialogTitle class="text-xl sm:text-3xl">Top up your balance</DialogTitle>
           <DialogDescription>All your galleries share one balance. You pay once, and nothing renews.</DialogDescription>
         </DialogHeader>
         <fieldset class="grid gap-3">
