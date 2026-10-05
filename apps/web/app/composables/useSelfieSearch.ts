@@ -18,7 +18,7 @@ export type SelfieSearch =
   | { kind: "paused"; message: string };
 
 /** Runs selfie searches against one gallery. The search finishes before `/api/search` answers. */
-export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>) {
+export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>, { owner = false } = {}) {
   const convex = useConvexClient();
   const state = shallowRef<SelfieSearch>({ kind: "idle" });
 
@@ -39,12 +39,13 @@ export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>) 
     body.append("collection_id", toValue(galleryId));
     body.append("reference_photo", file);
     try {
+      const headers = owner ? { Authorization: `Bearer ${await getConvexAuthToken()}` } : undefined;
       // Nitro's inferred response type turns the ID into a plain object type, so the type is named here.
-      const { requestId } = await $fetch<{ requestId: Id<"searchRequests"> }>("/api/search", { method: "POST", body });
+      const { requestId } = await $fetch<{ requestId: Id<"searchRequests"> }>("/api/search", { method: "POST", body, headers });
       const request = await convex.query(api.searchRequests.get, { id: requestId });
       if (request?.status === "complete") {
         state.value = request.imagesFound.length
-          ? { kind: "found", selfie, photos: await photoLinks(requestId, request.imagesFound) }
+          ? { kind: "found", selfie, photos: await photoLinks(requestId, request.imagesFound, headers) }
           : { kind: "none", selfie };
       } else {
         state.value = request?.error === "no_face" ? { kind: "no_face", selfie } : { kind: "failed", selfie };
@@ -59,7 +60,7 @@ export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>) 
   return { state, search };
 }
 
-async function photoLinks(requestId: Id<"searchRequests">, keys: string[]) {
-  const { photos } = await $fetch("/api/r2/authorize", { method: "POST", body: { requestId, keys } });
+async function photoLinks(requestId: Id<"searchRequests">, keys: string[], headers?: { Authorization: string }) {
+  const { photos } = await $fetch("/api/r2/authorize", { method: "POST", body: { requestId, keys }, headers });
   return photos;
 }

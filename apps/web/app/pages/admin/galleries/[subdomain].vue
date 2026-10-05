@@ -5,7 +5,7 @@ import { TabsContent, TabsList, TabsRoot, TabsTrigger } from "reka-ui";
 const route = useRoute();
 const { galleries, credit, toppingUp } = useDashboard();
 // Only the owner's own galleries are ever loaded, so someone else's address looks the same as a missing one.
-const id = galleries.value.find((item) => item.subdomain === route.params.subdomain)?._id;
+const id = galleries.value.find((item) => item._id === route.params.subdomain || item.subdomain === route.params.subdomain)?._id;
 if (!id) throw createError({ statusCode: 404, statusMessage: "Gallery not found" });
 // Found by address once, then followed by ID: a rename keeps the page until it moves to the new address,
 // and a deleted gallery leaves for the next one.
@@ -18,6 +18,7 @@ const TABS = [
   { value: "photos", label: "Photos" },
   { value: "page", label: "Gallery page" },
   { value: "bot", label: "Telegram bot" },
+  { value: "settings", label: "Settings" },
 ];
 const tab = computed({
   get: () => (TABS.some(({ value }) => value === route.query.tab) ? String(route.query.tab) : "photos"),
@@ -35,6 +36,7 @@ const tab = computed({
       <TabsContent value="photos"><DashboardPhotos :gallery="gallery" :credit="credit" @top-up="toppingUp = true" /></TabsContent>
       <TabsContent value="page"><DashboardPageSettings :gallery="gallery" /></TabsContent>
       <TabsContent value="bot"><DashboardBot :gallery="gallery" /></TabsContent>
+      <TabsContent value="settings"><DashboardGallerySettings :gallery="gallery" /></TabsContent>
     </TabsRoot>
   </template>
 </template>

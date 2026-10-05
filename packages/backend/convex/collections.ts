@@ -8,7 +8,8 @@ import {
   mutation,
   query,
 } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   requireActiveCollection,
   requireCollectionOwner,
@@ -18,9 +19,9 @@ import {
 import { balanceFor, returnPhotos } from "./balances";
 import { DAY, INCLUDED_DAYS, TRIAL_DAYS } from "./pricing";
 
-/** What anyone with the link may see. A gallery is public once it has photos, even while more are being added. */
+/** What anyone with the link may see after the owner publishes the gallery. */
 function publicView(collection: Doc<"collections"> | null) {
-  if (!collection?.imagesCount) return null;
+  if (!collection?.imagesCount || collection.published === false || !collection.subdomain) return null;
   try {
     requireActiveCollection(collection);
   } catch {
@@ -45,10 +46,10 @@ function normalizeSubdomain(value: string) {
   return subdomain;
 }
 
-async function ensureSubdomainAvailable(ctx: any, subdomain: string, exceptId?: string) {
+async function ensureSubdomainAvailable(ctx: MutationCtx, subdomain: string, exceptId?: Id<"collections">) {
   const existing = await ctx.db
     .query("collections")
-    .withIndex("by_subdomain", (q: any) => q.eq("subdomain", subdomain))
+    .withIndex("by_subdomain", (q) => q.eq("subdomain", subdomain))
     .first();
   if (existing && existing._id !== exceptId) throw new ConvexError("That gallery address is already in use");
 }
@@ -72,17 +73,18 @@ export const getInternal = internalQuery({
 });
 
 export const create = mutation({
-  args: { title: v.string(), description: v.string(), subdomain: v.string() },
+  args: { title: v.string(), description: v.string(), subdomain: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
-    const subdomain = normalizeSubdomain(args.subdomain);
-    await ensureSubdomainAvailable(ctx, subdomain);
+    const subdomain = args.subdomain?.trim() ? normalizeSubdomain(args.subdomain) : undefined;
+    if (subdomain) await ensureSubdomainAvailable(ctx, subdomain);
     // During the trial a gallery stays online for a week; the first top-up extends it.
     const { paid } = await balanceFor(ctx, user._id);
     return ctx.db.insert("collections", {
       title: args.title.trim(),
       description: args.description.trim(),
       subdomain,
+      published: false,
       status: "not_started",
       imagesCount: 0,
       storedBytes: 0,
@@ -154,16 +156,17 @@ export const canUpload = query({
 export const update = mutation({
   args: {
     id: v.id("collections"),
-    subdomain: v.string(),
+    subdomain: v.optional(v.string()),
     title: v.string(),
     description: v.string(),
     welcomeMessage: v.optional(v.string()),
     showAllPhotos: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const { user, canClaimLegacy } = await requireCollectionOwner(ctx, args.id);
-    const subdomain = normalizeSubdomain(args.subdomain);
-    await ensureSubdomainAvailable(ctx, subdomain, args.id);
+    const { user, collection, canClaimLegacy } = await requireCollectionOwner(ctx, args.id);
+    const subdomain = args.subdomain?.trim() ? normalizeSubdomain(args.subdomain) : undefined;
+    if (!subdomain && collection.published !== false) throw new ConvexError("A published gallery needs a page address");
+    if (subdomain) await ensureSubdomainAvailable(ctx, subdomain, args.id);
     await ctx.db.patch(args.id, {
       subdomain,
       title: args.title.trim(),
@@ -172,6 +175,19 @@ export const update = mutation({
       ...(args.showAllPhotos === undefined ? {} : { showAllPhotos: args.showAllPhotos }),
       ...(canClaimLegacy ? { createdBy: user._id } : {}),
     });
+  },
+});
+
+/** Publication is independent of photo processing and page edits. */
+export const setPublished = mutation({
+  args: { id: v.id("collections"), published: v.boolean() },
+  handler: async (ctx, { id, published }) => {
+    const { collection } = await requireCollectionOwner(ctx, id);
+    if (published) {
+      requireActiveCollection(collection);
+      if (!collection.subdomain) throw new ConvexError("Save a page address before publishing");
+    }
+    await ctx.db.patch(id, { published });
   },
 });
 

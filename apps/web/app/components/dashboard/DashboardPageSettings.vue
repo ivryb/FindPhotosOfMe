@@ -2,28 +2,27 @@
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { useElementVisibility, whenever } from "@vueuse/core";
 import { useConvexMutation } from "convex-vue";
-import { Camera, Trash2 } from "@lucide/vue";
+import { Camera } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { Gallery } from "@/utils/galleries";
 
-// The Gallery page tab: what people see at the gallery's link, with a preview that follows the form, and deleting the gallery.
+// Publication is separate from editing the page; private galleries can be prepared before sharing.
 const props = defineProps<{ gallery: Gallery }>();
 
 const form = reactive({
   title: props.gallery.title,
-  subdomain: props.gallery.subdomain,
+  subdomain: props.gallery.subdomain ?? "",
   description: props.gallery.description,
   showAllPhotos: props.gallery.showAllPhotos ?? true,
 });
 const { host } = useGalleryAddress();
 
 // The tab stays mounted while hidden, so the preview's photos load only once it's on screen.
-const { photos, load } = useGalleryPhotos(() => props.gallery._id);
+const { photos, load } = useGalleryPhotos(() => props.gallery._id, { owner: true });
 const preview = useTemplateRef("preview");
 whenever(useElementVisibility(preview), load, { once: true });
 const previews = computed(() => photos.value.slice(0, 8));
@@ -39,7 +38,7 @@ async function save() {
   try {
     await update({ id: props.gallery._id, ...form, welcomeMessage: props.gallery.welcomeMessage });
     saved.value = true;
-    if (form.subdomain !== props.gallery.subdomain) await navigateTo(`/admin/galleries/${form.subdomain}?tab=page`, { replace: true });
+    await navigateTo(`/admin/galleries/${props.gallery._id}?tab=page`, { replace: true });
   } catch (cause) {
     error.value = readableError(cause);
   } finally {
@@ -47,23 +46,19 @@ async function save() {
   }
 }
 
-const deleting = ref(false);
-const removing = ref(false);
-const deleteError = ref<string>();
-async function remove() {
-  removing.value = true;
-  deleteError.value = undefined;
+const published = computed(() => props.gallery.published !== false);
+const { mutate: setPublished } = useConvexMutation(api.collections.setPublished);
+const publishing = ref(false);
+const publishError = ref<string>();
+async function publish(value: boolean) {
+  publishing.value = true;
+  publishError.value = undefined;
   try {
-    await $fetch(`/api/collections/${props.gallery._id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${await getConvexAuthToken()}` },
-    });
-    // The gallery page leaves for the next gallery once the live list drops this one.
-    deleting.value = false;
-  } catch {
-    deleteError.value = "The gallery wasn't deleted. Please try again.";
+    await setPublished({ id: props.gallery._id, published: value });
+  } catch (cause) {
+    publishError.value = readableError(cause);
   } finally {
-    removing.value = false;
+    publishing.value = false;
   }
 }
 </script>
@@ -71,6 +66,16 @@ async function remove() {
 <template>
   <DashboardCard title="Gallery page">
     <template #aside><p>What people see when they open your link.</p></template>
+    <div class="publication">
+      <div class="flex items-start gap-3">
+        <Switch id="page-publish" :model-value="published" :disabled="publishing || saving" class="mt-0.5" @update:model-value="publish" />
+        <div class="grid gap-1">
+          <Label for="page-publish">Publish this gallery</Label>
+          <p class="text-sm text-muted-foreground">{{ published ? "Anyone with the link can see this gallery and search for their photos." : "Only you can see and search this gallery. Save a page address below when you’re ready to share it." }}</p>
+          <p v-if="publishError" class="text-sm text-destructive" role="alert">{{ publishError }}</p>
+        </div>
+      </div>
+    </div>
     <div class="layout">
       <form class="grid gap-5" @submit.prevent="save" @input="saved = false">
         <div class="grid gap-2">
@@ -80,10 +85,10 @@ async function remove() {
         <div class="grid gap-2">
           <Label for="page-address">Page address</Label>
           <div class="flex">
-            <Input id="page-address" v-model="form.subdomain" class="rounded-r-none" required pattern="[a-z0-9-]+" autocomplete="off" />
+            <Input id="page-address" v-model="form.subdomain" class="rounded-r-none" :required="published" pattern="[a-z0-9\-]+" maxlength="63" autocomplete="off" />
             <span class="flex items-center rounded-r-md border border-l-0 bg-muted px-3 text-sm text-muted-foreground">.{{ host }}</span>
           </div>
-          <p class="text-sm text-muted-foreground">Changing it breaks links you’ve already shared.</p>
+          <p class="text-sm text-muted-foreground">Choose an address before publishing. Changing it breaks links you’ve already shared.</p>
         </div>
         <div class="grid gap-2">
           <Label for="page-description">Description</Label>
@@ -97,7 +102,7 @@ async function remove() {
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <Button type="submit" :disabled="saving">{{ saving ? "Saving…" : "Save changes" }}</Button>
+          <Button type="submit" :disabled="saving || publishing">{{ saving ? "Saving…" : "Save changes" }}</Button>
           <p v-if="saved" class="text-sm text-muted-foreground" role="status">Saved</p>
           <p v-if="error" class="text-sm text-destructive" role="alert">{{ error }}</p>
         </div>
@@ -105,7 +110,7 @@ async function remove() {
 
       <div>
         <div ref="preview" class="browser" aria-label="Preview of your gallery page">
-          <div class="browser-bar" aria-hidden="true"><i /><i /><i /><span>{{ form.subdomain }}.{{ host }}</span></div>
+          <div class="browser-bar" aria-hidden="true"><i /><i /><i /><span>{{ form.subdomain ? `${form.subdomain}.${host}` : "Private preview" }}</span></div>
           <div class="mini">
             <p class="mini-title">{{ form.title }}</p>
             <p v-if="form.description" class="mini-desc">{{ form.description }}</p>
@@ -120,28 +125,12 @@ async function remove() {
       </div>
     </div>
 
-    <div class="danger">
-      <p><b>Delete this gallery</b>Its page stops working and its photos are deleted.</p>
-      <Button variant="line" size="sm" @click="deleting = true"><Trash2 />Delete</Button>
-    </div>
   </DashboardCard>
 
-  <Dialog v-model:open="deleting">
-    <DialogContent class="sm:max-w-[480px]">
-      <DialogHeader>
-        <DialogTitle class="text-3xl">Delete this gallery?</DialogTitle>
-        <DialogDescription>Its page stops working and all of its photos are deleted. You can’t undo this.</DialogDescription>
-      </DialogHeader>
-      <p v-if="deleteError" class="text-sm text-destructive" role="alert">{{ deleteError }}</p>
-      <DialogFooter>
-        <Button variant="line" size="lg" @click="deleting = false">Cancel</Button>
-        <Button variant="destructive" size="lg" :disabled="removing" @click="remove">{{ removing ? "Deleting…" : "Delete gallery" }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 </template>
 
 <style scoped>
+.publication { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; gap: 28px clamp(24px, 4vw, 48px); }
 @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 .browser { overflow: hidden; background: var(--foreground); border-radius: 10px; box-shadow: var(--lift); }
@@ -157,7 +146,4 @@ async function remove() {
 .mini-pill { position: absolute; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; padding: 9px 16px; background: var(--brand); color: var(--foreground); border-radius: 999px; font-size: .82rem; font-weight: 800; white-space: nowrap; translate: -50% 0; }
 .mini-pill svg { width: 16px; height: 16px; }
 .preview-note { margin-top: 10px; color: var(--muted-foreground); font-size: .88rem; }
-.danger { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
-.danger p { color: var(--muted-foreground); }
-.danger b { display: block; color: var(--foreground); }
 </style>

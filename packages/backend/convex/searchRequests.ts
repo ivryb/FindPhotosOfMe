@@ -13,8 +13,13 @@ import {
 import { chargeSearch, returnSearch } from "./balances";
 
 async function canReadRequest(ctx: QueryCtx, request: Doc<"searchRequests">) {
-  // Only new attendee searches are public; existing private and Telegram searches stay private.
-  if (request.publicAccess) return true;
+  // Unpublishing also closes previously shared search results. Owner searches always stay private.
+  if (request.publicAccess) {
+    const collection = await ctx.db.get(request.collectionId);
+    if (!collection || collection.published === false) return false;
+    try { requireActiveCollection(collection); } catch { return false; }
+    return true;
+  }
   if (!request.requesterId) return false;
   const user = await authComponent.safeGetAuthUser(ctx);
   return user?._id === request.requesterId;
@@ -33,9 +38,14 @@ export const create = mutation({
     const collection = await ctx.db.get(collectionId);
     if (!collection || !collection.imagesCount) throw new ConvexError("This gallery has no photos yet");
     requireActiveCollection(collection);
+    const user = await authComponent.safeGetAuthUser(ctx);
+    const owner = user && (collection.createdBy === user._id ||
+      (!collection.createdBy && Boolean(process.env.LEGACY_OWNER_EMAIL) && user.email === process.env.LEGACY_OWNER_EMAIL));
+    if (collection.published === false && !owner) throw new ConvexError("This gallery is private");
     const requestId = await ctx.db.insert("searchRequests", {
       collectionId,
-      publicAccess: true,
+      publicAccess: owner ? undefined : true,
+      requesterId: owner ? user._id : undefined,
       status: "pending",
       imagesFound: [],
     });
@@ -55,7 +65,8 @@ export const createForService = mutation({
   handler: async (ctx, { collectionId, telegramChatId, fileId, messageId, serviceToken }) => {
     requireServiceToken(serviceToken);
     const collection = await ctx.db.get(collectionId);
-    if (!collection || !collection.imagesCount) throw new ConvexError("This gallery has no photos yet.");
+    if (!collection || collection.published === false) throw new ConvexError("This gallery is private.");
+    if (!collection.imagesCount) throw new ConvexError("This gallery has no photos yet.");
     requireActiveCollection(collection);
     const requestId = await ctx.db.insert("searchRequests", {
       collectionId,

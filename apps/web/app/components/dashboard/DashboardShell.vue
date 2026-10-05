@@ -34,7 +34,7 @@ async function signOut() {
         <Button class="new" @click="creating = true"><Plus />New gallery</Button>
         <h2 class="label">Galleries</h2>
         <nav aria-label="Galleries">
-          <NuxtLink v-for="gallery in galleries" :key="gallery._id" :to="`/admin/galleries/${gallery.subdomain}`" :aria-current="gallery.subdomain === current ? 'page' : undefined">
+          <NuxtLink v-for="gallery in galleries" :key="gallery._id" :to="`/admin/galleries/${gallery.subdomain ?? gallery._id}`" :aria-current="(gallery.subdomain === current || gallery._id === current) ? 'page' : undefined">
             <img v-if="covers[gallery._id]" :src="covers[gallery._id]" alt="">
             <span v-else class="blank" />
             <span>

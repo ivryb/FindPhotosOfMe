@@ -5,6 +5,7 @@ import { coveredBy } from "@FindPhotosOfMe/backend/convex/pricing";
 import { useConvexQuery } from "convex-vue";
 import { Upload } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import type { GalleryPhoto } from "#shared/types/gallery";
 import type { Sending } from "@/composables/usePhotoUpload";
 import type { Gallery, StatusTone } from "@/utils/galleries";
 
@@ -14,6 +15,11 @@ const emit = defineEmits<{ topUp: [] }>();
 
 const { data: uploads } = useConvexQuery(api.uploads.list, { collectionId: props.gallery._id }, { server: false });
 const { sending, upload } = usePhotoUpload(() => props.gallery._id);
+
+const viewer = reactive<{ open: boolean; index: number; photos: GalleryPhoto[] }>({ open: false, index: 0, photos: [] });
+function view(photos: GalleryPhoto[], index: number) {
+  Object.assign(viewer, { open: true, index, photos });
+}
 
 const ready = computed(() => props.gallery.imagesCount);
 const busy = computed(() => (uploads.value ?? []).reduce((sum, item) => sum + item.sent - item.processed, 0));
@@ -82,6 +88,8 @@ function uploadRow(item: Doc<"uploads">, here?: Sending): Row {
 <template>
   <DashboardCard title="Photos">
     <template #aside><p><b>{{ count.format(ready + busy) }}</b> photos</p></template>
+    <GallerySearch v-if="ready" :gallery-id="gallery._id" :total="ready" owner inline @view="view" />
+    <GalleryViewer v-model:open="viewer.open" v-model:index="viewer.index" :photos="viewer.photos" />
     <div class="sheet" role="img" :aria-label="`${count.format(ready)} photos ready, ${count.format(busy)} having faces found, your balance covers ${count.format(covered)} more`">
       <i v-for="(tile, n) in tiles" :key="n" :class="tile" :style="{ '--n': n % 20 }" />
     </div>

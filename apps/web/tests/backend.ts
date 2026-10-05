@@ -44,18 +44,43 @@ function publicGallery(id: string) {
 
 export function startBackend(port = 0) {
   let title = "IT Arena SSR fixture";
+  let subdomain: string | undefined = "itarena";
+  let published = true;
+  let description = "Owner-only description";
+  let galleryId = "test-collection";
+  let imagesCount = 2742;
+  let showAllPhotos = true;
   let timestamp = 0;
   const sockets = new Set<ServerWebSocket<SocketData>>();
   const collection = () => ({
-    _id: "test-collection", _creationTime: 1700000000000, subdomain: "itarena",
-    title, description: "Owner-only description", imagesCount: 2742,
+    _id: galleryId, _creationTime: 1700000000000, ...(subdomain ? { subdomain } : {}),
+    title, description, imagesCount, published, showAllPhotos,
     status: "complete", previewImages: [], createdBy: "owner",
   });
+  const publicView = (id: string) => id === galleryId
+    ? published ? { ...publicGallery("test-collection"), ...collection() } : null
+    : publicGallery(id);
   // Uploads the dashboard starts, the batches it registers, and the photos it puts in R2
   const uploads: Array<Record<string, unknown> & { _id: string; sent: number }> = [];
   const batches: Array<{ uploadId: string; first: number; names: string[] }> = [];
   const putKeys: string[] = [];
   function mutate(path: string, args: Record<string, any>) {
+    if (path === "collections:create") {
+      galleryId = "private-collection";
+      title = args.title;
+      description = args.description;
+      subdomain = undefined;
+      published = false;
+      imagesCount = 0;
+      return galleryId;
+    }
+    if (path === "collections:update") {
+      title = args.title;
+      description = args.description;
+      subdomain = args.subdomain || undefined;
+      showAllPhotos = args.showAllPhotos ?? showAllPhotos;
+    }
+    if (path === "collections:setPublished") published = args.published;
     if (path === "uploads:start") {
       const upload = { _id: `upload-${uploads.length + 1}`, _creationTime: Date.now(), ...args, sent: 0, processed: 0, saved: 0, failed: 0 };
       uploads.unshift(upload);
@@ -72,7 +97,7 @@ export function startBackend(port = 0) {
     : path === "collections:getAll" ? [collection()]
     : path === "balances:mine" ? { credit: 3250, paid: false }
     : path === "searchRequests:get" ? { _id: "fixture-search", collectionId: "test-collection", status: "complete", imagesFound: FOUND }
-    : path === "collections:getPublicBySubdomain" ? publicGallery("test-collection")
+    : path === "collections:getPublicBySubdomain" ? publicView(galleryId)
     : collection();
   function transition(socket: ServerWebSocket<SocketData>, querySet = socket.data.version.querySet, identity = socket.data.version.identity) {
     const startVersion = socket.data.version;
@@ -144,6 +169,9 @@ export function startBackend(port = 0) {
     if (path === "/api/auth/convex/token") return Response.json(signedIn ? { token: ownerJwt } : {}, { status: signedIn ? 200 : 401 });
     if (path === "/api/mutation") {
       const body = await request.json();
+      if (body.path === "searchRequests:create" && body.args[0].collectionId === "private-collection" && request.headers.get("authorization") !== `Bearer ${ownerJwt}`) {
+        return Response.json({ status: "error", errorMessage: "Uncaught ConvexError", errorData: "This gallery is private", logLines: [] });
+      }
       if (body.path === "searchRequests:create" && body.args[0].collectionId === "paused-collection") {
         return Response.json({ status: "error", errorMessage: "Uncaught ConvexError", errorData: "Searching is paused for this gallery. Please ask its owner to top up.", logLines: [] });
       }
@@ -158,9 +186,9 @@ export function startBackend(port = 0) {
     }
     if (path === "/api/query") {
       const body = await request.json();
-      if (body.path === "collections:getPublicBySubdomain") return Response.json({ status: "success", value: publicGallery("test-collection"), logLines: [] });
-      if (body.path === "collections:getPublic") return Response.json({ status: "success", value: publicGallery(body.args[0].id), logLines: [] });
-      if (body.path === "searchRequests:authorizeImages") return Response.json({ status: "success", value: body.args[0].id === "fixture-search" && body.args[0].keys.every((key: string) => FOUND.includes(key)), logLines: [] });
+      if (body.path === "collections:getPublicBySubdomain") return Response.json({ status: "success", value: publicView(galleryId), logLines: [] });
+      if (body.path === "collections:getPublic") return Response.json({ status: "success", value: publicView(body.args[0].id), logLines: [] });
+      if (body.path === "searchRequests:authorizeImages") return Response.json({ status: "success", value: (body.args[0].id === "fixture-search" || (body.args[0].id === "private-search" && request.headers.get("authorization") === `Bearer ${ownerJwt}`)) && body.args[0].keys.every((key: string) => FOUND.includes(key)), logLines: [] });
       if (request.headers.get("authorization") !== `Bearer ${ownerJwt}`) return new Response(null, { status: 401 });
       return Response.json({ status: "success", value: result(body.path), logLines: [] });
     }

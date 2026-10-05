@@ -70,3 +70,13 @@ test("a gallery that shows only previews returns just those, each signed on its 
 test("a gallery that isn't online has no photos to list", async () => {
   expect((await list("offline-collection")).status).toBe(404);
 });
+
+test("owners can list photos of a private gallery while anonymous visitors cannot", async () => {
+  const { ownerJwt } = await import("./backend");
+  expect((await list("private-collection")).status).toBe(404);
+  const response = await fetch(`${app.origin}/api/galleries/private-collection/photos`, {
+    headers: { authorization: `Bearer ${ownerJwt}` },
+  });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+});

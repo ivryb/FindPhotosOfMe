@@ -8,6 +8,8 @@ const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export default defineEventHandler(async (event) => {
   const convex = new ConvexHttpClient(useRuntimeConfig(event).public.convexUrl);
+  const authorization = getHeader(event, "authorization");
+  if (authorization?.startsWith("Bearer ")) convex.setAuth(authorization.slice(7));
   const config = useRuntimeConfig(event);
   if (!config.pythonApiUrl || !config.serviceToken) {
     throw createError({ statusCode: 500, statusMessage: "Face search is not configured" });

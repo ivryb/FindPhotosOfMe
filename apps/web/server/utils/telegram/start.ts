@@ -23,6 +23,11 @@ const getText = (collection: Doc<"collections">) => {
 
 export const handleStart = (collection: Doc<"collections">) => {
   return async (ctx: Context) => {
+    // The bot can be configured before publication; its welcome content must stay private too.
+    if (collection.published === false) {
+      await ctx.reply("This gallery is private. Please ask its owner to publish it.");
+      return;
+    }
     await ctx.reply(getText(collection), {
       parse_mode: "MarkdownV2",
     });

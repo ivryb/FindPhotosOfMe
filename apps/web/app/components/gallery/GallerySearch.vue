@@ -8,10 +8,10 @@ import { SELFIE_TYPES } from "@/composables/useSelfieSearch";
 
 // The selfie search: a banner floating over the gallery that opens into a sheet.
 // While a search runs the sheet can be closed; the banner then shows that it's running, and later the result.
-const props = defineProps<{ galleryId: Id<"collections">; total: number }>();
+const props = defineProps<{ galleryId: Id<"collections">; total: number; owner?: boolean; inline?: boolean }>();
 const emit = defineEmits<{ view: [photos: GalleryPhoto[], index: number] }>();
 
-const { state, search } = useSelfieSearch(() => props.galleryId);
+const { state, search } = useSelfieSearch(() => props.galleryId, { owner: props.owner });
 const open = ref(false);
 const picker = useTemplateRef("picker");
 const camera = useTemplateRef("camera");
@@ -68,7 +68,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
 
 <template>
   <div>
-  <div v-show="!open" class="banner" :data-state="state.kind" aria-live="polite">
+  <div v-show="!open" :class="['banner', { inline }]" :data-state="state.kind" aria-live="polite">
     <button type="button" class="banner-main" aria-haspopup="dialog" @click="open = true">
       <span v-if="selfie" :class="['ring', { done: state.kind !== 'searching' }]"><img :src="selfie" alt="Your selfie"></span>
       <span v-else class="slot"><Camera /></span>
@@ -160,6 +160,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
 
 <style scoped>
 .banner { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; z-index: 30; display: flex; align-items: center; gap: 16px; width: min(780px, calc(100% - 24px)); padding: 12px; background: var(--brand); color: var(--brand-foreground); border-radius: 18px; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .8); translate: -50% 0; }
+.banner.inline { position: static; width: 100%; margin-bottom: 24px; box-shadow: none; translate: none; }
 .banner :focus-visible { outline: 3px solid var(--foreground); outline-offset: 2px; }
 .banner-main { display: flex; flex: 1; align-items: center; gap: 16px; min-width: 0; padding: 0; color: inherit; text-align: left; border-radius: 10px; cursor: pointer; }
 .slot { display: grid; flex: none; place-items: center; width: 64px; height: 64px; border: 2px dashed rgb(21 21 21 / .4); border-radius: 50%; }

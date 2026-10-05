@@ -10,7 +10,8 @@ import type { Gallery } from "@/utils/galleries";
 const props = defineProps<{ gallery: Gallery }>();
 
 const address = useGalleryAddress();
-const link = computed(() => address.link(props.gallery.subdomain));
+const link = computed(() => props.gallery.subdomain ? address.link(props.gallery.subdomain) : "");
+const published = computed(() => props.gallery.published !== false && Boolean(props.gallery.subdomain));
 const status = computed(() => galleryStatus(props.gallery));
 const offline = computed(() => Boolean(props.gallery.expiresAt && props.gallery.expiresAt <= Date.now()));
 const until = computed(() => (props.gallery.expiresAt ? shortDate.format(props.gallery.expiresAt) : undefined));
@@ -43,7 +44,8 @@ async function keepOnline() {
     <div>
       <DashboardPill :tone="status.tone">{{ status.label }}</DashboardPill>
       <h1>{{ gallery.title }}</h1>
-      <div class="share">
+      <p v-if="!published" class="meta">Private · Only you can see and search this gallery.</p>
+      <div v-if="published" class="share">
         <a class="url" :href="link" target="_blank">{{ link.replace(/^https?:\/\//, "") }}</a>
         <Button variant="line" size="sm" @click="copy"><component :is="copied ? Check : Copy" />{{ copied ? "Copied" : "Copy link" }}</Button>
         <Button variant="line" size="sm" as="a" :href="link" target="_blank"><ExternalLink />Open page</Button>
@@ -62,7 +64,7 @@ async function keepOnline() {
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
     </div>
-    <DashboardQrCard class="qr" :link="link" :name="gallery.title" />
+    <DashboardQrCard v-if="published" class="qr" :link="link" :name="gallery.title" />
   </div>
 </template>
 

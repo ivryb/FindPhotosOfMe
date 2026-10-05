@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 // The dashboard's front door: it opens your newest gallery, or helps you make the first one.
 const { galleries, creating } = useDashboard();
 watch(() => galleries.value[0], (first) => {
-  if (first) navigateTo(`/admin/galleries/${first.subdomain}`, { replace: true, redirectCode: 302 });
+  if (first) navigateTo(`/admin/galleries/${first.subdomain ?? first._id}`, { replace: true, redirectCode: 302 });
 }, { immediate: true });
 
 useSeoMeta({ title: "Your galleries · FindPhotosOfMe" });
@@ -14,7 +14,7 @@ useSeoMeta({ title: "Your galleries · FindPhotosOfMe" });
 <template>
   <section class="empty">
     <h1>Make your first gallery</h1>
-    <p>Upload your event photos as ZIP files. You get a link and a QR code, and people find the photos they’re in with a selfie.</p>
+    <p>Upload your event photos as ZIP files. Search privately, then publish to share a link and QR code so people can find their photos with a selfie.</p>
     <Button size="xl" @click="creating = true"><Plus />New gallery</Button>
   </section>
 </template>

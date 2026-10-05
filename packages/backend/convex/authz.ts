@@ -1,14 +1,15 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { authComponent } from "./auth";
 
-export async function requireUser(ctx: any) {
+export async function requireUser(ctx: QueryCtx | MutationCtx) {
   const user = await authComponent.getAuthUser(ctx);
   if (!user) throw new Error("Not authenticated");
   return user;
 }
 
-export async function requireCollectionOwner(ctx: any, id: Id<"collections">) {
+export async function requireCollectionOwner(ctx: QueryCtx | MutationCtx, id: Id<"collections">) {
   const [user, collection] = await Promise.all([
     requireUser(ctx),
     ctx.db.get(id),

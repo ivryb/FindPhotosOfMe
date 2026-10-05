@@ -6,7 +6,7 @@ import { mediaLinks } from "#shared/utils/media";
  * `load` fetches them once and can be called again after a failure. With `preload`, the page's head starts the
  * request while the app's scripts are still loading, and `load` picks up its response.
  */
-export function useGalleryPhotos(galleryId: MaybeRefOrGetter<string>, { preload = false } = {}) {
+export function useGalleryPhotos(galleryId: MaybeRefOrGetter<string>, { preload = false, owner = false } = {}) {
   const url = computed(() => `/api/galleries/${toValue(galleryId)}/photos`);
   if (preload) useHead({ link: [{ rel: "preload", as: "fetch", href: url, crossorigin: "anonymous" }] });
 
@@ -20,7 +20,8 @@ export function useGalleryPhotos(galleryId: MaybeRefOrGetter<string>, { preload 
     loading = true;
     failed.value = false;
     try {
-      const body = await $fetch<GalleryPhotos>(url.value);
+      const headers = owner ? { Authorization: `Bearer ${await getConvexAuthToken()}` } : undefined;
+      const body = await $fetch<GalleryPhotos>(url.value, { headers });
       photos.value = "keys" in body ? body.keys.map((key) => mediaLinks(key, body.view, body.download)) : body.photos;
       loaded.value = true;
     } catch {

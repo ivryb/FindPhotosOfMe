@@ -40,6 +40,7 @@ async function save() {
 <template>
   <DashboardCard title="Telegram bot">
     <template #aside><DashboardPill :tone="connected ? 'ok' : 'idle'">{{ connected ? "Connected" : "Not connected" }}</DashboardPill></template>
+    <p v-if="gallery.published === false" class="mb-5 text-muted-foreground">This gallery is private. Publish it in the Gallery page tab to let people search through the bot.</p>
     <div class="layout">
       <ol class="steps">
         <li><p><b>Create a bot</b>Open @BotFather in Telegram and send /newbot.</p></li>

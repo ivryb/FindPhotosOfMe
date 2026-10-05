@@ -32,7 +32,9 @@ export default defineSchema({
   }),
 
   collections: defineTable({
-    subdomain: v.string(),
+    subdomain: v.optional(v.string()),
+    // Existing galleries keep their public links; new galleries explicitly start private.
+    published: v.optional(v.boolean()),
     title: v.string(),
     description: v.string(),
     status: v.union(

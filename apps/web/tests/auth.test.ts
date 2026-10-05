@@ -167,3 +167,25 @@ test("upload links are signed only for the gallery owner, for plain photo names 
   ]);
   expect(urls.every((url) => new URL(url).searchParams.has("X-Amz-Signature"))).toBe(true);
 });
+
+test("private search forwards the owner's identity and refuses anonymous callers", async () => {
+  const search = (signedIn: boolean) => {
+    const body = new FormData();
+    body.append("collection_id", "private-collection");
+    body.append("reference_photo", new Blob(["fixture-image"], { type: "image/jpeg" }), "selfie.jpg");
+    return fetch(`${origin}/api/search`, { method: "POST", body, headers: signedIn ? { authorization: `Bearer ${ownerJwt}` } : {} });
+  };
+  expect((await search(false)).status).toBe(409);
+  expect((await search(true)).status).toBe(200);
+});
+
+test("private search downloads forward the owner's identity", async () => {
+  const authorize = (signedIn: boolean) => fetch(`${origin}/api/r2/authorize`, {
+    method: "POST", headers: { "content-type": "application/json", ...(signedIn ? { authorization: `Bearer ${ownerJwt}` } : {}) },
+    body: JSON.stringify({ requestId: "private-search", keys: ["test-collection/photo-007.jpg"] }),
+  });
+  expect((await authorize(false)).status).toBe(403);
+  const response = await authorize(true);
+  expect(response.status).toBe(200);
+  expect((await response.json()).photos).toHaveLength(1);
+});
