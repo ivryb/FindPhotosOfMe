@@ -145,6 +145,19 @@ Local verification passed: 34 web HTTP/unit tests, 36 backend tests, type checks
 
 Production verification: root, www, and event HTTP links return 308 to HTTPS with paths and queries preserved. Landing/audience/sign-in pages return 200; the signed-out dashboard redirects to sign-in and its API returns 401. The mobile menu opens and closes after navigation, with no horizontal overflow. IT Arena lists all 2,742 photo keys without signatures; its thumbnails, originals, downloads, and an existing signed public URL return 200, and ETag revalidation returns 304 with no body. Stored indexes, invalid galleries, and invalid search-result access return 403. Google sign-in, private owner sessions, uploads, selfie matching, and checkout were not repeated on production for this release.
 
+### Fullscreen photo sizing (5 October 2026)
+
+Worker version `b1555d7c-113e-4798-acc3-bac1f1a416fd` publishes application commit
+`e12f769`. The shared fullscreen viewer bounds its grid tracks to the available
+space, keeping large photos fully visible without changing their aspect ratio.
+The release was built from a clean checkout of that commit.
+
+The production build and Wrangler dry run passed. Local browser checks covered
+20 photo and viewport combinations, navigation, and closing. The deployed CSS
+matches the release build byte for byte; the home and IT Arena pages return 200.
+IT Arena photo 1,263, which reproduced the reported crop before deployment, now
+fits completely at desktop, mobile portrait, and mobile landscape sizes.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
