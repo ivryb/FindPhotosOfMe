@@ -1,13 +1,13 @@
 import { startBackend } from "./backend";
 
 /** Starts the fixture backend and a Nuxt dev server on `port` that talks to it. Call `stop` when the file's tests end. */
-export async function startApp(port: number) {
+export async function startApp(port: number, { canonicalOrigin = "" } = {}) {
   const backend = startBackend();
   const origin = `http://localhost:${port}`;
   const log = `/tmp/findphotos-tests-${port}.log`;
   const server = Bun.spawn(["bun", "x", "nuxt", "dev", "tests", "--port", String(port), "--dotenv", "/dev/null"], {
     cwd: new URL("..", import.meta.url).pathname,
-    env: { ...withoutNuxtSettings(process.env), TEST_BACKEND_URL: backend.url.href.replace(/\/$/, "") },
+    env: { ...withoutNuxtSettings(process.env), NUXT_PUBLIC_ORIGIN: canonicalOrigin, TEST_BACKEND_URL: backend.url.href.replace(/\/$/, "") },
     stdout: Bun.file(log),
     stderr: Bun.file(log),
   });

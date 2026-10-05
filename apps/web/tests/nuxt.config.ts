@@ -18,6 +18,7 @@ export default defineNuxtConfig({
     r2SecretAccessKey: "fixture-secret",
     r2Endpoint: `${process.env.TEST_BACKEND_URL}/r2`,
     public: {
+      origin: "",
       convexUrl: process.env.TEST_BACKEND_URL,
       convexSiteUrl: process.env.TEST_BACKEND_URL,
     },
