@@ -117,6 +117,24 @@ on Workers Paid, which every photo view now counts against. Measured from Hong K
 views were as fast as a request the Worker answers without any work (about 0.15–0.25 s after connecting), and first
 views added about 0.6 s, mostly distance to the bucket. Forged links get 403, and downloads come as attachments.
 
+### Private galleries and mobile dashboard (5 October 2026)
+
+Worker version `92b7273b-04db-4f91-a86d-06fa97712d6b` publishes application commit `bbdaf40`,
+including private-by-default galleries, owner search, publication controls, separate upload and search
+sections, mobile list/detail navigation, daily storage billing, authentication fixes, and the landing-page
+refresh. Convex functions and schema were deployed to the existing `honorable-firefly-904` deployment using
+`convex dev --once`; R2 and the unchanged Modal service remain in place. Existing galleries retain public access.
+
+Validation: 31 backend tests and 25 web tests passed, as did workspace type checks, the production build,
+and the Worker deployment dry run. Production home, audience pages, and sign-in return 200; signed-out
+dashboard requests redirect to sign-in and its API returns 401. IT Arena still serves its public page and
+all 2,742 photo keys, with thumbnails loading in the browser. Mobile home, sign-in, and IT Arena pages
+have no horizontal overflow. Dashboard interactions were checked against the local test backend;
+Google sign-in, uploads, paid checkout, and selfie matching were not repeated on production in this release.
+
+The local continuous `convex dev` watcher remains paused because it targets the live deployment;
+this release used an explicit one-shot deployment.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
