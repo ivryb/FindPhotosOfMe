@@ -6,6 +6,12 @@ import type { Id } from "../convex/_generated/dataModel";
 import { DAY, INCLUDED_DAYS, PRICES, TRIAL_CREDIT } from "../convex/pricing";
 import schema from "../convex/schema";
 
+// Owner-only functions see the gallery owner signed in.
+vi.mock("../convex/auth", async (original) => {
+  const owner = { _id: "owner", email: "owner@example.com" };
+  return { ...(await original<object>()), authComponent: { getAuthUser: async () => owner, safeGetAuthUser: async () => owner } };
+});
+
 const modules = import.meta.glob("../convex/**/*.ts");
 const serviceToken = "test-service-token";
 
@@ -15,7 +21,7 @@ beforeEach(() => {
 
 function setup() {
   const t = convexTest(schema, modules);
-  const gallery = (fields: { createdBy?: string; trial?: boolean; expiresAt?: number } = {}) =>
+  const gallery = (fields: { createdBy?: string; trial?: boolean; expiresAt?: number; storagePaidUntil?: number; storedBytes?: number } = {}) =>
     t.run((ctx) => ctx.db.insert("collections", {
       subdomain: `gallery-${Math.random().toString(36).slice(2, 8)}`, title: "Harbor Summit", description: "",
       status: "complete", imagesCount: 120, storedBytes: 0, previewImages: [], createdBy: "owner", ...fields,
@@ -23,9 +29,12 @@ function setup() {
   const credit = (userId = "owner") => t.run(async (ctx) =>
     (await ctx.db.query("balances").withIndex("by_user", (q) => q.eq("userId", userId)).unique())?.credit ?? null);
   const setCredit = (credit: number, userId = "owner") => t.run(async (ctx) => {
-    await ctx.db.insert("balances", { userId, credit, paid: false });
+    const balance = await ctx.db.query("balances").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
+    if (balance) await ctx.db.patch(balance._id, { credit });
+    else await ctx.db.insert("balances", { userId, credit, paid: false });
   });
-  return { t, gallery, credit, setCredit };
+  const read = (id: Id<"collections">) => t.run((ctx) => ctx.db.get(id));
+  return { t, gallery, credit, setCredit, read };
 }
 
 describe("searches", () => {
@@ -95,5 +104,49 @@ describe("top-ups", () => {
     await t.mutation(internal.payments.recordRefund, { providerOrderId: "order-1", refundedAmount: 2_420, full: true });
     await t.mutation(internal.payments.recordRefund, { providerOrderId: "order-1", refundedAmount: 2_420, full: true });
     expect(await credit()).toBe(TRIAL_CREDIT);
+  });
+});
+
+describe("storage", () => {
+  // 30 GB costs $0.10 a day
+  const size = { storedBytes: 30e9 };
+  const DAILY = 100;
+
+  test("is free during the paid time, then taken a day at a time", async () => {
+    const { t, gallery, credit, setCredit, read } = setup();
+    const due = Date.now() - 60_000;
+    const included = await gallery({ ...size, storagePaidUntil: Date.now() + DAY, expiresAt: Date.now() + 10 * DAY });
+    const past = await gallery({ ...size, storagePaidUntil: due, expiresAt: Date.now() + 10 * DAY });
+    await setCredit(1_000);
+
+    await t.mutation(internal.balances.chargeStorage, {});
+    await t.mutation(internal.balances.chargeStorage, {});
+    expect(await credit()).toBe(1_000 - DAILY);
+    expect((await read(past))?.storagePaidUntil).toBe(due + DAY);
+    expect((await read(included))?.storagePaidUntil).toBeGreaterThan(Date.now());
+  });
+
+  test("takes a gallery offline when the balance can't cover the next day", async () => {
+    const { t, gallery, credit, setCredit, read } = setup();
+    const id = await gallery({ ...size, storagePaidUntil: Date.now() - 60_000, expiresAt: Date.now() + 10 * DAY });
+    await setCredit(DAILY - 1);
+
+    await t.mutation(internal.balances.chargeStorage, {});
+    expect(await credit()).toBe(DAILY - 1);
+    expect((await read(id))?.expiresAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  test("brings an offline gallery back once the balance covers a day, without charging the days it was offline", async () => {
+    const { t, gallery, credit, setCredit } = setup();
+    const offlineSince = Date.now() - 5 * DAY;
+    const id = await gallery({ ...size, storagePaidUntil: offlineSince, expiresAt: offlineSince });
+    const until = Date.now() + 20 * DAY;
+    await setCredit(0);
+    await expect(t.mutation(api.balances.keepOnlineUntil, { id, until })).rejects.toThrow("costs $0.10 a day");
+
+    await setCredit(1_000);
+    await t.mutation(api.balances.keepOnlineUntil, { id, until });
+    await t.mutation(internal.balances.chargeStorage, {});
+    expect(await credit()).toBe(1_000 - DAILY);
   });
 });

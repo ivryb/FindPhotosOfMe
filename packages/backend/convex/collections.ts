@@ -80,6 +80,7 @@ export const create = mutation({
     if (subdomain) await ensureSubdomainAvailable(ctx, subdomain);
     // During the trial a gallery stays online for a week; the first top-up extends it.
     const { paid } = await balanceFor(ctx, user._id);
+    const expiresAt = Date.now() + (paid ? INCLUDED_DAYS : TRIAL_DAYS) * DAY;
     return ctx.db.insert("collections", {
       title: args.title.trim(),
       description: args.description.trim(),
@@ -88,7 +89,8 @@ export const create = mutation({
       status: "not_started",
       imagesCount: 0,
       storedBytes: 0,
-      expiresAt: Date.now() + (paid ? INCLUDED_DAYS : TRIAL_DAYS) * DAY,
+      expiresAt,
+      storagePaidUntil: expiresAt,
       trial: paid ? undefined : true,
       previewImages: [],
       createdBy: user._id,

@@ -6,15 +6,7 @@ import { components } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { authComponent } from "./auth";
 import { requireCollectionOwner } from "./authz";
-import {
-  DAY,
-  EXTENSION_DAYS,
-  INCLUDED_DAYS,
-  PRICES,
-  TRIAL_CREDIT,
-  extensionCost,
-  formatMoney,
-} from "./pricing";
+import { DAY, INCLUDED_DAYS, PRICES, TRIAL_CREDIT, dailyStorageCost, formatMoney } from "./pricing";
 
 // Each account has one balance in mills, shared by all its galleries. Every change is a balance entry,
 // so charges can be traced and a repeated request (a webhook redelivery, a replayed job) applies once.
@@ -39,7 +31,7 @@ export async function endTrial(ctx: MutationCtx, userId: string) {
   const galleries = await ctx.db.query("collections").withIndex("by_created_by", (q) => q.eq("createdBy", userId)).collect();
   for (const gallery of galleries.filter((gallery) => gallery.trial)) {
     const included = gallery._creationTime + INCLUDED_DAYS * DAY;
-    await ctx.db.patch(gallery._id, { trial: undefined, expiresAt: Math.max(gallery.expiresAt ?? 0, included) });
+    await ctx.db.patch(gallery._id, { trial: undefined, expiresAt: Math.max(gallery.expiresAt ?? 0, included), storagePaidUntil: included });
   }
 }
 
@@ -108,19 +100,64 @@ export const mine = query({
   },
 });
 
-/** Keeps a gallery online for another 30 days, paid from the balance. An expired gallery comes back online. */
-export const extendStorage = mutation({
-  args: { id: v.id("collections") },
-  handler: async (ctx, { id }) => {
+/**
+ * Sets the date a gallery goes offline. Nothing is charged here: chargeStorage takes each day past the paid time,
+ * so a later date only means more days of that. An offline gallery comes back online if the balance covers a day.
+ */
+export const keepOnlineUntil = mutation({
+  args: { id: v.id("collections"), until: v.number() },
+  returns: v.null(),
+  handler: async (ctx, { id, until }) => {
     const { user, collection } = await requireCollectionOwner(ctx, id);
     if (collection.paymentStatus === "refunded") throw new ConvexError("This gallery was refunded and can't be kept online.");
-    const cost = extensionCost(collection);
-    await charge(ctx, { userId: user._id, reason: "storage", collectionId: id }, cost,
-      (credit) => `Another ${EXTENSION_DAYS} days costs ${formatMoney(cost)}, but your balance is ${formatMoney(credit)}.`);
-    const from = Math.max(collection.expiresAt ?? Date.now(), Date.now());
-    await ctx.db.patch(id, { expiresAt: from + EXTENSION_DAYS * DAY });
+    if (collection.trial) throw new ConvexError("Top up to keep this gallery online longer.");
+    const now = Date.now();
+    if (until <= now) throw new ConvexError("Choose a date after today.");
+    // Days the gallery spent offline aren't charged: paid time picks up from now.
+    const paidUntil = Math.max(collection.storagePaidUntil ?? collection.expiresAt ?? now, now);
+    if (until > paidUntil) {
+      const cost = dailyStorageCost(collection);
+      await requireCredit(ctx, user._id, cost,
+        (credit) => `Keeping it online costs ${formatMoney(cost)} a day, but your balance is ${formatMoney(credit)}.`);
+    }
+    await ctx.db.patch(id, { expiresAt: until, storagePaidUntil: paidUntil });
+    return null;
   },
 });
+
+/**
+ * Takes a day of storage from the owner's balance for each online gallery whose paid time has run out, at its current
+ * size. A gallery the balance can't cover goes offline. Runs every hour, so it reads every online gallery each time.
+ */
+export const chargeStorage = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const online = await ctx.db.query("collections").withIndex("by_expires_at", (q) => q.gt("expiresAt", now)).collect();
+    for (const gallery of online) await chargeDays(ctx, gallery, now);
+    return null;
+  },
+});
+
+/** Charges a gallery each day from its paid time up to now, so a missed run catches up. */
+async function chargeDays(ctx: MutationCtx, gallery: Doc<"collections">, now: number) {
+  const { createdBy: owner, expiresAt } = gallery;
+  // Trial time is free, refunded galleries keep the time they had, and galleries without an owner predate billing.
+  if (!owner || !expiresAt || gallery.trial || gallery.paymentStatus === "refunded") return;
+  const start = gallery.storagePaidUntil ?? expiresAt;
+  const cost = dailyStorageCost(gallery);
+  let paidUntil = start;
+  while (paidUntil <= now && paidUntil < expiresAt) {
+    if ((await balanceFor(ctx, owner)).credit < cost) {
+      await ctx.db.patch(gallery._id, { expiresAt: now, storagePaidUntil: paidUntil });
+      return;
+    }
+    if (cost) await applyEntry(ctx, { userId: owner, amount: -cost, reason: "storage", collectionId: gallery._id });
+    paidUntil += DAY;
+  }
+  if (paidUntil !== start) await ctx.db.patch(gallery._id, { storagePaidUntil: paidUntil });
+}
 
 /**
  * Adds credit to an account by hand, such as the admin's own while payments aren't open. The amount is in mills

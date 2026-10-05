@@ -6,6 +6,9 @@ export const LIMITS = {
   searches: { min: 50, max: 5_000, step: 50 },
 } as const;
 
+/** How long the calculator can keep photos online. */
+export const STORAGE_DAYS = [30, 90, 180] as const;
+
 /** Rounds a typed count to the nearest step inside its limits. */
 export function clampCount(value: number, kind: keyof typeof LIMITS) {
   const { min, max, step } = LIMITS[kind];

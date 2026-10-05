@@ -44,14 +44,18 @@ export default defineSchema({
       v.literal("error")
     ),
     imagesCount: v.number(),
-    // Bytes of photos and thumbnails in R2, for pricing storage extensions
+    // Bytes of photos and thumbnails in R2, for pricing storage
     storedBytes: v.optional(v.number()),
     // Legacy per-gallery plans; migrations.moveToBalance clears them. Remove once it has run in production.
     plan: v.optional(
       v.union(v.literal("demo"), v.literal("event"), v.literal("large"))
     ),
     photoLimit: v.optional(v.number()),
+    // When the gallery goes offline; the owner chooses it. Unset means it stays online.
     expiresAt: v.optional(v.number()),
+    // Until when storage is paid: the included time, then each day balances.chargeStorage takes.
+    // Unset on galleries from before daily storage, whose time was paid up to expiresAt.
+    storagePaidUntil: v.optional(v.number()),
     // Created before the owner's first top-up; that top-up extends it to the full included time
     trial: v.optional(v.boolean()),
     // Whether anyone with the link can browse every photo, or only the previews. Unset means every photo.
@@ -73,7 +77,8 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_subdomain", ["subdomain"])
     .index("by_created_by", ["createdBy"])
-    .index("by_merging_since", ["mergingSince"]),
+    .index("by_merging_since", ["mergingSince"])
+    .index("by_expires_at", ["expiresAt"]),
 
   searchRequests: defineTable({
     collectionId: v.id("collections"),

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
-import { LIMITS, MINIMUM_TOP_UP, clampCount, count, estimateTopUp, formatMoney, type Usage } from "@/utils/pricing";
+import { LIMITS, MINIMUM_TOP_UP, STORAGE_DAYS, clampCount, count, estimateTopUp, formatMoney } from "@/utils/pricing";
 
 const id = useId();
 const photos = ref(2_000);
 const searches = ref(300);
-const days = ref<Usage["days"]>(30);
+const days = ref<(typeof STORAGE_DAYS)[number]>(STORAGE_DAYS[0]);
 const price = computed(() => estimateTopUp({ photos: photos.value, searches: searches.value, days: days.value }));
 const progress = (value: number, kind: keyof typeof LIMITS) => `${(value - LIMITS[kind].min) / (LIMITS[kind].max - LIMITS[kind].min) * 100}%`;
 
@@ -57,12 +57,12 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
       <fieldset>
         <legend>Keep photos online for</legend>
         <div class="days">
-          <label v-for="option in [30, 90] as const" :key="option">
+          <label v-for="option in STORAGE_DAYS" :key="option">
             <input v-model="days" type="radio" :name="`${id}-days`" :value="option" />
             <span>{{ option }} days</span>
           </label>
         </div>
-        <p class="help">The first 30 days are included. Each extra 30 days is $0.10 per GB.</p>
+        <p class="help">The first 30 days are included. After that, it’s $0.10 per GB for every 30 days, charged by the day.</p>
       </fieldset>
     </div>
 
@@ -80,18 +80,17 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
         <div><dt>{{ days }} days of storage</dt><dd>{{ price.storageCost === 0 ? 'Included' : formatMoney(price.storageCost) }}</dd></div>
         <div v-if="price.subtotal < MINIMUM_TOP_UP" class="minimum"><dt>Topped up to the $10 minimum</dt><dd>{{ formatMoney(MINIMUM_TOP_UP - price.subtotal) }}</dd></div>
       </dl>
-      <Button as-child size="xl" class="w-full">
-        <NuxtLink to="/admin">Try 500 photos free</NuxtLink>
+      <Button as-child size="xl" variant="outline" class="w-full">
+        <NuxtLink to="/admin">Start free, top up later</NuxtLink>
       </Button>
-      <p class="trial">Free for 7 days with 50 searches. No card needed.</p>
     </div>
   </div>
 </template>
 
 <style scoped>
 
-/* Ink controls beside a yellow price slip; the rules below read these colors. */
-.tray { --soft: #b3b3ad; --field: #2a2a28; --track: #3a3a38; --slip-soft: #4f4826; --tile: rgb(21 21 21 / .13); --rule: rgb(21 21 21 / .25); }
+/* Ink controls beside a white price slip; yellow stays with the free trial above. The rules below read these colors. */
+.tray { --soft: #b3b3ad; --field: #2a2a28; --track: #3a3a38; --slip-soft: var(--muted-foreground); --tile: #e6e6e2; --rule: var(--border); }
 .tray { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; padding: 12px; background: var(--foreground); color: var(--background); border-radius: 24px; text-align: left; }
 .tray :deep(:focus-visible) { outline-color: currentColor; }
 .controls { display: flex; flex-direction: column; gap: 36px; padding: clamp(16px, 3vw, 36px); }
@@ -113,19 +112,18 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border: 2px s
 .days input:checked + span { background: var(--brand); color: var(--foreground); }
 .days input:focus-visible + span { outline: 3px solid currentColor; outline-offset: 2px; }
 
-.slip { display: flex; flex-direction: column; padding: clamp(24px, 3vw, 36px); background: var(--brand); color: var(--foreground); border-radius: 16px; }
+.slip { display: flex; flex-direction: column; padding: clamp(24px, 3vw, 36px); background: var(--background); color: var(--foreground); border-radius: 16px; }
 .sheet { display: grid; grid-template-columns: repeat(var(--columns), 1fr); gap: 3px; cursor: crosshair; touch-action: pan-y; user-select: none; }
 .sheet span { aspect-ratio: 3 / 2; background: var(--tile); border-radius: 2px; }
 .sheet span.on { background: var(--foreground); }
 .sheet-caption { margin: 8px 0 28px; color: var(--slip-soft); font-size: .8rem; }
 .slip-title { font-weight: 650; }
-.total { display: block; margin: 4px 0 20px; font-size: clamp(3.2rem, 5.6vw, 4.6rem); font-weight: 850; font-stretch: 118%; letter-spacing: -.05em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.total { display: block; margin: 2px 0 16px; font-size: clamp(2.2rem, 3.6vw, 2.8rem); font-weight: 850; font-stretch: 118%; letter-spacing: -.05em; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .lines { margin-bottom: 28px; }
 .lines > div { display: flex; justify-content: space-between; gap: 16px; padding-block: 10px; border-top: 1px dashed var(--rule); font-variant-numeric: tabular-nums; }
 .lines dd { font-weight: 650; }
 .lines .minimum { color: var(--slip-soft); font-size: .85rem; }
 .slip :deep(a) { margin-top: auto; }
-.trial { margin-top: 10px; color: var(--slip-soft); font-size: .8rem; text-align: center; }
 
 @media (max-width: 820px) {
   .tray { grid-template-columns: minmax(0, 1fr); }

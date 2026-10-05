@@ -3,8 +3,9 @@
 
 export const MILLS_PER_DOLLAR = 1_000;
 
-/** What each thing costs, in mills. Storage is per GB for each 30 days beyond the included time. */
+/** What each thing costs, in mills. Storage is per GB for each 30 days beyond the included time, charged by the day. */
 export const PRICES = { photo: 5, search: 15, storageGbMonth: 100 } as const;
+const MONTH_DAYS = 30;
 
 export const MINIMUM_TOP_UP = 10 * MILLS_PER_DOLLAR;
 export const MAXIMUM_TOP_UP = 1_000 * MILLS_PER_DOLLAR;
@@ -12,33 +13,33 @@ export const MAXIMUM_TOP_UP = 1_000 * MILLS_PER_DOLLAR;
 export const TRIAL_CREDIT = 500 * PRICES.photo + 50 * PRICES.search;
 
 export const DAY = 24 * 60 * 60 * 1000;
-/** How long a gallery stays online after it's created, and how much each paid extension adds. */
+/** How long a gallery stays online after it's created without paying for storage; the owner can keep it online longer. */
 export const INCLUDED_DAYS = 30;
 export const TRIAL_DAYS = 7;
-export const EXTENSION_DAYS = 30;
 
 /** Calculator estimates assume an average photo of this size. */
 export const PHOTO_BYTES = 5e6;
 
-export type Usage = { photos: number; searches: number; days: 30 | 90 };
+/** What someone expects to use: photos, searches, and how many days to keep the photos online. */
+export type Usage = { photos: number; searches: number; days: number };
 
-/** What the calculator's choices cost, in mills. */
+/** What the calculator's choices cost, in mills. Storage beyond the included days is rounded up to a whole cent. */
 export function estimateTopUp({ photos, searches, days }: Usage) {
   const photoCost = photos * PRICES.photo;
   const searchCost = searches * PRICES.search;
-  const storageCost = storageExtensionCost(photos * PHOTO_BYTES) * (days / EXTENSION_DAYS - 1);
+  const extraMonths = Math.max(0, days - INCLUDED_DAYS) / MONTH_DAYS;
+  const storageCost = Math.ceil(((photos * PHOTO_BYTES) / 1e9) * PRICES.storageGbMonth * extraMonths / 10) * 10;
   const subtotal = photoCost + searchCost + storageCost;
   return { photoCost, searchCost, storageCost, subtotal, total: Math.max(MINIMUM_TOP_UP, subtotal) };
 }
 
-/** What keeping this many bytes online for another 30 days costs, rounded up to a whole cent. */
-export function storageExtensionCost(bytes: number) {
-  return Math.ceil((bytes / 1e9) * PRICES.storageGbMonth / 10) * 10;
-}
-
-/** What keeping a gallery online for another 30 days costs. Galleries from before sizes were recorded are estimated. */
-export function extensionCost(gallery: { storedBytes?: number; imagesCount: number }) {
-  return storageExtensionCost(gallery.storedBytes ?? gallery.imagesCount * PHOTO_BYTES);
+/**
+ * What one more day online costs a gallery past its included time, to the nearest mill, so a tiny gallery can cost
+ * nothing. Galleries from before sizes were recorded are estimated.
+ */
+export function dailyStorageCost(gallery: { storedBytes?: number; imagesCount: number }) {
+  const bytes = gallery.storedBytes ?? gallery.imagesCount * PHOTO_BYTES;
+  return Math.round(((bytes / 1e9) * PRICES.storageGbMonth) / MONTH_DAYS);
 }
 
 /** How many photos or searches a balance pays for. */

@@ -8,7 +8,7 @@ The pricing direction selected on 4 October is **one calculator with a $10 minim
 
 The free-trial proposal remains 500 submitted photos / 2 GB, 50 searches, and seven days, with one active trial per account and 500 total trial submissions. Photo and byte limits both apply; attendees never pay. These trial terms are not yet implemented entitlements.
 
-The calculator's draft rates are $0.005 per uploaded photo, $0.015 per selfie search, and $0.10/GB per additional 30 days beyond the first included 30 days. It estimates storage at 5 MB/photo and offers 30 or 90 days. The estimate is `max(10, photos × 0.005 + searches × 0.015 + estimated GB × 0.10 × (days / 30 − 1))`. The $10 minimum applies to the total payment, not an additional fee.
+The calculator's draft rates are $0.005 per uploaded photo, $0.015 per selfie search, and $0.10/GB per additional 30 days beyond the first included 30 days. Owners choose the date a gallery goes offline; each day past the included time is taken from the balance at the gallery's current size, and a gallery the balance can't cover goes offline. It estimates storage at 5 MB/photo and offers 30, 90, or 180 days. The estimate is `max(10, photos × 0.005 + searches × 0.015 + estimated GB × 0.10 × (days / 30 − 1))`. The $10 minimum applies to the total payment, not an additional fee.
 
 The landing section uses one calculator: ink controls beside a yellow price panel, topped by a grid of tiles that shows the photo count (one tile per 100 photos). The rates live in `apps/web/app/utils/pricing.ts`. Before wiring checkout, settle how estimated usage becomes purchased capacity and how actual file sizes, additional searches, and extensions affect the charge. No automatic usage billing is implemented by this preview.
 

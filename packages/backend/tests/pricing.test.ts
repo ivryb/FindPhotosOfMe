@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { MINIMUM_TOP_UP, PRICES, coveredBy, estimateTopUp, formatMoney, storageExtensionCost } from "../convex/pricing";
+import { MINIMUM_TOP_UP, PRICES, coveredBy, dailyStorageCost, estimateTopUp, formatMoney } from "../convex/pricing";
 
 describe("estimateTopUp", () => {
   test("prices photos, searches, and extra storage time at calculator rates", () => {
@@ -19,10 +19,12 @@ describe("estimateTopUp", () => {
   });
 });
 
-describe("storageExtensionCost", () => {
-  test("charges $0.10 per GB for another 30 days, rounded up to a whole cent", () => {
-    expect(storageExtensionCost(15e9)).toBe(1_500);
-    expect(storageExtensionCost(1)).toBe(10);
+describe("dailyStorageCost", () => {
+  test("charges $0.10 per GB for 30 days, split into days and rounded to the nearest mill", () => {
+    expect(dailyStorageCost({ storedBytes: 30e9, imagesCount: 0 })).toBe(100);
+    expect(dailyStorageCost({ storedBytes: 1e6, imagesCount: 0 })).toBe(0);
+    // Galleries from before sizes were recorded are estimated at 5 MB a photo: 6,000 photos is 30 GB
+    expect(dailyStorageCost({ imagesCount: 6_000 })).toBe(100);
   });
 });
 
