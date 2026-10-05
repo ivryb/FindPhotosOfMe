@@ -78,6 +78,8 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       storage: "database",
       window: 60,
       max: 30,
+      // Every private photo verifies its session here; a gallery can exceed the ordinary auth limit in one page load.
+      customRules: { "/convex/token": false },
     },
     plugins: [
       emailOTP({

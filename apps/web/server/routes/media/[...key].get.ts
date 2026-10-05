@@ -1,32 +1,58 @@
-// Serves a photo or thumbnail from R2 for a signed link (see server/utils/media.ts), through Cloudflare's
-// edge cache: the first view in a region reads R2, later ones come from the cache.
+import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import { ConvexHttpClient } from "convex/browser";
+
+// Access is checked before the edge cache so unpublishing also closes already cached photos.
 
 export default defineEventHandler(async (event) => {
-  const key = decodeURIComponent(getRouterParam(event, "key") ?? "");
-  const { d, s, g, download } = getQuery(event);
-  const link = { day: Number(d), signature: s, gallery: g === "1", download: download === "1" };
-  if (!key || !(await isSignedMediaLink(event, key, link))) {
-    throw createError({ statusCode: 403, statusMessage: "This link has expired" });
+  setResponseHeader(event, "cache-control", "private, no-store");
+  const key = getRouterParam(event, "key", { decode: true }) ?? "";
+  const { download, requestId } = getQuery(event);
+  if (requestId !== undefined && typeof requestId !== "string") {
+    throw createError({ statusCode: 400, statusMessage: "Invalid search request" });
+  }
+  const args = { key, requestId };
+  const convex = new ConvexHttpClient(useRuntimeConfig(event).public.convexUrl);
+  let allowed = await convex.query(api.collections.canReadPhoto, args);
+  const bearer = getHeader(event, "authorization")?.startsWith("Bearer ");
+  if (!allowed && (bearer || getHeader(event, "cookie"))) {
+    const client = bearer ? getAuthenticatedConvex(event) : await getCookieAuthenticatedConvex(event);
+    allowed = await client.query(api.collections.canReadPhoto, args);
+  }
+  if (!allowed) {
+    throw createError({ statusCode: 403, statusMessage: "Photo access denied" });
   }
 
   // Only Workers have the edge cache (caches.default); development and tests read R2 every time.
   const cache = typeof caches === "undefined" ? undefined : (caches as CacheStorage & { default?: Cache }).default;
-  const request = toWebRequest(event);
-  const cached = await cache?.match(request);
-  if (cached) return cached;
+  // The cache holds only bytes; different search requests and downloads reuse the same copy after authorization.
+  const url = getRequestURL(event);
+  url.search = "";
+  const request = new Request(url);
+  let response = await cache?.match(request);
+  if (!response) {
+    const photo = await readPhoto(event, key);
+    if (!photo) throw createError({ statusCode: 404, statusMessage: "Photo not found" });
+    response = new Response(photo.stream, {
+      headers: {
+        "content-type": photo.contentType,
+        ...(photo.contentLength ? { "content-length": String(photo.contentLength) } : {}),
+        ...(photo.etag ? { etag: photo.etag } : {}),
+        "cache-control": "public, max-age=172800",
+      },
+    });
+    if (cache) event.waitUntil(cache.put(request, response.clone()));
+  }
 
-  const photo = await readPhoto(event, key);
-  if (!photo) throw createError({ statusCode: 404, statusMessage: "Photo not found" });
-  const name = key.slice(key.lastIndexOf("/") + 1);
-  const response = new Response(photo.stream, {
-    headers: {
-      "content-type": photo.contentType,
-      ...(photo.contentLength ? { "content-length": String(photo.contentLength) } : {}),
-      // Links change every day, so a copy never outlives the link that fetched it.
-      "cache-control": "public, max-age=172800, immutable",
-      ...(link.download ? { "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}` } : {}),
-    },
-  });
-  if (cache) event.waitUntil(cache.put(request, response.clone()));
-  return response;
+  // Browsers can keep bytes but must recheck access after unpublishing or signing out, including for a 304.
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "private, no-cache");
+  if (download === "1") {
+    const name = key.slice(key.lastIndexOf("/") + 1);
+    headers.set("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+  }
+  const etag = headers.get("etag");
+  if (etag && getHeader(event, "if-none-match") === etag) {
+    return new Response(null, { status: 304, headers });
+  }
+  return new Response(response.body, { headers });
 });

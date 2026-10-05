@@ -16,7 +16,8 @@ const GALLERY_PHOTOS = Array.from({ length: 130 }, (_, index) => `photo-${String
 const FOUND = ["test-collection/photo-007.jpg", "test-collection/photo-042.jpg", "test-collection/photo-099.jpg"];
 const BUCKET_KEYS = [
   "test-collection/embeddings.json",
-  ...GALLERY_PHOTOS.flatMap((name) => [`test-collection/${name}`, `test-collection/thumbs/${name}`]),
+  ...["test-collection", "preview-collection", "private-collection"].flatMap((id) =>
+    GALLERY_PHOTOS.flatMap((name) => [`${id}/${name}`, `${id}/thumbs/${name}`])),
 ].sort();
 
 /** Answers ListObjectsV2 the way R2 does, for the keys under one prefix and after `start-after`. */
@@ -38,7 +39,7 @@ function listBucket(url: URL) {
 function publicGallery(id: string) {
   const base = { _id: id, subdomain: "itarena", title: "IT Arena SSR fixture", description: "Photos from both days.", imagesCount: GALLERY_PHOTOS.length };
   if (id === "test-collection") return { ...base, previewImages: [], showAllPhotos: true };
-  if (id === "preview-collection") return { ...base, previewImages: ["test-collection/photo-001.jpg", "test-collection/photo-002.jpg"], showAllPhotos: false };
+  if (id === "preview-collection") return { ...base, previewImages: ["preview-collection/photo-001.jpg", "preview-collection/photo-002.jpg"], showAllPhotos: false };
   return null;
 }
 
@@ -137,7 +138,7 @@ export function startBackend(port = 0) {
     if (path.startsWith("/r2/fixture-bucket/")) {
       const index = BUCKET_KEYS.indexOf(decodeURIComponent(path.slice("/r2/fixture-bucket/".length)));
       if (index < 0) return new Response("NoSuchKey", { status: 404 });
-      return new Response(Bun.file(new URL(`../public/landing/${SAMPLES[index % SAMPLES.length]}.jpg`, import.meta.url)));
+      return new Response(Bun.file(new URL(`../public/landing/${SAMPLES[index % SAMPLES.length]}.jpg`, import.meta.url)), { headers: { etag: `"fixture-${index}"` } });
     }
     if (path === "/api/auth/email-otp/send-verification-otp") return Response.json({ success: true });
     if (path === "/api/auth/sign-in/email-otp") {
@@ -176,6 +177,8 @@ export function startBackend(port = 0) {
         return Response.json({ status: "error", errorMessage: "Uncaught ConvexError", errorData: "Searching is paused for this gallery. Please ask its owner to top up.", logLines: [] });
       }
       if (body.path === "searchRequests:create") return Response.json({ status: "success", value: "fixture-search", logLines: [] });
+      if (request.headers.get("authorization") !== `Bearer ${ownerJwt}`) return new Response(null, { status: 401 });
+      return Response.json({ status: "success", value: mutate(body.path, body.args[0]), logLines: [] });
     }
     if (path === "/api/search-photos") {
       const form = await request.formData();
@@ -186,9 +189,30 @@ export function startBackend(port = 0) {
     }
     if (path === "/api/query") {
       const body = await request.json();
+      if (body.path === "collections:canReadPhoto") {
+        const original = body.args[0].key.replace(/^([^/]+)\/thumbs\//, "$1/");
+        const id = original.split("/")[0];
+        const gallery = publicView(id);
+        const owner = request.headers.get("authorization") === `Bearer ${ownerJwt}`;
+        const requestId = body.args[0].requestId;
+        if (requestId !== undefined) {
+          const allowed = requestId === "fixture-search" ? id === "test-collection" && published && FOUND.includes(original)
+            : requestId === "private-search" && owner && original === "private-collection/photo-007.jpg";
+          return Response.json({ status: "success", value: allowed, logLines: [] });
+        }
+        const allowed = /^[^/]+\/[^/]+\.(jpe?g|png|bmp)$/i.test(original) && (
+          Boolean(gallery && (gallery.showAllPhotos || gallery.previewImages.includes(original))) ||
+          (owner && ["test-collection", "preview-collection", "private-collection"].includes(id))
+        );
+        return Response.json({ status: "success", value: allowed, logLines: [] });
+      }
       if (body.path === "collections:getPublicBySubdomain") return Response.json({ status: "success", value: publicView(galleryId), logLines: [] });
       if (body.path === "collections:getPublic") return Response.json({ status: "success", value: publicView(body.args[0].id), logLines: [] });
-      if (body.path === "searchRequests:authorizeImages") return Response.json({ status: "success", value: (body.args[0].id === "fixture-search" || (body.args[0].id === "private-search" && request.headers.get("authorization") === `Bearer ${ownerJwt}`)) && body.args[0].keys.every((key: string) => FOUND.includes(key)), logLines: [] });
+      if (body.path === "searchRequests:authorizeImages") {
+        const allowed = body.args[0].id === "fixture-search" ? published && body.args[0].keys.every((key: string) => FOUND.includes(key))
+          : body.args[0].id === "private-search" && request.headers.get("authorization") === `Bearer ${ownerJwt}` && body.args[0].keys.every((key: string) => key === "private-collection/photo-007.jpg");
+        return Response.json({ status: "success", value: allowed, logLines: [] });
+      }
       if (request.headers.get("authorization") !== `Bearer ${ownerJwt}`) return new Response(null, { status: 401 });
       return Response.json({ status: "success", value: result(body.path), logLines: [] });
     }
@@ -221,4 +245,3 @@ export function startBackend(port = 0) {
 }
 
 if (import.meta.main) startBackend(3211);
-

@@ -18,6 +18,8 @@ import {
 } from "./authz";
 import { balanceFor, returnPhotos } from "./balances";
 import { DAY, INCLUDED_DAYS, TRIAL_DAYS } from "./pricing";
+import { originalPhotoKey } from "./photoKeys";
+import { canReadRequest } from "./searchRequests";
 
 /** What anyone with the link may see after the owner publishes the gallery. */
 function publicView(collection: Doc<"collections"> | null) {
@@ -37,6 +39,31 @@ function publicView(collection: Doc<"collections"> | null) {
     showAllPhotos: collection.showAllPhotos ?? true,
   };
 }
+
+/** Checked by the image proxy on every request, before it serves bytes from R2 or the edge cache. */
+export const canReadPhoto = query({
+  args: { key: v.string(), requestId: v.optional(v.string()) },
+  handler: async (ctx, { key, requestId }) => {
+    const original = originalPhotoKey(key);
+    if (!original) return false;
+    const id = ctx.db.normalizeId("collections", original.slice(0, original.indexOf("/")));
+    if (!id) return false;
+    if (requestId !== undefined) {
+      const searchId = ctx.db.normalizeId("searchRequests", requestId);
+      const request = searchId ? await ctx.db.get(searchId) : null;
+      return Boolean(request && request.collectionId === id && request.status === "complete" &&
+        request.imagesFound.includes(original) && await canReadRequest(ctx, request));
+    }
+    const gallery = publicView(await ctx.db.get(id));
+    if (gallery && (gallery.showAllPhotos || gallery.previewImages.includes(original))) return true;
+    try {
+      await requireCollectionOwner(ctx, id);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+});
 
 function normalizeSubdomain(value: string) {
   const subdomain = value.trim().toLowerCase();

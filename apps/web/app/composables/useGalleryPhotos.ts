@@ -22,7 +22,7 @@ export function useGalleryPhotos(galleryId: MaybeRefOrGetter<string>, { preload 
     try {
       const headers = owner ? { Authorization: `Bearer ${await getConvexAuthToken()}` } : undefined;
       const body = await $fetch<GalleryPhotos>(url.value, { headers });
-      photos.value = "keys" in body ? body.keys.map((key) => mediaLinks(key, body.view, body.download)) : body.photos;
+      photos.value = body.keys.map((key) => mediaLinks(key));
       loaded.value = true;
     } catch {
       failed.value = true;

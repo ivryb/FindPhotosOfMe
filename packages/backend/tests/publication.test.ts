@@ -40,6 +40,44 @@ test("a gallery needs no address and stays private after photos finish processin
   await expect(stranger.mutation(api.searchRequests.create, { collectionId: id })).rejects.toThrow("private");
 });
 
+test("public media follows the gallery policy and never exposes its stored indexes", async () => {
+  const { t, id, ready, address, publish } = await setup();
+  await ready(); await address(); await publish(true);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/me.jpg` })).toBe(true);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/thumbs/me.jpg` })).toBe(true);
+  for (const key of [`${id}/embeddings.json`, `${id}/faces/index.npz`, `${id}/thumbs/embeddings.json`, "invalid-id/me.jpg"]) {
+    expect(await t.query(api.collections.canReadPhoto, { key })).toBe(false);
+  }
+  await publish(false);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/me.jpg` })).toBe(false);
+});
+
+test("private gallery photos require the owner's identity", async () => {
+  const { t, owner, stranger, id, ready } = await setup();
+  await ready();
+  for (const key of [`${id}/me.jpg`, `${id}/thumbs/me.jpg`]) {
+    expect(await owner.query(api.collections.canReadPhoto, { key })).toBe(true);
+    expect(await t.query(api.collections.canReadPhoto, { key })).toBe(false);
+    expect(await stranger.query(api.collections.canReadPhoto, { key })).toBe(false);
+  }
+});
+
+test("a search opens only its matched photos, and unpublishing closes attendee result URLs", async () => {
+  const { t, owner, id, ready, address, publish } = await setup();
+  await ready(); await address(); await publish(true);
+  await owner.mutation(api.collections.update, { id, subdomain: "my-photos", title: "My private photos", description: "", showAllPhotos: false });
+  const requestId = await t.mutation(api.searchRequests.create, { collectionId: id });
+  await t.mutation(api.searchRequests.updateForService, {
+    id: requestId, serviceToken, status: "complete", imagesFound: [`${id}/me.jpg`],
+  });
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/me.jpg` })).toBe(false);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/me.jpg`, requestId })).toBe(true);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/thumbs/me.jpg`, requestId })).toBe(true);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/someone-else.jpg`, requestId })).toBe(false);
+  await publish(false);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/me.jpg`, requestId })).toBe(false);
+});
+
 test("owners can search privately and only they can read and download their results, even after publication", async () => {
   const { t, owner, stranger, id, ready, address, publish } = await setup();
   await ready();
@@ -48,13 +86,29 @@ test("owners can search privately and only they can read and download their resu
   await t.mutation(api.searchRequests.updateForService, { id: requestId, serviceToken, status: "complete", imagesFound: keys });
   expect(await owner.query(api.searchRequests.get, { id: requestId })).toMatchObject({ status: "complete", requesterId: "owner" });
   expect(await owner.query(api.searchRequests.authorizeImages, { id: requestId, keys })).toBe(true);
+  expect(await owner.query(api.collections.canReadPhoto, { key: keys[0], requestId })).toBe(true);
   await address();
   await publish(true);
   for (const caller of [t, stranger]) {
     expect(await caller.query(api.searchRequests.get, { id: requestId })).toBeNull();
+    expect(await caller.query(api.collections.canReadPhoto, { key: keys[0], requestId })).toBe(false);
     await expect(caller.query(api.searchRequests.authorizeImages, { id: requestId, keys })).rejects.toThrow("Not authorized");
   }
   expect(await owner.query(api.searchRequests.authorizeImages, { id: requestId, keys: [`${id}/someone-else.jpg`] })).toBe(false);
+});
+
+test("preview-only media opens selected previews, with full access retained by the owner", async () => {
+  const { t, owner, id, ready, address, publish } = await setup();
+  await ready(); await address();
+  await t.run((ctx) => ctx.db.patch(id, { previewImages: [`${id}/preview.jpg`] }));
+  await owner.mutation(api.collections.update, { id, subdomain: "my-photos", title: "My private photos", description: "", showAllPhotos: false });
+  await publish(true);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/preview.jpg` })).toBe(true);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/thumbs/preview.jpg` })).toBe(true);
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/hidden.jpg` })).toBe(false);
+  expect(await owner.query(api.collections.canReadPhoto, { key: `${id}/hidden.jpg` })).toBe(true);
+  await t.run((ctx) => ctx.db.patch(id, { expiresAt: 1 }));
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/preview.jpg` })).toBe(false);
 });
 
 test("publishing requires an address and only the owner can publish or unpublish", async () => {

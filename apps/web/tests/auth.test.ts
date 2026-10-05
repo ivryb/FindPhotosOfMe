@@ -84,7 +84,7 @@ test("a gallery's dashboard includes the owner's galleries and balance in initia
   expect(html).not.toContain("test-session");
 });
 
-test("the dashboard sidebar cover loads a signed thumbnail", async () => {
+test("the dashboard sidebar cover loads a stable thumbnail", async () => {
   const page = await fetch(`${origin}/admin/galleries/itarena`, { headers: { cookie: sessionCookie } });
   const html = await page.text();
   const cover = html.match(/src="(\/media\/test-collection\/thumbs\/photo-001.jpg[^"]*)"/);
@@ -157,7 +157,9 @@ test("anonymous result downloads only authorize photos from that search", async 
   expect(photo.full).toContain("test-collection/photo-007.jpg");
   expect(photo.thumb).toContain("test-collection/thumbs/photo-007.jpg");
   const download = await fetch(`${origin}${photo.download}`);
+  expect(download.status).toBe(200);
   expect(download.headers.get("content-disposition")).toContain("attachment");
+  expect((await fetch(`${origin}/media/test-collection/photo-008.jpg?requestId=fixture-search`)).status).toBe(403);
   expect((await authorize(["test-collection/photo-008.jpg"])).status).toBe(403);
 });
 
@@ -195,10 +197,13 @@ test("private search forwards the owner's identity and refuses anonymous callers
 test("private search downloads forward the owner's identity", async () => {
   const authorize = (signedIn: boolean) => fetch(`${origin}/api/r2/authorize`, {
     method: "POST", headers: { "content-type": "application/json", ...(signedIn ? { authorization: `Bearer ${ownerJwt}` } : {}) },
-    body: JSON.stringify({ requestId: "private-search", keys: ["test-collection/photo-007.jpg"] }),
+    body: JSON.stringify({ requestId: "private-search", keys: ["private-collection/photo-007.jpg"] }),
   });
   expect((await authorize(false)).status).toBe(403);
   const response = await authorize(true);
   expect(response.status).toBe(200);
-  expect((await response.json()).photos).toHaveLength(1);
+  const { photos } = await response.json();
+  expect(photos).toHaveLength(1);
+  expect((await fetch(origin + photos[0].download)).status).toBe(403);
+  expect((await fetch(origin + photos[0].download, { headers: { cookie: sessionCookie } })).status).toBe(200);
 });

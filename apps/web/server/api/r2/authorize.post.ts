@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+import { mediaLinks } from "#shared/utils/media";
 
 export default defineEventHandler(async (event) => {
   const convex = new ConvexHttpClient(useRuntimeConfig(event).public.convexUrl);
@@ -17,5 +18,5 @@ export default defineEventHandler(async (event) => {
   });
   // The query returns false for keys outside this search; it does not throw.
   if (!allowed) throw createError({ statusCode: 403, statusMessage: "Photo access denied" });
-  return { photos: await Promise.all(body.keys.map((key) => photoLinks(event, key))) };
+  return { photos: body.keys.map((key) => mediaLinks(key, { requestId: body.requestId })) };
 });

@@ -135,6 +135,14 @@ Google sign-in, uploads, paid checkout, and selfie matching were not repeated on
 The local continuous `convex dev` watcher remains paused because it targets the live deployment;
 this release used an explicit one-shot deployment.
 
+### Pending web and media update (5 October 2026)
+
+Prepared locally, not deployed: the landing-page hamburger menu, HTTP-to-HTTPS redirects for the canonical host and its event subdomains, and stable media URLs checked against gallery publication, owner identity, or search-result access. Media signing and its expiry have been removed. See [gallery publication](docs/gallery-publication.md) for the access and cache behavior.
+
+When deploying this update, deploy the Convex functions first so `collections.canReadPhoto` is available, then publish the Worker. Use the existing Convex deployment and R2 bucket; Modal and service secrets need no changes. Old signed public preview URLs continue to work according to the current public gallery policy; their signature query parameters are no longer used. Previously issued private search URLs must be replaced with the new request-aware URLs.
+
+Local verification passed: 34 web HTTP/unit tests, 36 backend tests, type checks, the production build, and a Worker deployment dry run. Browser checks covered the branded mobile menu and stable gallery thumbnails/full photos. A production-built local Worker with isolated R2 data proved that warmed cache entries and conditional requests are denied after unpublishing, while the owner retains access. The review's private-gallery token rate-limit issue was fixed and covered by a regression test.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:

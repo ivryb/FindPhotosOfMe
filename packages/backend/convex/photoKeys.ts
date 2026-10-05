@@ -16,3 +16,12 @@ export const stagingKey = (collectionId: string, uploadId: string, name: string)
 
 /** A processed photo in its gallery. The upload's tag keeps two uploads' IMG_0001.jpg apart. */
 export const photoKey = (collectionId: string, uploadId: string, name: string) => `${collectionId}/${uploadId.slice(-8)}-${name}`;
+
+/** An original photo directly inside a gallery, excluding indexes and other stored files. */
+export const isGalleryPhoto = (key: string) => /^[^/]+\/[^/]+\.(jpe?g|png|bmp)$/i.test(key);
+
+/** The original photo that a media key shows, including when the key points at its thumbnail. */
+export function originalPhotoKey(key: string) {
+  const original = key.replace(/^([^/]+)\/thumbs\//, "$1/");
+  return isGalleryPhoto(original) ? original : undefined;
+}

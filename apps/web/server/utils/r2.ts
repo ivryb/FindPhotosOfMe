@@ -74,6 +74,7 @@ class R2Service {
     contentType: string;
     contentLength?: number;
     lastModified?: Date;
+    etag?: string;
   }> {
     this.initializeClient();
     const bucket = this.getBucket();
@@ -102,6 +103,7 @@ class R2Service {
           ? response.ContentLength
           : undefined,
       lastModified: response.LastModified,
+      etag: response.ETag,
     };
   }
 
@@ -190,7 +192,7 @@ export function useR2(event: H3Event): R2Service {
 
 /** The production PHOTOS binding on Workers (wrangler.jsonc), faster than R2's S3 API. */
 type Bucket = {
-  get(key: string): Promise<{ body: ReadableStream; size: number; httpMetadata?: { contentType?: string } } | null>;
+  get(key: string): Promise<{ body: ReadableStream; size: number; httpEtag: string; httpMetadata?: { contentType?: string } } | null>;
   list(options: { prefix: string; delimiter: string; cursor?: string }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
 };
 // Nuxt dev also exposes PHOTOS, but it is an empty local emulator bucket. Read the configured R2 service there.
@@ -211,9 +213,9 @@ export async function listFolder(event: H3Event, prefix: string) {
 }
 
 /** A photo to stream, or undefined if the bucket has none under this key. */
-export async function readPhoto(event: H3Event, key: string): Promise<{ stream: ReadableStream; contentType: string; contentLength?: number } | undefined> {
+export async function readPhoto(event: H3Event, key: string): Promise<Awaited<ReturnType<R2Service["getObjectStream"]>> | undefined> {
   const bucket = binding(event);
   if (!bucket) return useR2(event).getObjectStream(key).catch(() => undefined);
   const object = await bucket.get(key);
-  return object ? { stream: object.body, contentType: object.httpMetadata?.contentType ?? "application/octet-stream", contentLength: object.size } : undefined;
+  return object ? { stream: object.body, contentType: object.httpMetadata?.contentType ?? "application/octet-stream", contentLength: object.size, etag: object.httpEtag } : undefined;
 }

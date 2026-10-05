@@ -12,7 +12,7 @@ import {
 } from "./authz";
 import { chargeSearch, returnSearch } from "./balances";
 
-async function canReadRequest(ctx: QueryCtx, request: Doc<"searchRequests">) {
+export async function canReadRequest(ctx: QueryCtx, request: Doc<"searchRequests">) {
   // Unpublishing also closes previously shared search results. Owner searches always stay private.
   if (request.publicAccess) {
     const collection = await ctx.db.get(request.collectionId);

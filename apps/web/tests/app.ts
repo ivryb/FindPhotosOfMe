@@ -14,7 +14,7 @@ export async function startApp(port: number, { canonicalOrigin = "" } = {}) {
   for (let attempt = 0; attempt < 120; attempt++) {
     try {
       const response = await fetch(`${origin}/sign-in`);
-      if (response.ok) return { origin, stop: () => { server.kill(); backend.stop(true); } };
+      if (response.ok) return { origin, backendOrigin: backend.url.origin, stop: () => { server.kill(); backend.stop(true); } };
     } catch {}
     await Bun.sleep(500);
   }

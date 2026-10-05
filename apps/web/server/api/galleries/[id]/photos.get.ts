@@ -2,6 +2,7 @@ import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import type { GalleryPhotos } from "#shared/types/gallery";
 import { ConvexHttpClient } from "convex/browser";
+import { isGalleryPhoto } from "@FindPhotosOfMe/backend/convex/photoKeys";
 
 /**
  * Every photo a public gallery's visitors may browse, in one response, so the page can show any part of the
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event): Promise<GalleryPhotos> => {
   if (!gallery) throw createError({ statusCode: 404, statusMessage: "Gallery not found" });
   setHeader(event, "cache-control", "private, no-store");
 
-  if (!owned && gallery.showAllPhotos === false) return { photos: await Promise.all((gallery.previewImages ?? []).map((key) => photoLinks(event, key))) };
+  if (!owned && gallery.showAllPhotos === false) return { keys: gallery.previewImages ?? [] };
   const keys = await listFolder(event, `${id}/`);
-  return { keys: keys.filter(isGalleryPhoto), ...(await galleryLinks(event, gallery._id)) };
+  return { keys: keys.filter(isGalleryPhoto) };
 });
