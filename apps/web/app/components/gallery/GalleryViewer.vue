@@ -4,11 +4,10 @@ import { DialogClose, DialogContent, DialogOverlay, DialogPortal, DialogRoot, Di
 import type { GalleryPhoto } from "#shared/types/gallery";
 
 // Full-screen photos. It opens on the thumbnail and sharpens as the full photo loads.
-// Arrow keys and swipes move through `photos`; `more` asks for the next page near the end of it.
+// Arrow keys and swipes move through `photos`.
 const open = defineModel<boolean>("open", { required: true });
 const index = defineModel<number>("index", { required: true });
-const props = defineProps<{ photos: GalleryPhoto[]; total: number }>();
-const emit = defineEmits<{ more: [] }>();
+const props = defineProps<{ photos: GalleryPhoto[] }>();
 
 const photo = computed(() => props.photos[index.value]);
 const sharp = ref(false);
@@ -21,7 +20,6 @@ function go(step: number) {
 watch([index, open], () => {
   sharp.value = false;
   if (!open.value) return;
-  if (index.value >= props.photos.length - 5) emit("more");
   // Start the neighbors early so moving through photos feels instant.
   for (const neighbor of [props.photos[index.value + 1], props.photos[index.value - 1]]) {
     if (neighbor) new Image().src = neighbor.full;
@@ -42,7 +40,7 @@ function swipeEnd(event: PointerEvent) {
       <DialogOverlay class="photo-viewer-backdrop" />
       <DialogContent v-if="photo" class="photo-viewer" @keydown.right="go(1)" @keydown.left="go(-1)">
         <div class="photo-viewer-bar">
-          <DialogTitle class="photo-viewer-count">{{ count.format(index + 1) }} of {{ count.format(total) }}</DialogTitle>
+          <DialogTitle class="photo-viewer-count">{{ count.format(index + 1) }} of {{ count.format(photos.length) }}</DialogTitle>
           <div>
             <a class="photo-viewer-button" :href="photo.download" aria-label="Download this photo"><Download /></a>
             <DialogClose class="photo-viewer-button" aria-label="Close"><X /></DialogClose>

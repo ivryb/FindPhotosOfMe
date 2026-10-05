@@ -9,7 +9,6 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
 import type { H3Event } from "h3";
-import type { GalleryPhoto } from "#shared/types/gallery";
 
 class R2Service {
   private client: S3Client | null = null;
@@ -165,27 +164,55 @@ class R2Service {
     return await getSignedUrl(this.client!, command, { expiresIn });
   }
 
-  /**
-   * One page of a gallery's photos in key order, after the photo named `after`.
-   * Thumbnails sit in a subfolder and the face index is skipped, so only photos come back.
-   */
-  async listPhotos(collectionId: string, after: string | undefined, limit: number) {
+  /** Every key directly in a folder, in key order; subfolders are left out. */
+  async listFolder(prefix: string) {
     this.initializeClient();
-    const prefix = `${collectionId}/`;
-    const page = await this.client!.send(new ListObjectsV2Command({
-      Bucket: this.getBucket(),
-      Prefix: prefix,
-      Delimiter: "/",
-      StartAfter: after ? prefix + after : undefined,
-      MaxKeys: limit,
-    }));
-    const keys = (page.Contents ?? []).flatMap(({ Key }) => (Key && Key !== `${prefix}embeddings.json` ? [Key] : []));
-    const last = page.Contents?.at(-1)?.Key;
-    return { keys, next: page.IsTruncated && last ? last.slice(prefix.length) : null };
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+    do {
+      const page = await this.client!.send(new ListObjectsV2Command({
+        Bucket: this.getBucket(),
+        Prefix: prefix,
+        Delimiter: "/",
+        ContinuationToken: continuationToken,
+      }));
+      keys.push(...(page.Contents ?? []).flatMap(({ Key }) => (Key ? [Key] : [])));
+      continuationToken = page.NextContinuationToken;
+    } while (continuationToken);
+    return keys;
   }
 }
 
 // Worker bindings are available during a request, so resolve credentials from its config.
 export function useR2(event: H3Event): R2Service {
   return new R2Service(useRuntimeConfig(event));
+}
+
+/** The PHOTOS binding on Workers (wrangler.jsonc), much faster than R2's S3 API. Development and tests have none. */
+type Bucket = {
+  get(key: string): Promise<{ body: ReadableStream; size: number; httpMetadata?: { contentType?: string } } | null>;
+  list(options: { prefix: string; delimiter: string; cursor?: string }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
+};
+const binding = (event: H3Event): Bucket | undefined => event.context.cloudflare?.env?.PHOTOS;
+
+/** Every key directly in a folder of the bucket, in key order; subfolders are left out. */
+export async function listFolder(event: H3Event, prefix: string) {
+  const bucket = binding(event);
+  if (!bucket) return useR2(event).listFolder(prefix);
+  const keys: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await bucket.list({ prefix, delimiter: "/", cursor });
+    keys.push(...page.objects.map((object) => object.key));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return keys;
+}
+
+/** A photo to stream, or undefined if the bucket has none under this key. */
+export async function readPhoto(event: H3Event, key: string): Promise<{ stream: ReadableStream; contentType: string; contentLength?: number } | undefined> {
+  const bucket = binding(event);
+  if (!bucket) return useR2(event).getObjectStream(key).catch(() => undefined);
+  const object = await bucket.get(key);
+  return object ? { stream: object.body, contentType: object.httpMetadata?.contentType ?? "application/octet-stream", contentLength: object.size } : undefined;
 }

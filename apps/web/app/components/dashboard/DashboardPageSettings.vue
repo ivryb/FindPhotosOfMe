@@ -23,9 +23,9 @@ const form = reactive({
 const { host } = useGalleryAddress();
 
 // The tab stays mounted while hidden, so the preview's photos load only once it's on screen.
-const { photos, loadMore } = useGalleryPhotos(() => props.gallery._id);
+const { photos, load } = useGalleryPhotos(() => props.gallery._id);
 const preview = useTemplateRef("preview");
-whenever(useElementVisibility(preview), loadMore, { once: true });
+whenever(useElementVisibility(preview), load, { once: true });
 const previews = computed(() => photos.value.slice(0, 8));
 
 const { mutate: update } = useConvexMutation(api.collections.update);

@@ -6,6 +6,8 @@ import { useSubdomain } from "@/composables/useSubdomain";
 // A gallery's public page, opened from its own subdomain: every photo, and a selfie search over them.
 const subdomain = useSubdomain();
 if (!subdomain) await navigateTo("/");
+// "/" on a gallery's subdomain is the gallery again, so the logo goes to the main site.
+const home = useRuntimeConfig().public.origin || "/";
 
 const { data: gallery } = await useConvexSSRQuery(api.collections.getPublicBySubdomain, { subdomain: subdomain ?? "" });
 if (!gallery.value) throw createError({ statusCode: 404, statusMessage: "This gallery isn’t online" });
@@ -17,15 +19,14 @@ useSeoMeta({
 });
 useHead({ bodyAttrs: { style: "background: #151515" } });
 
-const { photos, loadMore, loading, done, failed } = useGalleryPhotos(() => current.value._id);
-onMounted(loadMore);
+const { photos, loaded, failed, load } = useGalleryPhotos(() => current.value._id, { preload: true });
+onMounted(load);
 // Galleries that show only previews have just those to browse; search still covers every photo.
 const browsable = computed(() => (current.value.showAllPhotos ? current.value.imagesCount : current.value.previewImages.length));
 
 // One viewer for the gallery and for the photos a search found.
 const viewer = reactive({ open: false, index: 0, found: null as GalleryPhoto[] | null });
 const viewerPhotos = computed(() => viewer.found ?? photos.value);
-const viewerTotal = computed(() => (viewer.found ? viewer.found.length : browsable.value));
 function view(index: number, found: GalleryPhoto[] | null = null) {
   Object.assign(viewer, { open: true, index, found });
 }
@@ -33,7 +34,7 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
 
 <template>
   <div class="gallery-page">
-    <header class="wrap top"><NuxtLink class="logo" to="/">FindPhotosOfMe</NuxtLink></header>
+    <header class="wrap top"><a class="logo" :href="home"><img src="/icon.svg" alt="">FindPhotosOfMe</a></header>
 
     <section class="wrap intro">
       <h1>{{ current.title }}</h1>
@@ -45,11 +46,11 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
     </section>
 
     <main class="wide">
-      <GalleryGrid :photos="photos" :total="browsable" :loading="loading" :failed="failed" :done="done" @more="loadMore" @open="view" />
+      <GalleryGrid :photos="photos" :total="browsable" :loaded="loaded" :failed="failed" @retry="load" @open="view" />
     </main>
 
     <GallerySearch :gallery-id="current._id" :total="current.imagesCount" @view="(found: GalleryPhoto[], index: number) => view(index, found)" />
-    <GalleryViewer v-model:open="viewer.open" v-model:index="viewer.index" :photos="viewerPhotos" :total="viewerTotal" @more="!viewer.found && loadMore()" />
+    <GalleryViewer v-model:open="viewer.open" v-model:index="viewer.index" :photos="viewerPhotos" />
   </div>
 </template>
 
@@ -58,7 +59,8 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
 .gallery-page :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
 .wrap { max-width: 1140px; margin-inline: auto; padding-inline: clamp(20px, 4vw, 40px); }
 .top { display: flex; align-items: center; height: 64px; }
-.logo { font-size: 1rem; font-weight: 900; font-stretch: 118%; letter-spacing: -0.02em; }
+.logo { display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 900; font-stretch: 118%; letter-spacing: -0.02em; }
+.logo img { width: 28px; height: 28px; }
 /* The gallery name gets the full width; the count and description sit under it */
 .intro { padding-block: clamp(16px, 3vw, 36px) clamp(24px, 3vw, 36px); }
 .intro h1 { font-size: clamp(2.4rem, 6.4vw, 5.4rem); }

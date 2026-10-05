@@ -4,7 +4,8 @@ export default defineNuxtConfig({
   ...config,
   srcDir: "../app",
   serverDir: "../server",
-  dir: { shared: "../shared" },
+  // The fixture root is tests/, but the app's logo and other public assets live alongside it.
+  dir: { shared: "../shared", public: "../public" },
   devtools: { enabled: false },
   nitro: { preset: "node-server" },
   convex: { url: process.env.TEST_BACKEND_URL },

@@ -1,33 +1,34 @@
-import type { GalleryPage, GalleryPhoto } from "#shared/types/gallery";
+import type { GalleryPhoto, GalleryPhotos } from "#shared/types/gallery";
+import { mediaLinks } from "#shared/utils/media";
 
 /**
- * A public gallery's photos, fetched a page at a time as the visitor scrolls.
- * `loadMore` can be called as often as the grid likes; it runs one request at a time and stops at the end.
+ * Every photo a gallery's visitors may browse, fetched in one request, so any part of the gallery can show at once.
+ * `load` fetches them once and can be called again after a failure. With `preload`, the page's head starts the
+ * request while the app's scripts are still loading, and `load` picks up its response.
  */
-export function useGalleryPhotos(galleryId: MaybeRefOrGetter<string>) {
-  const photos = shallowRef<GalleryPhoto[]>([]);
-  // undefined before the first page, null after the last
-  const cursor = ref<string | null | undefined>(undefined);
-  const loading = ref(false);
-  const failed = ref(false);
-  const done = computed(() => cursor.value === null);
+export function useGalleryPhotos(galleryId: MaybeRefOrGetter<string>, { preload = false } = {}) {
+  const url = computed(() => `/api/galleries/${toValue(galleryId)}/photos`);
+  if (preload) useHead({ link: [{ rel: "preload", as: "fetch", href: url, crossorigin: "anonymous" }] });
 
-  async function loadMore() {
-    if (loading.value || done.value) return;
-    loading.value = true;
+  const photos = shallowRef<GalleryPhoto[]>([]);
+  const loaded = ref(false);
+  const failed = ref(false);
+  let loading = false;
+
+  async function load() {
+    if (loading || loaded.value) return;
+    loading = true;
     failed.value = false;
     try {
-      const page = await $fetch<GalleryPage>(`/api/galleries/${toValue(galleryId)}/photos`, {
-        query: cursor.value ? { after: cursor.value } : {},
-      });
-      photos.value = [...photos.value, ...page.photos];
-      cursor.value = page.next;
+      const body = await $fetch<GalleryPhotos>(url.value);
+      photos.value = "keys" in body ? body.keys.map((key) => mediaLinks(key, body.view, body.download)) : body.photos;
+      loaded.value = true;
     } catch {
       failed.value = true;
     } finally {
-      loading.value = false;
+      loading = false;
     }
   }
 
-  return { photos, loadMore, loading, done, failed };
+  return { photos, loaded, failed, load };
 }

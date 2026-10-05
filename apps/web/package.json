@@ -21,7 +21,6 @@
     "@smithy/fetch-http-handler": "^5.8.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/vue-table": "^9.2.4",
-    "@tanstack/vue-virtual": "^3.13.39",
     "@vueuse/core": "^15.0.0",
     "@zip.js/zip.js": "^2.18.2",
     "better-auth": "~1.6.33",
