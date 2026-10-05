@@ -158,6 +158,31 @@ matches the release build byte for byte; the home and IT Arena pages return 200.
 IT Arena photo 1,263, which reproduced the reported crop before deployment, now
 fits completely at desktop, mobile portrait, and mobile landscape sizes.
 
+### Session recovery and gallery list alignment (5 October 2026)
+
+Worker version `b14a9de6-de14-4699-b945-25a41f8f5d68` publishes `a068d61` and
+`7753695`. The Your galleries heading now uses the shared dashboard padding.
+Authentication redirects only after a confirmed missing session or a 401 from
+the session check. Temporary session and token failures retain the dashboard,
+show a connection notice, and retry session verification and Convex connection
+every five seconds. Thrown network errors from token requests also enter this
+recovery path. Convex, R2, Modal, session settings, and service secrets are unchanged.
+
+Validation passed: 37 web tests, 36 backend tests, workspace type checks, the
+production build, Wrangler dry run, and implementation review. The new network
+regression test fails against the previous token fetcher and passes with the fix.
+Browser fixtures verified homepage → Try during an initial session-check 503,
+automatic recovery with the same login, scheduled token renewal during sustained
+503 responses, and live updates after reconnecting. Confirmed expired sessions
+and explicit sign-out still redirect and remove private dashboard content.
+
+Production home and sign-in return 200; anonymous session checks return 200 with
+no session, the token and dashboard APIs return 401, and the dashboard redirects
+to sign-in. The deployed auth JS and dashboard CSS match the release build byte
+for byte, and the signed-out homepage → Try flow works in the browser. Signed-in
+recovery was verified with isolated fixtures. Complete Google sign-in and
+signed-in recovery were not repeated against production for this release.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
