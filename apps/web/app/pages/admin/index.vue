@@ -22,7 +22,7 @@ useSeoMeta({ title: "Your galleries · FindPhotosOfMe" });
 </template>
 
 <style scoped>
-.empty { display: grid; justify-items: start; gap: 18px; max-width: 34rem; padding-block: clamp(24px, 8vh, 80px); }
+.empty { display: grid; justify-items: start; gap: 18px; max-width: 34rem; }
 h1 { font-size: clamp(2.2rem, 4.6vw, 3.6rem); }
 p { color: var(--muted-foreground); font-size: 1.1rem; }
 </style>
