@@ -183,6 +183,30 @@ for byte, and the signed-out homepage → Try flow works in the browser. Signed-
 recovery was verified with isolated fixtures. Complete Google sign-in and
 signed-in recovery were not repeated against production for this release.
 
+### Link preview images (6 October 2026)
+
+Worker version `d1606642-2506-46c8-bd83-284acae6f1bd` publishes `1c0e2bf`. Every
+page sets `og:image`, its size, `og:title` from the page title, and a large
+Twitter card. Site pages share `/og.png`. Public galleries with previews point to
+`/og/<subdomain>`, a 1200×630 JPEG drawn by Takumi's WebAssembly build from the
+gallery's name, photo count, and first five preview thumbnails, and cached at the
+edge under a key built from what it shows. The Worker grows from 536 KiB to
+2.36 MiB gzipped (the WebAssembly module is 1.63 MiB) and starts in 19 ms. Convex,
+R2, Modal, and secrets are unchanged.
+
+Validation passed: 37 web tests, the web type check, the production build, and
+the Wrangler dry run. Under local workerd the route rendered IT Arena from the R2
+binding and later requests hit the edge cache. Short, one-letter, long, very long,
+single-word, Cyrillic, and emoji titles rendered in 40–60 ms each once warm.
+
+Production serves `/og.png` and IT Arena's `/og/itarena` (byte-identical to the
+local render); unknown galleries return 404 and public thumbnails still load.
+Root, audience, and gallery pages carry the expected tags. A few requests during
+rollout returned 404 from the previous version. Cached gallery images take about
+as long as the Convex availability check (0.35–1 s from Singapore). Each new
+render needs more than the free plan's 10 ms of CPU; the Workers plan was not
+confirmed.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
