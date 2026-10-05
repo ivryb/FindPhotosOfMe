@@ -188,12 +188,13 @@ export function useR2(event: H3Event): R2Service {
   return new R2Service(useRuntimeConfig(event));
 }
 
-/** The PHOTOS binding on Workers (wrangler.jsonc), much faster than R2's S3 API. Development and tests have none. */
+/** The production PHOTOS binding on Workers (wrangler.jsonc), faster than R2's S3 API. */
 type Bucket = {
   get(key: string): Promise<{ body: ReadableStream; size: number; httpMetadata?: { contentType?: string } } | null>;
   list(options: { prefix: string; delimiter: string; cursor?: string }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
 };
-const binding = (event: H3Event): Bucket | undefined => event.context.cloudflare?.env?.PHOTOS;
+// Nuxt dev also exposes PHOTOS, but it is an empty local emulator bucket. Read the configured R2 service there.
+const binding = (event: H3Event): Bucket | undefined => import.meta.dev ? undefined : event.context.cloudflare?.env?.PHOTOS;
 
 /** Every key directly in a folder of the bucket, in key order; subfolders are left out. */
 export async function listFolder(event: H3Event, prefix: string) {

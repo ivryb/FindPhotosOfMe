@@ -3,13 +3,14 @@ import { Plus } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
 // The mobile front door is the gallery list in DashboardShell; desktop keeps that list beside this prompt.
-const { galleries, creating } = useDashboard();
+const { galleries, creating, failed } = useDashboard();
 
 useSeoMeta({ title: "Your galleries · FindPhotosOfMe" });
 </script>
 
 <template>
-  <section v-if="galleries.length" class="empty">
+  <p v-if="failed" role="alert">Could not load your galleries. Please reload the page.</p>
+  <section v-else-if="galleries.length" class="empty">
     <h1>Your galleries</h1>
     <p>Choose a gallery to manage its photos and page.</p>
   </section>

@@ -14,7 +14,7 @@ const DASHBOARD: InjectionKey<Dashboard> = Symbol("dashboard");
 /**
  * Loads the owner's galleries and balance, rendered on the server from the session cookie and kept live afterwards,
  * and shares them with every dashboard page. Called once by pages/admin.vue, so moving between pages keeps the live data.
- * Anonymous visitors are sent to sign in before anything private renders.
+ * Both SSR and client navigation wait for a complete dashboard; anonymous visitors go to sign-in first.
  */
 export async function provideDashboard() {
   // Nuxt and Vue composables only work before the first await, so everything is set up before waiting for the data.
@@ -23,16 +23,19 @@ export async function provideDashboard() {
   const responseCookies = import.meta.server ? useResponseHeader("set-cookie") : undefined;
   const request = useFetch<Loaded>("/api/admin/dashboard", {
     key: "dashboard",
+    // Keep the live snapshot when leaving and returning to the dashboard. Explicit refreshes still fetch.
+    getCachedData: (key, app, context) => context.cause === "initial" ? app.payload.data[key] : undefined,
     onResponse({ response }) {
       const cookies = response.headers.getSetCookie();
       if (responseCookies && cookies.length) responseCookies.value = cookies;
     },
   });
   provide(DASHBOARD, liveDashboard(request.data));
+  watch(request.data, (value) => { nuxtApp.payload.data.dashboard = value; });
 
   const { error } = await request;
   if (error.value?.statusCode === 401) {
-    await nuxtApp.runWithContext(() => navigateTo({ path: "/sign-in", query: { redirect: route.fullPath } }));
+    await nuxtApp.runWithContext(() => navigateTo({ path: "/sign-in", query: { redirect: route.fullPath } }, { replace: true }));
   } else if (error.value) {
     throw createError({ statusCode: error.value.statusCode, statusMessage: "Could not load your galleries" });
   }
@@ -46,6 +49,11 @@ export function useDashboard() {
 function liveDashboard(loaded: Ref<Loaded | undefined>) {
   const galleries = useLiveQuery(api.collections.getAll, {}, computed(() => loaded.value?.galleries));
   const balance = useLiveQuery(api.balances.mine, {}, computed(() => loaded.value?.balance));
+  watch([galleries.data, balance.data], ([nextGalleries, nextBalance]) => {
+    if (loaded.value && nextGalleries && nextBalance && (nextGalleries !== loaded.value.galleries || nextBalance !== loaded.value.balance)) {
+      loaded.value = { ...loaded.value, galleries: nextGalleries, balance: nextBalance };
+    }
+  });
   return {
     galleries: computed(() => galleries.data.value ?? []),
     credit: computed(() => balance.data.value?.credit ?? 0),

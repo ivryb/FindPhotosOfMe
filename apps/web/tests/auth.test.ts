@@ -84,6 +84,17 @@ test("a gallery's dashboard includes the owner's galleries and balance in initia
   expect(html).not.toContain("test-session");
 });
 
+test("the dashboard sidebar cover loads a signed thumbnail", async () => {
+  const page = await fetch(`${origin}/admin/galleries/itarena`, { headers: { cookie: sessionCookie } });
+  const html = await page.text();
+  const cover = html.match(/src="(\/media\/test-collection\/thumbs\/photo-001.jpg[^"]*)"/);
+  expect(cover).not.toBeNull();
+  const image = await fetch(origin + cover![1]!.replaceAll("&amp;", "&"));
+  expect(image.status).toBe(200);
+  expect(image.headers.get("content-type")).toContain("image/jpeg");
+  expect((await image.arrayBuffer()).byteLength).toBeGreaterThan(0);
+});
+
 test("expired sessions redirect, and galleries the owner doesn't have are not found", async () => {
   const expired = await fetch(`${origin}/admin`, {
     redirect: "manual", headers: { cookie: "__Secure-better-auth.session_token=expired" },

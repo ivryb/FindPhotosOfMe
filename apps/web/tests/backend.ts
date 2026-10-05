@@ -55,7 +55,7 @@ export function startBackend(port = 0) {
   const collection = () => ({
     _id: galleryId, _creationTime: 1700000000000, ...(subdomain ? { subdomain } : {}),
     title, description, imagesCount, published, showAllPhotos,
-    status: "complete", previewImages: [], createdBy: "owner",
+    status: "complete", previewImages: ["test-collection/photo-001.jpg"], createdBy: "owner",
   });
   const publicView = (id: string) => id === galleryId
     ? published ? { ...publicGallery("test-collection"), ...collection() } : null
