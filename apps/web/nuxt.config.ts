@@ -75,7 +75,8 @@ export default {
     port: 3001,
   },
   convex: {
-    url: process.env.NUXT_PUBLIC_CONVEX_URL,
+    // Keep the key when building without .env so Worker runtime bindings can fill it.
+    url: process.env.NUXT_PUBLIC_CONVEX_URL ?? "",
   },
   runtimeConfig: {
     serviceToken: "",
