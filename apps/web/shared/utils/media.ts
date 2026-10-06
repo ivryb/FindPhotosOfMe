@@ -1,8 +1,9 @@
 import type { GalleryPhoto } from "#shared/types/gallery";
 
 /** A photo's stable links through /media. Search results carry their request so its access can be checked. */
-export function mediaLinks(key: string, { requestId }: { requestId?: string } = {}): GalleryPhoto {
+export function mediaLinks(key: string, { requestId, shareToken }: { requestId?: string; shareToken?: string } = {}): GalleryPhoto {
   const query = new URLSearchParams(requestId ? { requestId } : {});
+  if (shareToken) query.set("shareToken", shareToken);
   const view = query.toString();
   query.set("download", "1");
   return {

@@ -42,3 +42,12 @@ export function requireActiveCollection(collection: Doc<"collections">) {
     throw new ConvexError("This gallery is offline.");
   }
 }
+
+/** A secret link is a capability, checked at every guest entry point, including media. */
+export function canAccessGallery(collection: Doc<"collections"> | null, shareToken?: string) {
+  if (!collection || collection.published === false) return false;
+  try { requireActiveCollection(collection); } catch { return false; }
+  return collection.sharing === "link"
+    ? Boolean(collection.shareToken && shareToken === collection.shareToken)
+    : Boolean(collection.subdomain);
+}

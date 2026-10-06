@@ -26,6 +26,7 @@ test("a ZIP's photos get safe names that are unique and the same each time it's 
   const first = await read();
   expect(first.photos.map((photo) => photo.name)).toEqual(["IMG_1.jpg", "IMG_1-1.jpg", "F_te_1.png"]);
   expect(await (await first.photos[1]!.read()).text()).toBe("b");
+  for (const photo of first.photos) expect(photo.size).toBe((await photo.read()).size);
   expect((await read()).photos.map((photo) => photo.name)).toEqual(first.photos.map((photo) => photo.name));
   expect(first).toMatchObject({ name: "Day 1.zip", size: day.size, tooLarge: 0 });
 });
@@ -38,6 +39,7 @@ test("photos chosen alongside ZIPs are one more upload, and other files are left
     new File(["z"], "clip.mov"),
   ]);
   expect(sources.map((source) => [source.name, source.photos.length])).toEqual([["day.zip", 1], ["2 photos", 2]]);
+  for (const source of sources) for (const photo of source.photos) expect(photo.size).toBe((await photo.read()).size);
 });
 
 test("photos chosen together keep the same order however they were picked", async () => {

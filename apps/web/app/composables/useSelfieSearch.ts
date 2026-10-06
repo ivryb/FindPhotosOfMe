@@ -18,7 +18,7 @@ export type SelfieSearch =
   | { kind: "paused"; message: string };
 
 /** Runs selfie searches against one gallery. The search finishes before `/api/search` answers. */
-export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>, { owner = false } = {}) {
+export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>, { owner = false, shareToken }: { owner?: boolean; shareToken?: string } = {}) {
   const convex = useConvexClient();
   const state = shallowRef<SelfieSearch>({ kind: "idle" });
 
@@ -38,6 +38,7 @@ export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>, 
     const body = new FormData();
     body.append("collection_id", toValue(galleryId));
     body.append("reference_photo", file);
+    if (shareToken) body.append("share_token", shareToken);
     try {
       const headers = owner ? { Authorization: `Bearer ${await getConvexAuthToken()}` } : undefined;
       // Nitro's inferred response type turns the ID into a plain object type, so the type is named here.

@@ -1,3 +1,4 @@
+import type { FunctionArgs } from "convex/server";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { BATCH_PHOTOS, photoType } from "@FindPhotosOfMe/backend/convex/photoKeys";
@@ -15,7 +16,7 @@ const PARALLEL = 4;
  * while the rest are still uploading. ZIPs are unpacked here, one photo at a time. Adding the same files again
  * continues an upload that stopped.
  */
-export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>) {
+export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>, guest?: MaybeRefOrGetter<FunctionArgs<typeof api.uploads.start>["access"]>) {
   const convex = useConvexClient();
   const sending = ref<Sending[]>([]);
   // Closing the tab stops the upload, so the browser asks first.
@@ -46,22 +47,24 @@ export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>) {
 
   async function send(source: Source, entry: Sending) {
     const collectionId = toValue(galleryId);
+    const access = toValue(guest);
     try {
-      const { uploadId, sent } = await convex.mutation(api.uploads.start, { collectionId, name: source.name, size: source.size, photos: source.photos.length });
+      const { uploadId, sent } = await convex.mutation(api.uploads.start, { collectionId, name: source.name, size: source.size, photos: source.photos.length, access });
       Object.assign(entry, { uploadId, sent });
       for (let first = sent; first < source.photos.length; first += BATCH_PHOTOS) {
         const batch = source.photos.slice(first, first + BATCH_PHOTOS);
-        const names = batch.map((photo) => photo.name);
-        const { urls } = await $fetch("/api/uploads/presign", {
+        const photos = batch.map(({ name, size }) => ({ name, size }));
+        const headers = access ? undefined : { Authorization: `Bearer ${await getConvexAuthToken()}` };
+        const { batchId, urls } = await $fetch("/api/uploads/presign", {
           method: "POST",
-          body: { collectionId, uploadId, names },
-          headers: { Authorization: `Bearer ${await getConvexAuthToken()}` },
+          body: { uploadId, first, photos, access },
+          headers,
         });
         await inParallel(batch, async (photo, index) => {
           await put(urls[index]!, await photo.read(), photoType(photo.name));
           entry.sent++;
         });
-        await convex.mutation(api.uploads.addBatch, { uploadId, first, names });
+        await $fetch("/api/uploads/complete", { method: "POST", body: { batchId, access }, headers });
       }
       sending.value = sending.value.filter((item) => item !== entry);
     } catch (cause) {

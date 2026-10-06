@@ -2,17 +2,17 @@ import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
-import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { requireActiveCollection, requireCollectionOwner, requireServiceToken } from "./authz";
-import { charge, requireCredit, returnPhotos } from "./balances";
-import { BATCH_PHOTOS, PHOTO_NAME, photoKey, stagingKey } from "./photoKeys";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { canAccessGallery, requireActiveCollection, requireCollectionOwner, requireServiceToken } from "./authz";
+import { charge, releasePhotos, requireCredit, reservePhotos, returnPhotos, returnPhotosNow } from "./balances";
+import { BATCH_PHOTOS, MAX_PHOTO_BYTES, PHOTO_NAME, STAGING_URL_LIFETIME_MS, photoKey, stagingKey } from "./photoKeys";
 import { PRICES, formatMoney } from "./pricing";
 import { batchStatus, uploadFields } from "./schema";
 
-// The upload queue. The browser sends photos to R2 and registers them here 50 at a time; each batch is charged
-// as it arrives and handed to a processing worker. Workers find faces, keep the photos that have them, and
-// write the batch's faces to their own file; merges then fold those files into the gallery's face index.
+// The upload queue. Each batch reserves credit before storage URLs are issued and is charged only after the server
+// verifies its files arrived. Crowdsourced galleries keep all valid photos; others keep faces.
+// Workers write each batch’s faces to its own file; merges fold those files into the gallery’s face index.
 // recover runs every few minutes (crons.ts) and retries whatever a lost worker or request left behind.
 
 /** Batches processed at once across all galleries. Matches max_containers of process_batch in python/modal_app.py. */
@@ -26,74 +26,190 @@ export const STALLED_AFTER = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 /** Finished batches worth merging while more of the gallery is still processing. */
 const MERGE_EVERY = 20;
+// URLs must be unusable before cleanup gives their credit back, including small clock differences.
+export const STAGING_CLEANUP_GRACE = 60 * 1000;
+export const stagingPhoto = v.object({ name: v.string(), size: v.number() });
+
+// Each guest browser or Telegram chat owns its uploads, independently of other link holders.
+export const guestAccess = v.object({ shareToken: v.optional(v.string()), contributorKey: v.string() });
+type GuestAccess = typeof guestAccess.type;
+
+async function requireUploadCollection(ctx: QueryCtx, collectionId: Id<"collections">, access?: GuestAccess) {
+  if (!access) {
+    const { collection } = await requireCollectionOwner(ctx, collectionId);
+    requireActiveCollection(collection);
+    return collection;
+  }
+  const collection = await ctx.db.get(collectionId);
+  if (!collection || !canAccessGallery(collection, access.shareToken)) throw new ConvexError("This gallery is private or offline.");
+  if (!collection.crowdsource) throw new ConvexError("Guest uploads are turned off.");
+  if (!/^[a-f0-9]{32}$/.test(access.contributorKey)) throw new Error("Invalid contributor key");
+  return collection;
+}
+
+async function requireUpload(ctx: QueryCtx, uploadId: Id<"uploads">, access?: GuestAccess) {
+  const upload = await ctx.db.get(uploadId);
+  if (!upload) throw new Error("Upload not found");
+  const collection = await requireUploadCollection(ctx, upload.collectionId, access);
+  if (access && upload.contributorKey !== access.contributorKey) throw new Error("Not authorized");
+  return { upload, collection };
+}
 
 /** Starts an upload, or continues an interrupted one with the same name and size. */
 export const start = mutation({
-  args: { collectionId: v.id("collections"), name: v.string(), size: v.number(), photos: v.number() },
+  args: { collectionId: v.id("collections"), name: v.string(), size: v.number(), photos: v.number(), access: v.optional(guestAccess) },
   returns: v.object({ uploadId: v.id("uploads"), sent: v.number() }),
-  handler: async (ctx, { collectionId, name, size, photos }) => {
-    const { collection } = await requireCollectionOwner(ctx, collectionId);
-    requireActiveCollection(collection);
+  handler: async (ctx, { collectionId, name, size, photos, access }) => {
+    const collection = await requireUploadCollection(ctx, collectionId, access);
     if (!Number.isInteger(photos) || photos < 1) throw new ConvexError(`${name} has no JPEG or PNG photos.`);
-    const uploads = await ctx.db.query("uploads").withIndex("by_collection", (q) => q.eq("collectionId", collectionId)).collect();
+    const uploads = await ctx.db.query("uploads").withIndex("by_contributor", (q) => q.eq("collectionId", collectionId).eq("contributorKey", access?.contributorKey)).collect();
     const interrupted = uploads.find((upload) => upload.name === name && upload.size === size && upload.photos === photos && upload.sent < photos);
     if (interrupted) return { uploadId: interrupted._id, sent: interrupted.sent };
 
     if (collection.createdBy) {
       const cost = photos * PRICES.photo;
       await requireCredit(ctx, collection.createdBy, cost, (credit) =>
-        `${name} has ${photos.toLocaleString("en-US")} photos (${formatMoney(cost)}), but your balance is ${formatMoney(credit)}. Top up, then add it again.`);
+        access ? "Uploads are paused because the gallery owner’s balance cannot cover these photos. Ask the owner to top up." : `${name} has ${photos.toLocaleString("en-US")} photos (${formatMoney(cost)}), but your balance is ${formatMoney(credit)}. Top up, then add it again.`);
     }
-    const uploadId = await ctx.db.insert("uploads", { collectionId, name, size, photos, sent: 0, processed: 0, saved: 0, failed: 0 });
+    const uploadId = await ctx.db.insert("uploads", { collectionId, name, size, photos, contributorKey: access?.contributorKey, sent: 0, processed: 0, saved: 0, failed: 0 });
     return { uploadId, sent: 0 };
   },
 });
 
-/** Registers photos the browser has put in R2, charges them, and queues them. `first` is the first photo's place in the upload. */
-export const addBatch = mutation({
-  args: { uploadId: v.id("uploads"), first: v.number(), names: v.array(v.string()) },
-  returns: v.null(),
-  handler: async (ctx, { uploadId, first, names }) => {
-    const upload = await ctx.db.get(uploadId);
-    if (!upload) throw new Error("Upload not found");
-    const { collection } = await requireCollectionOwner(ctx, upload.collectionId);
-    // A batch sent again after a lost response is already here.
-    if (first < upload.sent) return null;
-    if (first > upload.sent || !names.length || names.length > BATCH_PHOTOS || first + names.length > upload.photos
-      || !names.every((name) => PHOTO_NAME.test(name))) {
+/** Holds credit for exact storage paths and sizes. Repeating a request reuses its hold and original URL deadline. */
+export const prepareBatch = mutation({
+  args: { uploadId: v.id("uploads"), first: v.number(), photos: v.array(stagingPhoto), access: v.optional(guestAccess) },
+  returns: v.object({ batchId: v.id("uploadBatches"), collectionId: v.id("collections"), expiresAt: v.number() }),
+  handler: async (ctx, { uploadId, first, photos, access }) => {
+    const { upload, collection } = await requireUpload(ctx, uploadId, access);
+    const names = photos.map((photo) => photo.name);
+    if (!Number.isInteger(first) || first < 0 || first !== upload.sent || !photos.length || photos.length > BATCH_PHOTOS || first + photos.length > upload.photos
+      || new Set(names).size !== names.length || !photos.every(({ name, size }) => PHOTO_NAME.test(name) && Number.isInteger(size) && size >= 0 && size <= MAX_PHOTO_BYTES)) {
       throw new Error("Invalid batch");
     }
-    requireActiveCollection(collection);
-
-    const batchId = await ctx.db.insert("uploadBatches", { collectionId: collection._id, uploadId, names, status: "pending", attempts: 0 });
-    if (collection.createdBy) {
-      await charge(ctx, { userId: collection.createdBy, reason: "photos", collectionId: collection._id, sourceId: batchId },
-        names.length * PRICES.photo,
-        (credit) => `Your balance ran out (${formatMoney(credit)} left). Top up, then add ${upload.name} again to continue.`);
+    const batches = await ctx.db.query("uploadBatches").withIndex("by_upload", (q) => q.eq("uploadId", uploadId)).collect();
+    const waiting = batches.find((batch) => batch.status === "staging");
+    if (waiting?.staging) {
+      const { first: waitingFirst, sizes, expiresAt } = waiting.staging;
+      if (expiresAt <= Date.now()) throw new ConvexError("These upload links expired. Wait a moment, then add the photos again.");
+      if (waitingFirst !== first || waiting.names.length !== photos.length ||
+        photos.some((photo, index) => photo.name !== waiting.names[index] || photo.size !== sizes[index])) {
+        throw new ConvexError("This upload already has different photos waiting. Add the original files again to continue.");
+      }
+      return { batchId: waiting._id, collectionId: collection._id, expiresAt };
     }
-    await ctx.db.patch(uploadId, { sent: first + names.length });
+    if (batches.some((batch) => batch.names.some((name) => names.includes(name)))) throw new Error("Photos already submitted");
+    if (collection.createdBy) {
+      await reservePhotos(ctx, collection.createdBy, photos.length,
+        (credit) => access ? "Uploads are paused because the gallery owner’s balance has run out. Ask the owner to top up." : `Your balance ran out (${formatMoney(credit)} left). Top up, then add ${upload.name} again to continue.`);
+    }
+    const expiresAt = Date.now() + STAGING_URL_LIFETIME_MS;
+    const batchId = await ctx.db.insert("uploadBatches", {
+      collectionId: collection._id, uploadId, names,
+      staging: { first, sizes: photos.map((photo) => photo.size), expiresAt, reservedBy: collection.createdBy },
+      keepAllPhotos: collection.crowdsource ?? false, status: "staging", attempts: 0,
+    });
+    return { batchId, collectionId: collection._id, expiresAt };
+  },
+});
+
+/** The server checks these immutable files in R2; the browser cannot substitute filenames when finishing. */
+export const getStagingBatch = query({
+  args: { id: v.id("uploadBatches"), access: v.optional(guestAccess) },
+  returns: v.object({
+    batchId: v.id("uploadBatches"), collectionId: v.id("collections"), uploadId: v.id("uploads"),
+    names: v.array(v.string()), sizes: v.array(v.number()), expiresAt: v.number(), status: batchStatus,
+  }),
+  handler: async (ctx, { id, access }) => {
+    const batch = await ctx.db.get(id);
+    if (!batch?.staging) throw new ConvexError("Upload batch not found.");
+    await requireUpload(ctx, batch.uploadId, access);
+    return {
+      batchId: id, collectionId: batch.collectionId, uploadId: batch.uploadId, names: batch.names,
+      sizes: batch.staging.sizes, expiresAt: batch.staging.expiresAt, status: batch.status,
+    };
+  },
+});
+
+/** Only a trusted server that verified the R2 writes may spend the hold and hand the batch to processing. */
+export const commitBatchForService = mutation({
+  args: { id: v.id("uploadBatches"), serviceToken: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { id, serviceToken }) => {
+    requireServiceToken(serviceToken);
+    const batch = await ctx.db.get(id);
+    if (!batch?.staging) throw new ConvexError("Upload batch not found.");
+    if (batch.status !== "staging") return null;
+    if (batch.staging.expiresAt <= Date.now()) throw new ConvexError("These upload links expired. Wait a moment, then add the photos again.");
+    const upload = await ctx.db.get(batch.uploadId);
+    const collection = await ctx.db.get(batch.collectionId);
+    if (!upload || !collection) throw new ConvexError("Upload not found.");
+    requireActiveCollection(collection);
+    if (upload.contributorKey && (!collection.crowdsource || !canAccessGallery(collection, collection.shareToken))) {
+      throw new ConvexError("Guest uploads are turned off or this gallery is offline.");
+    }
+    if (batch.staging.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batch.names.length);
+    if (collection.createdBy) {
+      await charge(ctx, { userId: collection.createdBy, reason: "photos", collectionId: collection._id, sourceId: id },
+        batch.names.length * PRICES.photo, () => "Uploads are paused because the gallery owner’s balance has run out.");
+    }
+    await ctx.db.patch(id, { status: "pending" });
+    await ctx.db.patch(upload._id, { sent: batch.staging.first + batch.names.length });
     if (collection.status !== "processing") await ctx.db.patch(collection._id, { status: "processing" });
     await ctx.scheduler.runAfter(0, internal.uploads.dispatch, {});
     return null;
   },
 });
 
-export const list = query({
-  args: { collectionId: v.id("collections") },
-  returns: v.array(v.object({ _id: v.id("uploads"), _creationTime: v.number(), ...uploadFields })),
-  handler: async (ctx, { collectionId }) => {
-    await requireCollectionOwner(ctx, collectionId);
-    return ctx.db.query("uploads").withIndex("by_collection", (q) => q.eq("collectionId", collectionId)).order("desc").collect();
+/** Expired URLs get a clock margin before deleting storage; released holds must never leave usable URLs behind. */
+export const expiredStagingBatch = internalQuery({
+  args: { id: v.id("uploadBatches") },
+  returns: v.union(v.null(), v.object({ collectionId: v.id("collections"), names: v.array(v.string()) })),
+  handler: async (ctx, { id }) => {
+    const batch = await ctx.db.get(id);
+    return batch && (batch.status === "staging" || batch.refundPending) && batch.staging && batch.staging.expiresAt + STAGING_CLEANUP_GRACE <= Date.now()
+      ? { collectionId: batch.collectionId, names: batch.names } : null;
   },
 });
 
-/** A batch's photos for its worker: each one's name, where it was uploaded, and where it goes if it has faces. */
+/** Storage cleanup calls this only after deletion succeeded. Repeated cleanup cannot release the same hold twice. */
+export const releaseExpiredBatch = internalMutation({
+  args: { id: v.id("uploadBatches") },
+  returns: v.null(),
+  handler: async (ctx, { id }) => {
+    const batch = await ctx.db.get(id);
+    if (!batch?.staging || batch.staging.expiresAt + STAGING_CLEANUP_GRACE > Date.now()) return null;
+    if (batch.status === "staging") {
+      if (batch.staging.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batch.names.length);
+      await ctx.db.delete(id);
+    } else if (batch.refundPending) {
+      await returnPhotosNow(ctx, batch, batch.refundPending);
+      await ctx.db.patch(id, { refundPending: undefined });
+    }
+    return null;
+  },
+});
+
+export const list = query({
+  args: { collectionId: v.id("collections"), access: v.optional(guestAccess) },
+  returns: v.array(v.object({ _id: v.id("uploads"), _creationTime: v.number(), ...uploadFields })),
+  handler: async (ctx, { collectionId, access }) => {
+    if (access) await requireUploadCollection(ctx, collectionId, access);
+    else await requireCollectionOwner(ctx, collectionId);
+    return access
+      ? ctx.db.query("uploads").withIndex("by_contributor", (q) => q.eq("collectionId", collectionId).eq("contributorKey", access.contributorKey)).order("desc").collect()
+      : ctx.db.query("uploads").withIndex("by_collection", (q) => q.eq("collectionId", collectionId)).order("desc").collect();
+  },
+});
+
+/** A batch's photos for its worker: each one's name, where it was uploaded, and where it goes in the gallery. */
 export const getBatchForService = query({
   args: { id: v.id("uploadBatches"), serviceToken: v.string() },
   returns: v.union(v.null(), v.object({
     collectionId: v.id("collections"),
     status: batchStatus,
     attempt: v.number(),
+    keepAllPhotos: v.boolean(),
     photos: v.array(v.object({ name: v.string(), source: v.string(), key: v.string() })),
   })),
   handler: async (ctx, { id, serviceToken }) => {
@@ -105,7 +221,8 @@ export const getBatchForService = query({
       collectionId,
       status: batch.status,
       attempt: batch.attempts,
-      photos: batch.names.map((name) => ({ name, source: stagingKey(collectionId, uploadId, name), key: photoKey(collectionId, uploadId, name) })),
+      keepAllPhotos: batch.keepAllPhotos ?? false,
+      photos: batch.names.map((name) => ({ name, source: stagingKey(collectionId, batch.staging ? batch._id : uploadId, name), key: photoKey(collectionId, uploadId, name) })),
     };
   },
 });
@@ -271,6 +388,15 @@ export const recover = internalMutation({
   returns: v.null(),
   handler: async (ctx) => {
     const cutoff = Date.now() - STALLED_AFTER;
+    const cleanup = [
+      ...await batchesWith(ctx, "staging").collect(),
+      ...await ctx.db.query("uploadBatches").withIndex("by_refund_pending", (q) => q.gt("refundPending", 0)).collect(),
+    ];
+    for (const batch of cleanup) {
+      if (batch.staging && batch.staging.expiresAt + STAGING_CLEANUP_GRACE <= Date.now()) {
+        await ctx.scheduler.runAfter(0, internal.stagingStorage.cleanup, { id: batch._id });
+      }
+    }
     for (const batch of await batchesWith(ctx, "running").collect()) {
       if ((batch.startedAt ?? 0) < cutoff) await retryOrGiveUp(ctx, batch);
     }

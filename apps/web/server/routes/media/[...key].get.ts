@@ -6,11 +6,13 @@ import { ConvexHttpClient } from "convex/browser";
 export default defineEventHandler(async (event) => {
   setResponseHeader(event, "cache-control", "private, no-store");
   const key = getRouterParam(event, "key", { decode: true }) ?? "";
-  const { download, requestId } = getQuery(event);
+  const { download, requestId, shareToken } = getQuery(event);
   if (requestId !== undefined && typeof requestId !== "string") {
     throw createError({ statusCode: 400, statusMessage: "Invalid search request" });
   }
-  const args = { key, requestId };
+  if (shareToken !== undefined && typeof shareToken !== "string") throw createError({ statusCode: 400, statusMessage: "Invalid gallery link" });
+  setResponseHeader(event, "x-robots-tag", "noindex, nofollow, noarchive");
+  const args = { key, requestId, shareToken };
   const convex = new ConvexHttpClient(useRuntimeConfig(event).public.convexUrl);
   let allowed = await convex.query(api.collections.canReadPhoto, args);
   const bearer = getHeader(event, "authorization")?.startsWith("Bearer ");

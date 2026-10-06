@@ -18,7 +18,10 @@ const form = reactive({
   subdomain: props.gallery.subdomain ?? "",
   description: props.gallery.description,
   showAllPhotos: props.gallery.showAllPhotos ?? true,
+  sharing: props.gallery.sharing ?? "subdomain",
+  crowdsource: props.gallery.crowdsource ?? false,
 });
+watch(() => form.crowdsource, (enabled) => { if (enabled) form.showAllPhotos = true; });
 const { host } = useGalleryAddress();
 
 // The tab stays mounted while hidden, so the preview's photos load only once it's on screen.
@@ -71,7 +74,7 @@ async function publish(value: boolean) {
         <Switch id="page-publish" :model-value="published" :disabled="publishing || saving" class="mt-0.5" @update:model-value="publish" />
         <div class="grid gap-1">
           <Label for="page-publish">Publish this gallery</Label>
-          <p class="text-sm text-muted-foreground">{{ published ? "Anyone with the link can see this gallery and search for their photos." : "Only you can see and search this gallery. Save a page address below when you’re ready to share it." }}</p>
+          <p class="text-sm text-muted-foreground">{{ published ? "Anyone with the link can see this gallery and search for their photos." : "Only you can see and search this gallery. Publish when you’re ready to share it." }}</p>
           <p v-if="publishError" class="text-sm text-destructive" role="alert">{{ publishError }}</p>
         </div>
       </div>
@@ -82,7 +85,13 @@ async function publish(value: boolean) {
           <Label for="page-name">Name</Label>
           <Input id="page-name" v-model="form.title" required />
         </div>
-        <div class="grid gap-2">
+        <fieldset class="grid gap-3">
+          <legend class="mb-2 font-semibold">Sharing</legend>
+          <label class="flex items-start gap-3"><input v-model="form.sharing" type="radio" value="link" name="sharing" class="mt-1"><span><b>Secret link</b><small class="block text-muted-foreground">Only people with the link can open it. Hidden from search engines.</small></span></label>
+          <label class="flex items-start gap-3"><input v-model="form.sharing" type="radio" value="subdomain" name="sharing" class="mt-1"><span><b>Public page address</b><small class="block text-muted-foreground">An optional, memorable subdomain anyone can visit.</small></span></label>
+          <p v-if="form.sharing === 'link' && gallery.sharing !== 'link'" class="text-sm text-muted-foreground">Saving this choice closes the old public address. Share the new secret link afterward.</p>
+        </fieldset>
+        <div v-if="form.sharing === 'subdomain'" class="grid gap-2">
           <Label for="page-address">Page address</Label>
           <div class="flex">
             <Input id="page-address" v-model="form.subdomain" class="rounded-r-none" :required="published" pattern="[a-z0-9\-]+" maxlength="63" autocomplete="off" />
@@ -95,6 +104,13 @@ async function publish(value: boolean) {
           <Textarea id="page-description" v-model="form.description" placeholder="Where and when it was, and who took the photos" rows="3" />
         </div>
         <div class="flex items-start gap-3">
+          <Switch id="page-crowdsource" v-model="form.crowdsource" class="mt-0.5" @update:model-value="saved = false" />
+          <div class="grid gap-1">
+            <Label for="page-crowdsource">Let guests upload photos</Label>
+            <p class="text-sm text-muted-foreground">Anyone with access can contribute through the gallery or Telegram, without signing in. All photos appear after processing, including photos without faces. Uploads use your balance.</p>
+          </div>
+        </div>
+        <div v-if="!form.crowdsource" class="flex items-start gap-3">
           <Switch id="page-browse" v-model="form.showAllPhotos" class="mt-0.5" @update:model-value="saved = false" />
           <div class="grid gap-1">
             <Label for="page-browse">Let people browse every photo</Label>
@@ -110,7 +126,7 @@ async function publish(value: boolean) {
 
       <div>
         <div ref="preview" class="browser" aria-label="Preview of your gallery page">
-          <div class="browser-bar" aria-hidden="true"><i /><i /><i /><span>{{ form.subdomain ? `${form.subdomain}.${host}` : "Private preview" }}</span></div>
+          <div class="browser-bar" aria-hidden="true"><i /><i /><i /><span>{{ form.sharing === "link" ? "Secret gallery link" : form.subdomain ? `${form.subdomain}.${host}` : "Private preview" }}</span></div>
           <div class="mini">
             <p class="mini-title">{{ form.title }}</p>
             <p v-if="form.description" class="mini-desc">{{ form.description }}</p>

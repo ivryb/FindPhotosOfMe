@@ -1,2 +1,4 @@
 User-Agent: *
-Disallow:
+Disallow: /gallery/
+Disallow: /media/
+Disallow: /api/

@@ -11,10 +11,12 @@ import { isGalleryPhoto } from "@FindPhotosOfMe/backend/convex/photoKeys";
 export default defineEventHandler(async (event): Promise<GalleryPhotos> => {
   const id = getRouterParam(event, "id") as Id<"collections">;
   const convex = new ConvexHttpClient(useRuntimeConfig(event).public.convexUrl);
+  const { shareToken } = getQuery(event);
+  if (shareToken !== undefined && typeof shareToken !== "string") throw createError({ statusCode: 400, statusMessage: "Invalid gallery link" });
   const authorization = getHeader(event, "authorization");
   if (authorization?.startsWith("Bearer ")) convex.setAuth(authorization.slice(7));
   const owned = authorization ? await convex.query(api.collections.get, { id }).catch(() => null) : null;
-  const gallery = owned ?? await convex.query(api.collections.getPublic, { id });
+  const gallery = owned ?? await convex.query(api.collections.getPublic, { id, shareToken });
   if (!gallery) throw createError({ statusCode: 404, statusMessage: "Gallery not found" });
   setHeader(event, "cache-control", "private, no-store");
 

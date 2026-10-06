@@ -52,9 +52,13 @@ and Telegram flows rely on.
 
 - **Batches**: up to 10 workers at once (Convex's `MAX_RUNNING_BATCHES`), 1 CPU /
   4 GiB, eight-minute limit; 50 photos take about two minutes. A worker finds
-  faces, saves a thumbnail, copies photos with faces into the gallery inside R2,
-  and writes the batch's faces to `{collection}/faces/{batch}.npz`. Photos
-  without faces stay out of the gallery and are refunded.
+  faces, saves a thumbnail, copies kept photos into the gallery inside R2,
+  and writes the batch's faces to `{collection}/faces/{batch}.npz`. Crowdsourced
+  galleries keep every valid photo, including those without faces; ordinary
+  galleries still discard and refund photos without faces. The batch records
+  this policy when submitted, so closing contributions does not discard queued
+  guest photos. Unreadable files are skipped and refunded without failing the
+  other photos in the batch.
 - **Merges**: fold finished batch files into `{collection}/faces/index.npz`, one
   merge per gallery at a time, up to four galleries at once, five-minute limit.
 - **Search**: up to two workers, 1 CPU / 2 GiB, five-minute limit. It reads the

@@ -4,11 +4,12 @@ import { v } from "convex/values";
 /** One upload: a ZIP, or photos chosen together. The browser sends its photos in batches; workers process each batch. */
 export const uploadFields = {
   collectionId: v.id("collections"),
+  contributorKey: v.optional(v.string()),
   // Name and size identify the upload, so adding the same ZIP again continues it
   name: v.string(),
   size: v.number(),
   photos: v.number(),
-  // Photos the browser has sent, processed, kept (those with faces), and given up on
+  // Photos the browser has sent, processed, kept, and given up on
   sent: v.number(),
   processed: v.number(),
   saved: v.number(),
@@ -16,6 +17,8 @@ export const uploadFields = {
 };
 
 export const batchStatus = v.union(
+  // Credit is held while its fixed set of upload URLs is usable; nothing has been charged yet
+  v.literal("staging"),
   v.literal("pending"),
   v.literal("running"),
   // Its faces are in their own file, waiting to be merged into the gallery's face index
@@ -33,6 +36,9 @@ export default defineSchema({
 
   collections: defineTable({
     subdomain: v.optional(v.string()),
+    sharing: v.optional(v.union(v.literal("link"), v.literal("subdomain"))),
+    shareToken: v.optional(v.string()),
+    crowdsource: v.optional(v.boolean()),
     // Existing galleries keep their public links; new galleries explicitly start private.
     published: v.optional(v.boolean()),
     title: v.string(),
@@ -69,6 +75,7 @@ export default defineSchema({
     createdBy: v.optional(v.string()), // User ID or identifier
     // Optional Telegram bot token for this collection
     telegramBotToken: v.optional(v.string()),
+    telegramBotUsername: v.optional(v.string()),
     // Custom welcome message for Telegram bot (supports {IMAGES_COUNT} template)
     welcomeMessage: v.optional(v.string()),
     // When a worker started merging finished batches into the face index; one merge runs at a time
@@ -76,9 +83,19 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_subdomain", ["subdomain"])
+    .index("by_share_token", ["shareToken"])
     .index("by_created_by", ["createdBy"])
     .index("by_merging_since", ["mergingSince"])
     .index("by_expires_at", ["expiresAt"]),
+
+  telegramSessions: defineTable({
+    collectionId: v.id("collections"),
+    chatId: v.string(),
+    shareToken: v.optional(v.string()),
+    contributorKey: v.string(),
+    mode: v.union(v.literal("search"), v.literal("upload")),
+    lastUploadGroup: v.optional(v.string()),
+  }).index("by_collection_chat", ["collectionId", "chatId"]),
 
   searchRequests: defineTable({
     collectionId: v.id("collections"),
@@ -98,18 +115,28 @@ export default defineSchema({
     telegramChatId: v.optional(v.string()),
   }).index("by_collection", ["collectionId"]),
 
-  uploads: defineTable(uploadFields).index("by_collection", ["collectionId"]),
+  uploads: defineTable(uploadFields).index("by_collection", ["collectionId"]).index("by_contributor", ["collectionId", "contributorKey"]),
 
   // Up to 50 photos of an upload: the unit of work one processing worker takes on
   uploadBatches: defineTable({
     collectionId: v.id("collections"),
     uploadId: v.id("uploads"),
     names: v.array(v.string()),
+    // Older, already queued batches use upload-ID storage paths and have no staging metadata.
+    staging: v.optional(v.object({
+      first: v.number(), sizes: v.array(v.number()), expiresAt: v.number(),
+      // A legacy gallery can acquire an owner after this batch starts; only release credit actually held.
+      reservedBy: v.optional(v.string()),
+    })),
+    // Rejected photos are refunded after their upload URLs expire and staging storage is deleted.
+    refundPending: v.optional(v.number()),
+    keepAllPhotos: v.optional(v.boolean()),
     status: batchStatus,
     attempts: v.number(),
     startedAt: v.optional(v.number()),
   })
     .index("by_status", ["status"])
+    .index("by_refund_pending", ["refundPending"])
     .index("by_collection_and_status", ["collectionId", "status"])
     .index("by_upload", ["uploadId"]),
 
@@ -144,6 +171,8 @@ export default defineSchema({
   balances: defineTable({
     userId: v.string(),
     credit: v.number(),
+    // Held by staging batches. Existing balances without holds omit this field.
+    reserved: v.optional(v.number()),
     // Has topped up at least once; new galleries then get the full included time
     paid: v.boolean(),
   }).index("by_user", ["userId"]),

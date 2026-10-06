@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
   }
   const parts = await readMultipartFormData(event);
   const collectionId = parts?.find((part) => part.name === "collection_id")?.data.toString();
+  const shareToken = parts?.find((part) => part.name === "share_token")?.data.toString();
   const photo = parts?.find((part) => part.name === "reference_photo");
   if (!collectionId || !photo?.data || !photo.type || !PHOTO_TYPES.has(photo.type)) {
     throw createError({ statusCode: 400, statusMessage: "A JPEG, PNG, or WebP photo is required" });
@@ -25,7 +26,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // A refused search (no photos yet, or the owner's balance is empty) comes back as a ConvexError meant for people.
-  const requestId = await convex.mutation(api.searchRequests.create, { collectionId: collectionId as Id<"collections"> })
+  const requestId = await convex.mutation(api.searchRequests.create, { collectionId: collectionId as Id<"collections">, shareToken })
     .catch((error) => {
       if (error instanceof ConvexError) throw createError({ statusCode: 409, statusMessage: String(error.data) });
       throw error;

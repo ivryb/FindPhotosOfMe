@@ -49,7 +49,7 @@ async function signOut() {
           </NuxtLink>
         </nav>
         <section class="balance" aria-labelledby="balance-title">
-          <h2 id="balance-title" class="label">Balance</h2>
+          <h2 id="balance-title" class="label">Available balance</h2>
           <p :class="['credit', { out: credit < 0 }]">{{ formatMoney(credit) }}</p>
           <p class="covers">About {{ count.format(coveredBy(credit, "photo")) }} photos or {{ count.format(coveredBy(credit, "search")) }} searches</p>
           <Button class="top-up" @click="toppingUp = true">Top up</Button>

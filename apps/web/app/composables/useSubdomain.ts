@@ -1,3 +1,5 @@
+import { galleryUrl } from "@FindPhotosOfMe/backend/gallery";
+import type { Gallery } from "@/utils/galleries";
 export const useSubdomain = () => {
   const url = useRequestURL();
   const route = useRoute();
@@ -27,6 +29,6 @@ export const useGalleryAddress = () => {
   const root = origin ? new URL(origin) : undefined;
   return {
     host: root?.host ?? here.host,
-    link: (subdomain: string) => (root ? `${root.protocol}//${subdomain}.${root.host}` : `${here.origin}/search?subdomain=${subdomain}`),
+    link: (gallery: Gallery) => galleryUrl(gallery, root?.origin ?? here.origin),
   };
 };

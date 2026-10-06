@@ -9,5 +9,5 @@ export async function useConvexSSRQuery<Query extends FunctionReference<"query">
   const live = useConvexQuery(query, args);
   const rendered = useState<FunctionReturnType<Query> | undefined>(`convex:${getFunctionName(query)}:${JSON.stringify(args)}`);
   if (rendered.value === undefined) rendered.value = await live.suspense();
-  return { ...live, data: computed(() => live.data.value ?? rendered.value) };
+  return { ...live, data: computed(() => live.data.value === undefined ? rendered.value : live.data.value) };
 }

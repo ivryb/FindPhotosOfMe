@@ -23,7 +23,7 @@ async function setup() {
   const id = await owner.mutation(api.collections.create, { title: "My private photos", description: "" });
   const ready = () => t.run((ctx) => ctx.db.patch(id, { imagesCount: 10, status: "complete" }));
   const address = (subdomain = "my-photos") => owner.mutation(api.collections.update, {
-    id, subdomain, title: "My private photos", description: "",
+    id, subdomain, sharing: "subdomain", title: "My private photos", description: "",
   });
   const publish = (published: boolean) => owner.mutation(api.collections.setPublished, { id, published });
   return { t, owner, stranger, id, ready, address, publish };
@@ -111,8 +111,9 @@ test("preview-only media opens selected previews, with full access retained by t
   expect(await t.query(api.collections.canReadPhoto, { key: `${id}/preview.jpg` })).toBe(false);
 });
 
-test("publishing requires an address and only the owner can publish or unpublish", async () => {
-  const { t, stranger, id, ready, address, publish } = await setup();
+test("subdomain publishing requires an address and only the owner can publish or unpublish", async () => {
+  const { t, owner, stranger, id, ready, address, publish } = await setup();
+  await owner.mutation(api.collections.update, { id, title: "My private photos", description: "", sharing: "subdomain" });
   await expect(publish(true)).rejects.toThrow("page address");
   await expect(address("-a")).rejects.toThrow("3–63");
   await address();

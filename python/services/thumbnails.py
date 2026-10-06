@@ -18,7 +18,11 @@ def make_thumbnail(image: bytes) -> bytes:
     import cv2
     import numpy as np
 
-    pixels = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+    try:
+        pixels = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+    except cv2.error as error:
+        # Empty and malformed uploads may raise instead of returning None; both are unreadable photos.
+        raise ValueError("A photo could not be read") from error
     if pixels is None:
         raise ValueError("A photo could not be read")
     height, width = pixels.shape[:2]

@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { Camera, ChevronDown, ChevronUp, Download, ShieldCheck } from "@lucide/vue";
+import { Camera, ChevronDown, ChevronUp, Download, LoaderCircle, ShieldCheck } from "@lucide/vue";
 import type { GalleryPhoto } from "#shared/types/gallery";
 import { Button } from "@/components/ui/button";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { SELFIE_TYPES } from "@/composables/useSelfieSearch";
 
 // The selfie search: a banner floating over the gallery that opens into a sheet.
 // While a search runs the sheet can be closed; the banner then shows that it's running, and later the result.
-const props = defineProps<{ galleryId: Id<"collections">; total: number; owner?: boolean; inline?: boolean }>();
+const props = defineProps<{ galleryId: Id<"collections">; total: number; owner?: boolean; inline?: boolean; compact?: boolean; shareToken?: string }>();
 const emit = defineEmits<{ view: [photos: GalleryPhoto[], index: number] }>();
 
-const { state, search } = useSelfieSearch(() => props.galleryId, { owner: props.owner });
-const open = ref(false);
+const { state, search } = useSelfieSearch(() => props.galleryId, { owner: props.owner, shareToken: props.shareToken });
+const open = defineModel<boolean>("open", { default: false });
 const picker = useTemplateRef("picker");
 const camera = useTemplateRef("camera");
 const dragging = ref(false);
@@ -68,7 +68,16 @@ async function downloadAll(photos: GalleryPhoto[]) {
 
 <template>
   <div>
-  <div v-show="!open" :class="['banner', { inline }]" :data-state="state.kind" aria-live="polite">
+  <Drawer v-model:open="open">
+  <DrawerTrigger v-if="compact" as-child>
+    <button type="button" class="gallery-action" aria-label="Find me" :title="banner.title">
+      <LoaderCircle v-if="state.kind === 'searching'" class="searching-icon" aria-hidden="true" />
+      <Camera v-else aria-hidden="true" /><span>Find me</span>
+      <span v-if="state.kind === 'found'" class="found-count">{{ state.photos.length }}</span>
+      <span class="sr-only" aria-live="polite">{{ state.kind === 'idle' ? '' : banner.title }}</span>
+    </button>
+  </DrawerTrigger>
+  <div v-else v-show="!open" :class="['banner', { inline }]" :data-state="state.kind" aria-live="polite">
     <button type="button" class="banner-main" aria-haspopup="dialog" @click="open = true">
       <span v-if="selfie" :class="['ring', { done: state.kind !== 'searching' }]"><img :src="selfie" alt="Your selfie"></span>
       <span v-else class="slot"><Camera /></span>
@@ -92,7 +101,6 @@ async function downloadAll(photos: GalleryPhoto[]) {
     </div>
   </div>
 
-  <Drawer v-model:open="open">
     <DrawerContent
       :class="['selfie-sheet', { dragging, 'owner-search': owner }]"
       @dragover.prevent="dragging = true"
@@ -159,6 +167,10 @@ async function downloadAll(photos: GalleryPhoto[]) {
 </template>
 
 <style scoped>
+.searching-icon { animation: searching-turn 1.2s linear infinite; }
+.found-count { position: absolute; top: -7px; right: -3px; display: grid; place-items: center; min-width: 26px; height: 26px; padding-inline: 5px; border: 2px solid var(--brand); border-radius: 50%; background: var(--foreground); color: var(--brand); font-size: .8rem; }
+@keyframes searching-turn { to { rotate: 1turn; } }
+@media (prefers-reduced-motion: reduce) { .searching-icon { animation: none; } }
 .banner { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; z-index: 30; display: flex; align-items: center; gap: 16px; width: min(780px, calc(100% - 24px)); padding: 12px; background: var(--brand); color: var(--brand-foreground); border-radius: 18px; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .8); translate: -50% 0; }
 .banner.inline { position: static; width: 100%; margin-bottom: 24px; box-shadow: none; translate: none; }
 .banner :focus-visible { outline: 3px solid var(--foreground); outline-offset: 2px; }

@@ -67,12 +67,12 @@ function uploadRow(item: Doc<"uploads">, here?: Sending): Row {
   }
   if (item.sent < item.photos) return { ...row, label: "Stopped", tone: "idle", note: `${of(item.sent)} sent. Add ${item.name} again to continue.` };
   if (item.processed < item.photos) return { ...row, label: "Finding faces", tone: "busy", note: of(item.processed), progress: item.processed / item.photos };
-  const noFaces = item.processed - item.saved - item.failed;
+  const leftOut = item.processed - item.saved - item.failed;
   return {
     ...row, label: "Ready", tone: "ok",
     note: [
       `${count.format(item.saved)} photos added`,
-      noFaces && `${count.format(noFaces)} without faces were left out and not charged`,
+      leftOut && `${count.format(leftOut)} photos were left out and not charged`,
       item.failed && `${count.format(item.failed)} couldn't be processed and were refunded`,
     ].filter(Boolean).join(". "),
   };
@@ -108,7 +108,7 @@ function uploadRow(item: Doc<"uploads">, here?: Sending): Row {
         @drop.prevent="over = false; add($event.dataTransfer?.files)"
       >
         <Upload />
-        <span><b>Add photos</b><small>Drop ZIP files or photos here, or choose them. JPEG or PNG, up to 50 MB per photo. Keep this tab open while they upload. Photos without faces are left out and not charged.</small></span>
+        <span><b>Add photos</b><small>Drop ZIP files or photos here, or choose them. JPEG or PNG, up to 50 MB per photo. Keep this tab open while they upload. {{ gallery.crowdsource ? "All valid photos are kept, including photos without faces." : "Photos without faces are left out and not charged." }}</small></span>
       </button>
       <input ref="picker" type="file" accept=".zip,application/zip,image/jpeg,image/png" multiple hidden @change="add(($event.target as HTMLInputElement).files)">
     </div>

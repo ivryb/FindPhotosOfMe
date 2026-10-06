@@ -13,6 +13,17 @@ const props = defineProps<{ gallery: Gallery }>();
 
 const token = ref(props.gallery.telegramBotToken ?? "");
 const welcome = ref(props.gallery.welcomeMessage ?? "");
+const invite = computed(() => {
+  if (!props.gallery.telegramBotUsername || props.gallery.published === false) return "";
+  const token = props.gallery.sharing === "link" ? props.gallery.shareToken : undefined;
+  return `https://t.me/${props.gallery.telegramBotUsername}${token ? `?start=${token}` : ""}`;
+});
+const copied = ref(false);
+async function copyInvite() {
+  await navigator.clipboard.writeText(invite.value);
+  copied.value = true;
+  setTimeout(() => { copied.value = false; }, 2000);
+}
 const connected = computed(() => Boolean(props.gallery.telegramBotToken));
 
 const { mutate: storeToken } = useConvexMutation(api.collections.storeTelegramBotToken);
@@ -26,7 +37,7 @@ async function save() {
   error.value = undefined;
   try {
     const { _id: id, subdomain, title, description } = props.gallery;
-    if (token.value.trim() !== props.gallery.telegramBotToken) await storeToken({ id, token: token.value.trim() });
+    if (token.value.trim() !== props.gallery.telegramBotToken || !props.gallery.telegramBotUsername) await storeToken({ id, token: token.value.trim() });
     await update({ id, subdomain, title, description, welcomeMessage: welcome.value });
     saved.value = true;
   } catch (cause) {
@@ -41,11 +52,18 @@ async function save() {
   <DashboardCard title="Telegram bot">
     <template #aside><DashboardPill :tone="connected ? 'ok' : 'idle'">{{ connected ? "Connected" : "Not connected" }}</DashboardPill></template>
     <p v-if="gallery.published === false" class="mb-5 text-muted-foreground">This gallery is private. Publish it in the Gallery page tab to let people search through the bot.</p>
+    <div v-if="invite" class="mb-6 grid gap-2">
+      <Label>Bot invite link</Label>
+      <a :href="invite" target="_blank" class="break-all underline">{{ invite }}</a>
+      <Button variant="outline" class="justify-self-start" @click="copyInvite">{{ copied ? "Copied" : "Copy invite link" }}</Button>
+      <p v-if="gallery.sharing === 'link'" class="text-sm text-muted-foreground">Share this full invite link. The bot username alone does not grant access.</p>
+    </div>
+    <p v-else-if="connected && !gallery.telegramBotUsername" class="mb-5 text-muted-foreground">Save changes to refresh the connection and get your bot invite link.</p>
     <div class="layout">
       <ol class="steps">
         <li><p><b>Create a bot</b>Open @BotFather in Telegram and send /newbot.</p></li>
         <li><p><b>Paste its token here</b>BotFather sends it after you name the bot.</p></li>
-        <li><p><b>Share the bot link</b>People send it a selfie and get their photos in the chat.</p></li>
+        <li><p><b>Share the bot link</b>People can find their photos, browse the gallery, and contribute when guest uploads are enabled.</p></li>
       </ol>
       <form class="grid gap-5" @submit.prevent="save" @input="saved = false">
         <div class="grid gap-2">

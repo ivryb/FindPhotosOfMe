@@ -5,7 +5,9 @@ import {
   ListObjectsV2Command,
   DeleteObjectsCommand,
   PutObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
+import { STAGING_URL_LIFETIME_MS } from "@FindPhotosOfMe/backend/convex/photoKeys";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
 import type { H3Event } from "h3";
@@ -39,6 +41,8 @@ class R2Service {
       endpoint,
       // R2 supports bucket-in-path URLs, which also work against the tests' local fake.
       forcePathStyle: true,
+      // Presigning has no photo body yet; the SDK would otherwise sign the checksum of an empty file.
+      requestChecksumCalculation: "WHEN_REQUIRED",
       // Nitro's Workers adapter cannot use the SDK's default Node HTTPS transport.
       requestHandler: new FetchHttpHandler(),
       credentials: {
@@ -149,21 +153,34 @@ class R2Service {
     return deleted;
   }
 
-  async getUploadSignedUrl(
-    objectKey: string,
-    contentType: string,
-    expiresIn: number = 3600
-  ): Promise<string> {
+  async getUploadSignedUrl({ key, contentType, size, expiresAt }: { key: string; contentType: string; size: number; expiresAt: number }): Promise<string> {
     this.initializeClient();
     const bucket = this.getBucket();
 
     const command = new PutObjectCommand({
       Bucket: bucket,
-      Key: objectKey,
+      Key: key,
       ContentType: contentType,
+      ContentLength: size,
     });
 
-    return await getSignedUrl(this.client!, command, { expiresIn });
+    // Reissuing a URL must not extend its reservation, or cleanup could release credit while it still works.
+    return getSignedUrl(this.client!, command, {
+      expiresIn: STAGING_URL_LIFETIME_MS / 1000,
+      signingDate: new Date(expiresAt - STAGING_URL_LIFETIME_MS),
+      signableHeaders: new Set(["content-length", "content-type"]),
+    });
+  }
+
+  async objectSize(key: string): Promise<number | undefined> {
+    this.initializeClient();
+    try {
+      const object = await this.client!.send(new HeadObjectCommand({ Bucket: this.getBucket(), Key: key }));
+      return object.ContentLength;
+    } catch (error) {
+      if (error instanceof Error && ["NotFound", "NoSuchKey"].includes(error.name)) return undefined;
+      throw error;
+    }
   }
 
   /** Every key directly in a folder, in key order; subfolders are left out. */

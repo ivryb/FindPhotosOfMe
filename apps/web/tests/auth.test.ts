@@ -163,24 +163,50 @@ test("anonymous result downloads only authorize photos from that search", async 
   expect((await authorize(["test-collection/photo-008.jpg"])).status).toBe(403);
 });
 
-test("upload links are signed only for the gallery owner, for plain photo names in the gallery's upload area", async () => {
+test("upload links bind reserved photo names, sizes and expiry; only stored photos can be queued", async () => {
+  const started = await fetch(`${app.backendOrigin}/api/mutation`, {
+    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ownerJwt}` },
+    body: JSON.stringify({ path: "uploads:start", args: [{ collectionId: "test-collection", name: "two photos", size: 10, photos: 2 }], format: "json" }),
+  });
+  const { value: { uploadId } } = await started.json();
   const sign = (body: object, signedIn = true) => fetch(`${origin}/api/uploads/presign`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(signedIn ? { authorization: `Bearer ${ownerJwt}` } : {}) },
     body: JSON.stringify(body),
   });
-  const batch = { collectionId: "test-collection", uploadId: "upload-1", names: ["IMG_1.jpg", "stage.png"] };
+  const batch = { uploadId, first: 0, photos: [{ name: "IMG_1.jpg", size: 6 }, { name: "stage.png", size: 4 }] };
 
   expect((await sign(batch, false)).status).toBe(401);
-  expect((await sign({ ...batch, names: ["../../other-gallery/x.jpg"] })).status).toBe(400);
+  for (const photo of [{ name: "../../other-gallery/x.jpg", size: 1 }, { name: "x.jpg", size: -1 }, { name: "x.jpg", size: 50 * 1024 ** 2 + 1 }]) {
+    expect((await sign({ ...batch, photos: [photo] })).status).toBe(400);
+  }
   const response = await sign(batch);
   expect(response.status).toBe(200);
-  const { urls } = await response.json() as { urls: string[] };
+  const { batchId, urls } = await response.json() as { batchId: string; urls: string[] };
   expect(urls.map((url) => new URL(url).pathname)).toEqual([
-    "/r2/fixture-bucket/uploads/test-collection/upload-1/IMG_1.jpg",
-    "/r2/fixture-bucket/uploads/test-collection/upload-1/stage.png",
+    `/r2/fixture-bucket/uploads/test-collection/${batchId}/IMG_1.jpg`,
+    `/r2/fixture-bucket/uploads/test-collection/${batchId}/stage.png`,
   ]);
   expect(urls.every((url) => new URL(url).searchParams.has("X-Amz-Signature"))).toBe(true);
+  for (const url of urls) {
+    expect(new URL(url).searchParams.get("X-Amz-SignedHeaders")?.split(";")).toContain("content-length");
+    expect(new URL(url).searchParams.get("X-Amz-SignedHeaders")?.split(";")).toContain("content-type");
+    expect(new URL(url).searchParams.has("x-amz-checksum-crc32")).toBe(false);
+  }
+  expect(await (await sign(batch)).json()).toEqual({ batchId, urls });
+  const finish = (signedIn = true) => fetch(`${origin}/api/uploads/complete`, {
+    method: "POST", headers: { "content-type": "application/json", ...(signedIn ? { authorization: `Bearer ${ownerJwt}` } : {}) },
+    body: JSON.stringify({ batchId }),
+  });
+  expect((await finish(false)).status).toBe(401);
+  expect((await finish()).status).toBe(409);
+  for (const [index, url] of urls.entries()) {
+    expect((await fetch(url, { method: "PUT", body: "x".repeat(batch.photos[index]!.size), headers: { "content-type": index ? "image/png" : "image/jpeg" } })).status).toBe(200);
+  }
+  expect((await finish()).status).toBe(200);
+  expect((await finish()).status).toBe(200);
+  const uploaded = await (await fetch(`${app.backendOrigin}/__fixture/uploads`)).json();
+  expect(uploaded.batches.filter((item: { uploadId: string }) => item.uploadId === uploadId)).toHaveLength(1);
 });
 
 test("private search forwards the owner's identity and refuses anonymous callers", async () => {

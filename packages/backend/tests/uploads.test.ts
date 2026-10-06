@@ -45,7 +45,8 @@ function setup() {
 async function sendPhotos(t: ReturnType<typeof setup>["t"], collectionId: Id<"collections">, photos: number) {
   const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "day-1.zip", size: 1e9, photos });
   for (let first = 0; first < photos; first += 50) {
-    await t.mutation(api.uploads.addBatch, { uploadId, first, names: names(Math.min(50, photos - first), first) });
+    const { batchId } = await t.mutation(api.uploads.prepareBatch, { uploadId, first, photos: names(Math.min(50, photos - first), first).map((name) => ({ name, size: 100 })) });
+    await t.mutation(api.uploads.commitBatchForService, { id: batchId, serviceToken });
   }
   return uploadId;
 }
@@ -65,11 +66,12 @@ describe("sending photos", () => {
     await setCredit(1_000);
     const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "day-1.zip", size: 1e9, photos: 120 });
 
-    await t.mutation(api.uploads.addBatch, { uploadId, first: 0, names: names(50) });
+    const { batchId } = await t.mutation(api.uploads.prepareBatch, { uploadId, first: 0, photos: names(50).map((name) => ({ name, size: 100 })) });
+    await t.mutation(api.uploads.commitBatchForService, { id: batchId, serviceToken });
     // A lost response makes the browser send the same batch again.
-    await t.mutation(api.uploads.addBatch, { uploadId, first: 0, names: names(50) });
+    await t.mutation(api.uploads.commitBatchForService, { id: batchId, serviceToken });
     expect(await credit()).toBe(1_000 - 50 * PRICES.photo);
-    await expect(t.mutation(api.uploads.addBatch, { uploadId, first: 100, names: names(20, 100) })).rejects.toThrow();
+    await expect(t.mutation(api.uploads.prepareBatch, { uploadId, first: 100, photos: names(20, 100).map((name) => ({ name, size: 100 })) })).rejects.toThrow();
 
     // Adding the same ZIP again continues it.
     expect(await t.mutation(api.uploads.start, { collectionId, name: "day-1.zip", size: 1e9, photos: 120 })).toEqual({ uploadId, sent: 50 });
@@ -82,11 +84,22 @@ describe("sending photos", () => {
     const collectionId = await gallery();
     await setCredit(1_000);
     const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "day-1.zip", size: 1, photos: 1 });
-    await expect(t.mutation(api.uploads.addBatch, { uploadId, first: 0, names: ["../other-gallery/x.jpg"] })).rejects.toThrow();
+    await expect(t.mutation(api.uploads.prepareBatch, { uploadId, first: 0, photos: [{ name: "../other-gallery/x.jpg", size: 100 }] })).rejects.toThrow();
   });
 });
 
 describe("processing", () => {
+  test("already queued batches keep their original upload-ID storage paths", async () => {
+    const { t, gallery, setCredit } = setup();
+    const collectionId = await gallery();
+    await setCredit(1_000);
+    const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "old upload", size: 123, photos: 1 });
+    const id = await t.run((ctx) => ctx.db.insert("uploadBatches", { collectionId, uploadId, names: ["a.jpg"], status: "pending", attempts: 0 }));
+    expect(await t.query(api.uploads.getBatchForService, { id, serviceToken })).toMatchObject({
+      photos: [{ name: "a.jpg", source: stagingKey(collectionId, uploadId, "a.jpg"), key: photoKey(collectionId, uploadId, "a.jpg") }],
+    });
+  });
+
   test("a finished batch keeps photos with faces, returns the rest, and fills in the gallery", async () => {
     const { t, gallery, setCredit, credit, batches } = setup();
     const collectionId = await gallery();
@@ -95,11 +108,15 @@ describe("processing", () => {
     const [batch] = await batches(collectionId);
 
     const work = await t.query(api.uploads.getBatchForService, { id: batch!._id, serviceToken });
-    expect(work?.photos[0]).toEqual({ name: "photo-0.jpg", source: stagingKey(collectionId, uploadId, "photo-0.jpg"), key: photoKey(collectionId, uploadId, "photo-0.jpg") });
+    expect(work?.photos[0]).toEqual({ name: "photo-0.jpg", source: stagingKey(collectionId, batch!._id, "photo-0.jpg"), key: photoKey(collectionId, uploadId, "photo-0.jpg") });
 
     const done = { id: batch!._id, saved: names(30), savedBytes: 3e6, serviceToken };
     await t.mutation(api.uploads.completeBatchForService, done);
     await t.mutation(api.uploads.completeBatchForService, done);
+    // Credit cannot fund another upload while these batch's signed URLs still allow storing photos.
+    expect(await credit()).toBe(1_000 - 50 * PRICES.photo);
+    vi.setSystemTime(batch!.staging!.expiresAt + 60_000);
+    await t.mutation(internal.uploads.releaseExpiredBatch, { id: batch!._id });
     expect(await credit()).toBe(1_000 - 30 * PRICES.photo);
 
     const filled = await t.run((ctx) => ctx.db.get(collectionId));
@@ -180,6 +197,7 @@ describe("processing", () => {
     }
     const [batch] = await batches(collectionId);
     expect(batch?.status).toBe("failed");
+    await t.mutation(internal.uploads.releaseExpiredBatch, { id: batch!._id });
     expect(await credit()).toBe(1_000);
     const [upload] = await t.query(api.uploads.list, { collectionId });
     expect(upload).toMatchObject({ processed: 50, failed: 50 });

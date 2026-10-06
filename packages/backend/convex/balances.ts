@@ -54,7 +54,24 @@ export async function applyEntry(ctx: MutationCtx, entry: Entry) {
 /** Throws `message(credit)` unless the account can pay `cost`. Nothing is taken. The message reaches people as is. */
 export async function requireCredit(ctx: MutationCtx, userId: string, cost: number, message: (credit: number) => string) {
   const balance = await balanceFor(ctx, userId);
-  if (balance.credit < cost) throw new ConvexError(message(balance.credit));
+  const available = availableCredit(balance);
+  if (available < cost) throw new ConvexError(message(available));
+}
+
+/** Upload holds cannot also pay for another upload, a search, or storage. */
+const availableCredit = (balance: Pick<Doc<"balances">, "credit" | "reserved">) => balance.credit - (balance.reserved ?? 0);
+
+/** Holds credit before issuing upload URLs. The batch owns the hold until completion or storage cleanup. */
+export async function reservePhotos(ctx: MutationCtx, userId: string, photos: number, message: (credit: number) => string) {
+  await requireCredit(ctx, userId, photos * PRICES.photo, message);
+  const balance = await balanceFor(ctx, userId);
+  await ctx.db.patch(balance._id, { reserved: (balance.reserved ?? 0) + photos * PRICES.photo });
+}
+
+/** Call only while moving a staging batch to another state or deleting it, in the same mutation. */
+export async function releasePhotos(ctx: MutationCtx, userId: string, photos: number) {
+  const balance = await balanceFor(ctx, userId);
+  await ctx.db.patch(balance._id, { reserved: (balance.reserved ?? 0) - photos * PRICES.photo });
 }
 
 /** Takes `cost` from the balance, or throws `message(credit)` when the balance can't cover it. */
@@ -82,8 +99,18 @@ export async function returnSearch(ctx: MutationCtx, request: Doc<"searchRequest
   await applyEntry(ctx, { userId: charged.userId, amount: -charged.amount, reason: "search_returned", collectionId: request.collectionId, sourceId: request._id });
 }
 
-/** Returns photos of a batch to its owner: those without faces, or all of them when the batch is given up. */
+/** Returns rejected photos after their storage grant expires. Otherwise a refund could buy new grants while old ones still work. */
 export async function returnPhotos(ctx: MutationCtx, batch: Doc<"uploadBatches">, photos: number) {
+  if (!photos) return;
+  if (batch.staging) {
+    await ctx.db.patch(batch._id, { refundPending: photos });
+    return;
+  }
+  await returnPhotosNow(ctx, batch, photos);
+}
+
+/** Storage cleanup and owner deletion call this after removing the batch's files. Legacy batches have no live upload grants. */
+export async function returnPhotosNow(ctx: MutationCtx, batch: Doc<"uploadBatches">, photos: number) {
   const charged = await findEntry(ctx, batch._id, "photos");
   if (!charged || !photos) return;
   await applyEntry(ctx, { userId: charged.userId, amount: photos * PRICES.photo, reason: "photos_returned", collectionId: batch.collectionId, sourceId: batch._id });
@@ -96,7 +123,7 @@ export const mine = query({
     if (!user) return null;
     const balance = await ctx.db.query("balances").withIndex("by_user", (q) => q.eq("userId", user._id)).unique();
     // Before the balance opens, show the trial credit it will open with.
-    return { credit: balance?.credit ?? TRIAL_CREDIT, paid: balance?.paid ?? false };
+    return { credit: balance ? availableCredit(balance) : TRIAL_CREDIT, paid: balance?.paid ?? false };
   },
 });
 
@@ -149,7 +176,7 @@ async function chargeDays(ctx: MutationCtx, gallery: Doc<"collections">, now: nu
   const cost = dailyStorageCost(gallery);
   let paidUntil = start;
   while (paidUntil <= now && paidUntil < expiresAt) {
-    if ((await balanceFor(ctx, owner)).credit < cost) {
+    if (availableCredit(await balanceFor(ctx, owner)) < cost) {
       await ctx.db.patch(gallery._id, { expiresAt: now, storagePaidUntil: paidUntil });
       return;
     }

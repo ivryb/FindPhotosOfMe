@@ -7,8 +7,8 @@ import type { Gallery } from "@/utils/galleries";
 const props = defineProps<{ gallery: Gallery }>();
 
 const address = useGalleryAddress();
-const link = computed(() => props.gallery.subdomain ? address.link(props.gallery.subdomain) : "");
-const published = computed(() => props.gallery.published !== false && Boolean(props.gallery.subdomain));
+const link = computed(() => address.link(props.gallery));
+const published = computed(() => props.gallery.published !== false && Boolean(link.value));
 const status = computed(() => galleryStatus(props.gallery));
 const offline = computed(() => Boolean(props.gallery.expiresAt && props.gallery.expiresAt <= Date.now()));
 const until = computed(() => (props.gallery.expiresAt ? shortDate.format(props.gallery.expiresAt) : undefined));

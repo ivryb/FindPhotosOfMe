@@ -122,3 +122,77 @@ test("unpublishing closes previously issued public photo URLs while owners retai
     await publish(true);
   }
 });
+
+test("secret galleries render anonymously with crawler and referrer protection, including when empty", async () => {
+  const { galleryToken, emptyGalleryToken } = await import("./backend");
+  for (const token of [galleryToken, emptyGalleryToken]) {
+    const response = await fetch(`${app.origin}/gallery/${token}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    const html = await response.text();
+    expect(html).toContain("Upload your photos");
+    expect(html).toContain('name="robots" content="noindex, nofollow, noarchive"');
+  }
+  expect((await fetch(`${app.origin}/gallery/invalid-token`)).status).toBe(404);
+  expect(await (await fetch(`${app.origin}/robots.txt`)).text()).toContain("Disallow: /gallery/");
+});
+
+test("gallery listing and every media URL forward the secret credential", async () => {
+  const { galleryToken } = await import("./backend");
+  const endpoint = `${app.origin}/api/galleries/secret-collection/photos`;
+  expect((await fetch(endpoint)).status).toBe(404);
+  expect((await fetch(`${endpoint}?shareToken=wrong`)).status).toBe(404);
+  const response = await fetch(`${endpoint}?shareToken=${galleryToken}`);
+  expect(response.status).toBe(200);
+  const { keys } = await response.json() as GalleryPhotos;
+  expect(keys.length).toBe(130);
+  const photo = mediaLinks(keys[0]!, { shareToken: galleryToken });
+  for (const link of [photo.full, photo.thumb, photo.download]) {
+    expect(await status(link)).toBe(200);
+    expect(await status(link.replace(galleryToken, "wrong"))).toBe(403);
+  }
+});
+
+
+test("selfie searches forward the gallery link credential", async () => {
+  const { galleryToken } = await import("./backend");
+  const search = (token?: string) => {
+    const body = new FormData();
+    body.append("collection_id", "secret-collection");
+    body.append("reference_photo", new Blob(["fixture-image"], { type: "image/jpeg" }), "selfie.jpg");
+    if (token) body.append("share_token", token);
+    return fetch(`${app.origin}/api/search`, { method: "POST", body });
+  };
+  expect((await search()).status).toBe(409);
+  expect((await search("wrong")).status).toBe(409);
+  expect((await search(galleryToken)).status).toBe(200);
+});
+
+test("anonymous upload completion checks the contributor and exact stored sizes before charging", async () => {
+  const { galleryToken } = await import("./backend");
+  const access = { shareToken: galleryToken, contributorKey: "a".repeat(32) };
+  const started = await fetch(`${app.backendOrigin}/api/mutation`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path: "uploads:start", args: [{ collectionId: "secret-collection", name: "guest.jpg", size: 5, photos: 1, access }], format: "json" }),
+  });
+  const { value: { uploadId } } = await started.json();
+  const post = (path: string, body: object) => fetch(`${app.origin}/api/uploads/${path}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  const signed = await post("presign", { uploadId, first: 0, photos: [{ name: "guest.jpg", size: 5 }], access });
+  expect(signed.status).toBe(200);
+  const { batchId, urls } = await signed.json() as { batchId: string; urls: string[] };
+  const finish = (contributor = access) => post("complete", { batchId, access: contributor });
+  expect((await finish({ ...access, contributorKey: "b".repeat(32) })).status).toBe(409);
+  // The fake bucket permits an incorrectly sized PUT so the real completion route must catch it.
+  await fetch(urls[0]!, { method: "PUT", body: "bad", headers: { "content-type": "image/jpeg" } });
+  expect((await finish()).status).toBe(409);
+  let uploaded = await (await fetch(`${app.backendOrigin}/__fixture/uploads`)).json();
+  expect(uploaded.batches.filter((item: { uploadId: string }) => item.uploadId === uploadId)).toHaveLength(0);
+  await fetch(urls[0]!, { method: "PUT", body: "photo", headers: { "content-type": "image/jpeg" } });
+  expect((await finish()).status).toBe(200);
+  uploaded = await (await fetch(`${app.backendOrigin}/__fixture/uploads`)).json();
+  expect(uploaded.batches.filter((item: { uploadId: string }) => item.uploadId === uploadId)).toHaveLength(1);
+});

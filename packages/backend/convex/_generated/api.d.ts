@@ -20,7 +20,9 @@ import type * as payments from "../payments.js";
 import type * as photoKeys from "../photoKeys.js";
 import type * as pricing from "../pricing.js";
 import type * as searchRequests from "../searchRequests.js";
+import type * as stagingStorage from "../stagingStorage.js";
 import type * as telegram from "../telegram.js";
+import type * as telegramAccess from "../telegramAccess.js";
 import type * as todos from "../todos.js";
 import type * as uploads from "../uploads.js";
 
@@ -43,7 +45,9 @@ declare const fullApi: ApiFromModules<{
   photoKeys: typeof photoKeys;
   pricing: typeof pricing;
   searchRequests: typeof searchRequests;
+  stagingStorage: typeof stagingStorage;
   telegram: typeof telegram;
+  telegramAccess: typeof telegramAccess;
   todos: typeof todos;
   uploads: typeof uploads;
 }>;

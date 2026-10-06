@@ -1,7 +1,7 @@
 import { MAX_PHOTO_BYTES, photoType } from "@FindPhotosOfMe/backend/convex/photoKeys";
 import type { Entry, FileEntry } from "@zip.js/zip.js";
 
-export type Photo = { name: string; read: () => Promise<Blob> };
+export type Photo = { name: string; size: number; read: () => Promise<Blob> };
 
 /**
  * What one upload sends: the photos of a ZIP, or photos chosen together. Photos keep the same names and order
@@ -34,7 +34,7 @@ async function readZip(file: File): Promise<Source> {
     tooLarge: entries.length - fits.length,
     photos: fits.map((entry) => {
       const name = uniqueName(entry.filename, names);
-      return { name, read: () => entry.getData(new BlobWriter(photoType(name))) };
+      return { name, size: entry.uncompressedSize, read: () => entry.getData(new BlobWriter(photoType(name))) };
     }),
     close: () => reader.close(),
   };
@@ -49,7 +49,7 @@ function readLoose(chosen: File[]): Source {
     name: files.length === 1 ? files[0]!.name : `${files.length} photos`,
     size: files.reduce((total, file) => total + file.size, 0),
     tooLarge: files.length - fits.length,
-    photos: fits.map((file) => ({ name: uniqueName(file.name, names), read: async () => file })),
+    photos: fits.map((file) => ({ name: uniqueName(file.name, names), size: file.size, read: async () => file })),
     close: async () => {},
   };
 }

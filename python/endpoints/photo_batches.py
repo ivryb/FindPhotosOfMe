@@ -47,8 +47,8 @@ async def submit_merge(body: MergeRequest, request: Request):
 
 
 def process_batch(batch_id: str) -> dict:
-    """Keeps the batch's photos that have faces, with thumbnails, writes their faces to the batch's own file, and
-    reports the photos it kept; the rest are refunded. The uploaded copies are deleted once Convex has the result."""
+    """Keeps valid photos (face-only unless crowdsourcing), saves thumbnails and face indexes, and reports
+    what was kept. The rest are refunded; uploaded copies are deleted once Convex has the result."""
     convex = ConvexService()
     batch = convex.get_batch(batch_id)
     if not batch or batch["status"] not in ("pending", "running"):
@@ -76,14 +76,19 @@ def process_batch(batch_id: str) -> dict:
                     return {"ok": True, "skipped": True}
                 for photo, image in zip(chunk, images):
                     faces = face_service.extract_embeddings(image)
-                    if not faces:
+                    if not faces and not batch.get("keepAllPhotos", False):
                         continue
                     name = photo["key"].split("/", 1)[1]
-                    thumbnail = make_thumbnail(image)
+                    try:
+                        thumbnail = make_thumbnail(image)
+                    except ValueError:
+                        # A corrupt guest photo must not discard the other photos in its batch.
+                        continue
                     if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), THUMBNAIL_TYPE) \
                             or not r2.copy_file(photo["source"], photo["key"]):
                         raise RuntimeError(f"Could not save {photo['key']}")
-                    found[name] = faces
+                    if faces:
+                        found[name] = faces
                     saved.append(photo["name"])
                     saved_bytes += len(image) + len(thumbnail)
         if found and not r2.upload_file(Faces.of(found).encode(), batch_key(collection_id, batch_id), "application/octet-stream"):

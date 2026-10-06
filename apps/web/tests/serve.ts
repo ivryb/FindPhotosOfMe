@@ -4,4 +4,5 @@ import { startApp } from "./app";
 
 const app = await startApp(3215);
 console.log(`Fixture app at ${app.origin}`);
+console.log(`Fixture controls at ${app.backendOrigin}/__fixture/gallery`);
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { app.stop(); process.exit(0); });

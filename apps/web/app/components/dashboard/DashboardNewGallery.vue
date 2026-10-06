@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-// New galleries stay private until the owner chooses an address and publishes them.
+// New galleries stay private until the owner publishes their secret sharing link.
 const open = defineModel<boolean>("open", { required: true });
 const { mutate: create } = useConvexMutation(api.collections.create);
 

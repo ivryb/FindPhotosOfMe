@@ -33,6 +33,8 @@ let settle: ReturnType<typeof setTimeout> | undefined;
 
 function onScroll() {
   const y = window.scrollY;
+  // Gallery details above the grid can change without changing the grid’s width.
+  if (grid.value) top.value = grid.value.getBoundingClientRect().top + y;
   const time = performance.now();
   const speed = Math.abs(y - last.y) / screen.value / Math.max(time - last.time, 1) * 1000;
   last = { y, time };
@@ -68,7 +70,7 @@ function range(from: number, to: number) {
 
 <template>
   <p v-if="failed" class="status" role="alert">Couldn’t load the photos. <button type="button" @click="emit('retry')">Try again</button></p>
-  <div v-else ref="grid" class="grid" :style="{ height: `${width ? rowCount * rowHeight - GAP : 0}px` }">
+  <div v-else ref="grid" class="grid" :style="{ height: `${width ? Math.max(0, rowCount * rowHeight - GAP) : 0}px` }">
     <div
       v-for="row in rows"
       :key="row"

@@ -43,6 +43,7 @@ export default {
     },
   },
   routeRules: {
+    "/gallery/**": { headers: { "cache-control": "private, no-store", "x-robots-tag": "noindex, nofollow, noarchive", "referrer-policy": "no-referrer" } },
     "/admin": { headers: { "cache-control": "private, no-store" } },
     "/admin/**": { headers: { "cache-control": "private, no-store" } },
     // Galleries were called collections before; keep old dashboard links working

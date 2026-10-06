@@ -180,3 +180,40 @@ def test_faces_match_by_likeness_and_gender_best_first():
     })
     assert [name for name, _ in faces.match([1.0, 0.0], 0)] == ['exact.jpg', 'close.jpg']
     assert Faces.empty().match([1.0, 0.0], 0) == []
+
+
+def test_crowdsourced_batch_keeps_scenery_but_indexes_only_faces(backend):
+    backend['batch']['keepAllPhotos'] = True
+    photo_batches.process_batch('b1')
+    objects = backend['objects']
+    assert objects['event/tag-b.jpg'] == b'no face'
+    assert objects['event/thumbs/tag-b.jpg'] == b'small-no face'
+    assert Faces.decode(objects[batch_key('event', 'b1')]).names.tolist() == ['tag-a.jpg']
+    assert backend['completed'] == [('b1', ['a.jpg', 'b.jpg'], 34)]
+    assert not [key for key in objects if key.startswith('uploads/')]
+
+
+@pytest.mark.parametrize('unreadable', [b'', b'not an image'])
+def test_corrupt_guest_photo_does_not_drop_the_valid_photos_in_its_batch(backend, monkeypatch, unreadable):
+    cv2 = pytest.importorskip('cv2')
+    import numpy as np
+    from services.thumbnails import make_thumbnail
+
+    ok, encoded = cv2.imencode('.jpg', np.zeros((8, 8, 3), dtype=np.uint8))
+    assert ok
+    valid_photo = encoded.tobytes()
+    backend['batch']['keepAllPhotos'] = True
+    objects = backend['objects']
+    objects['uploads/event/up/a.jpg'] = valid_photo
+    objects['uploads/event/up/b.jpg'] = unreadable
+    monkeypatch.setattr(photo_batches, 'make_thumbnail', make_thumbnail)
+
+    assert photo_batches.process_batch('b1') == {'ok': True, 'saved': 1}
+    assert objects['event/tag-a.jpg'] == valid_photo
+    thumbnail = objects['event/thumbs/tag-a.jpg']
+    assert thumbnail[8:12] == b'WEBP'
+    assert 'event/tag-b.jpg' not in objects
+    assert 'event/thumbs/tag-b.jpg' not in objects
+    assert not [key for key in objects if key.startswith('uploads/')]
+    assert backend['completed'] == [('b1', ['a.jpg'], len(valid_photo) + len(thumbnail))]
+    assert backend['failed'] == []

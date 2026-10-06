@@ -1,0 +1,22 @@
+{
+  "verifiedOn": "2026-10-06",
+  "environment": "local Nuxt app with Convex and R2 fixtures",
+  "authenticated": false,
+  "selectedPhotos": 55,
+  "bytesPerPhoto": 160146,
+  "confirmedBatches": [
+    50,
+    5
+  ],
+  "stagedObjects": 55,
+  "uniqueStagedObjects": 55,
+  "uploads": [
+    {
+      "sent": 55,
+      "photos": 55
+    }
+  ],
+  "visibleProgress": "Processing 55 photos. They’ll appear here as they’re ready.",
+  "visibleUploadErrors": [],
+  "transport": "prepare signed batch → browser PUT → server completion checks stored sizes → commit"
+}

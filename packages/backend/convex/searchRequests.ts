@@ -6,10 +6,12 @@ import type { QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import {
+  canAccessGallery,
   requireActiveCollection,
   requireCollectionOwner,
   requireServiceToken,
 } from "./authz";
+import { requireTelegramSession } from "./telegramAccess";
 import { chargeSearch, returnSearch } from "./balances";
 
 export async function canReadRequest(ctx: QueryCtx, request: Doc<"searchRequests">) {
@@ -33,15 +35,15 @@ const searchStatus = v.union(
 );
 
 export const create = mutation({
-  args: { collectionId: v.id("collections") },
-  handler: async (ctx, { collectionId }) => {
+  args: { collectionId: v.id("collections"), shareToken: v.optional(v.string()) },
+  handler: async (ctx, { collectionId, shareToken }) => {
     const collection = await ctx.db.get(collectionId);
     if (!collection || !collection.imagesCount) throw new ConvexError("This gallery has no photos yet");
     requireActiveCollection(collection);
     const user = await authComponent.safeGetAuthUser(ctx);
     const owner = user && (collection.createdBy === user._id ||
       (!collection.createdBy && Boolean(process.env.LEGACY_OWNER_EMAIL) && user.email === process.env.LEGACY_OWNER_EMAIL));
-    if (collection.published === false && !owner) throw new ConvexError("This gallery is private");
+    if (!canAccessGallery(collection, shareToken) && !owner) throw new ConvexError("This gallery is private");
     const requestId = await ctx.db.insert("searchRequests", {
       collectionId,
       publicAccess: owner ? undefined : true,
@@ -64,8 +66,8 @@ export const createForService = mutation({
   },
   handler: async (ctx, { collectionId, telegramChatId, fileId, messageId, serviceToken }) => {
     requireServiceToken(serviceToken);
-    const collection = await ctx.db.get(collectionId);
-    if (!collection || collection.published === false) throw new ConvexError("This gallery is private.");
+    const { collection, session } = await requireTelegramSession(ctx, collectionId, telegramChatId);
+    if (session.mode !== "search") throw new ConvexError("Choose Find my photos before sending a selfie.");
     if (!collection.imagesCount) throw new ConvexError("This gallery has no photos yet.");
     requireActiveCollection(collection);
     const requestId = await ctx.db.insert("searchRequests", {
