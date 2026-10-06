@@ -1,6 +1,17 @@
 # Crowdsourcing flow review
 
-Captured from the actual local web UI on 6 October 2026, using isolated backend and storage fixtures. No production data, deployment, or Telegram messages were involved.
+Captured on 6 October 2026. The live screenshots below use a temporary production test event; the original review captures use isolated backend and storage fixtures. No Telegram messages were sent.
+
+## Live release checks
+
+The deployed guest gallery kept a portrait and a photo without faces, skipped a corrupt JPEG, and updated from empty to two photos while the page remained open. Both compact actions open their sheets, and the viewer offers original downloads.
+
+- [Live mobile gallery and both actions](live-actions-mobile.png)
+- [Live upload sheet](live-upload-sheet-mobile.png)
+
+The screenshots use a 390 × 844 viewport. The deployed gallery also fits 320 pixels, including its long test-event title. Real browser PUTs succeeded from both the canonical site and the optional gallery subdomain.
+
+[Live verification results](live-verification.json) cover real processing, search, downloads, access controls, credit settlement after expiry, and cleanup. The temporary gallery and its storage were removed after verification.
 
 ## Current guest controls
 
@@ -51,7 +62,7 @@ Captured at a 390 × 844 CSS-pixel viewport.
 
 ![Mobile upload and processing status](mobile-processing.png)
 
-## Scope of this preview
+## Scope of the local preview
 
 The admin and guest pages use independent sample galleries. The admin fixture contains 2,742 photos; the guest fixture contains 130. They are not a recording of one event moving between accounts.
 

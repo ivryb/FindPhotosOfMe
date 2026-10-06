@@ -17,7 +17,7 @@ bun --filter web run deploy
 
 Nitro generates `apps/web/.output/server/wrangler.json` and the Wrangler redirect under `.wrangler/deploy/`. Build before running Wrangler. The checked-in `apps/web/wrangler.jsonc` owns the Worker name and compatibility settings; Nitro supplies the entry point and static assets. This uses Nitro 2's [Workers adapter](https://v2.nitro.build/deploy/providers/cloudflare).
 
-Set the variables listed in `apps/web/.env.example` as Worker secrets using `wrangler secret put NAME` from `apps/web`. Keep secrets out of the build environment; Nuxt resolves them from bindings during requests. For a local production preview, copy those values into the gitignored `apps/web/.dev.vars`. Public Convex configuration must point at the same deployment as the server credentials. `NUXT_PUBLIC_ORIGIN` is the canonical root origin (`https://findphotosofme.com` in production); only direct subdomains of this host are treated as event slugs.
+Set the variables listed in `apps/web/.env.example` as Worker secrets using `wrangler secret put NAME` from `apps/web`. Keep service and storage credentials out of the build environment; Nuxt resolves them from bindings during requests. The Convex module's URL has an empty-string default so its runtime configuration key survives builds without a local `.env`; the existing `NUXT_PUBLIC_CONVEX_URL` binding supplies both the module and server clients. For a local production preview, copy the runtime values into the gitignored `apps/web/.dev.vars`. Public Convex configuration must point at the same deployment as the server credentials. `NUXT_PUBLIC_ORIGIN` is the canonical root origin (`https://findphotosofme.com` in production); only direct subdomains of this host are treated as event slugs.
 
 Telegram uses Convex's existing scheduler because Workers background execution is [limited to 30 seconds after a response](https://developers.cloudflare.com/workers/platform/limits/#duration). Configure `PYTHON_API_URL`, `SERVICE_TOKEN`, and the four `R2_*` values in `packages/backend/.env.example` on the matching Convex deployment. Node actions have a [10-minute execution limit](https://docs.convex.dev/production/state/limits#execution-time-and-scheduling); Python requests time out at eight minutes to leave room for error reporting. Failed actions are not automatically retried; users can resend their selfie.
 
@@ -206,6 +206,49 @@ rollout returned 404 from the previous version. Cached gallery images take about
 as long as the Convex availability check (0.35–1 s from Singapore). Each new
 render needs more than the free plan's 10 ms of CPU; the Workers plan was not
 confirmed.
+
+### Crowdsourced galleries and secret links (6 October 2026)
+
+Merged and pushed `5b4e07b`, followed by `84ec404` for long event titles on narrow
+screens and `11fe8c3` for runtime-only Convex configuration. Deployed Modal first, then Convex to the existing `honorable-firefly-904`
+deployment using `convex dev --once`, and the Worker. Final Worker version:
+`d3cc3a9d-e289-447c-a3cf-c904dfd237d3`. The continuous Convex watcher remains
+paused. Existing galleries and storage required no migration.
+
+R2 CORS now includes `https://*.findphotosofme.com`, preserving all existing
+origins, methods, and headers. Guest uploads reserve credit for exact files and
+sizes before issuing direct storage URLs; verified completion converts the hold
+into a charge. Expired abandoned uploads and rejected photos use the existing
+recovery job for storage cleanup and credit release.
+
+Validation passed: 66 backend, 41 web, and 21 Python tests, workspace type checks,
+the production build, and a Wrangler dry run. A temporary live gallery exercised
+owner/other-account access, secret-token enforcement, real signed uploads from
+both supported origins, retries without duplicate charges, processing photos
+with and without faces, corrupt-photo isolation, original downloads, and face search. Root
+and sign-in return 200, anonymous admin redirects and its API returns 401, and
+IT Arena still loads its existing photos. Live mobile sheets and both actions
+work at 390 pixels; the long-title fix was verified after deployment at 320 pixels.
+See [the review evidence](docs/review/crowdsource/README.md).
+
+The timed live check confirmed automatic release of the abandoned reservation,
+refund of the rejected photo, and rejection of the expired storage URL. Final
+test cost was 25 mills ($0.025): two retained photos and one attendee search.
+R2 staging was physically empty before final cleanup. The temporary gallery,
+its processed files, uploads, batches, and search requests were removed; both
+storage prefixes were verified empty. [Sanitized results](docs/review/crowdsource/live-verification.json)
+record the checks and deployed versions.
+
+The first Worker build omitted the public Convex URL in the isolated worktree,
+causing SSR errors during the initial rollout. Rebuilding with
+`NUXT_PUBLIC_CONVEX_URL` restored the pages within about two minutes. The subsequent
+configuration fix preserves the key even without a build-time value, allowing
+the existing runtime binding to supply it. A clean build without the URL passed
+local Worker checks using runtime bindings alone, then served the home, sign-in,
+and IT Arena pages successfully after deployment. Service credentials were retained as
+Worker secrets. Already-open upload pages using the former API need
+a refresh. Fresh Google sign-in, live Telegram delivery, and checkout were not
+repeated for this release.
 
 ## Python ML Service on Modal
 

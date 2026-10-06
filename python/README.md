@@ -41,10 +41,14 @@ After testing a new endpoint, set `PYTHON_API_URL` in Convex and
 
 ## Execution
 
-The browser uploads photos straight to R2 under `uploads/{collection}/{upload}/`
-(it unpacks ZIPs itself) and registers them in Convex 50 at a time. Convex
-(`packages/backend/convex/uploads.ts`) queues each batch, charges it, and hands
-it to a worker here; the small FastAPI web function authenticates the request
+The browser unpacks ZIPs itself and uploads photos straight to R2 in batches of
+up to 50 under `uploads/{collection}/{batch}/`. Convex reserves the owner's
+credit before issuing upload URLs for exact filenames and sizes. After the web
+server verifies that every file arrived, Convex charges and queues the batch;
+abandoned reservations are released after the URLs expire and staging files are
+removed. Older batches retain their `uploads/{collection}/{upload}/` paths.
+Convex (`packages/backend/convex/uploads.ts`) hands queued batches to a worker
+here; the small FastAPI web function authenticates the request
 and spawns the Modal job. `POST /api/process-batch` and `POST /api/merge-faces`
 return HTTP **202 Accepted**; results arrive in Convex. `POST /api/search-photos`
 awaits the search worker and returns HTTP **200** after matching, which the web

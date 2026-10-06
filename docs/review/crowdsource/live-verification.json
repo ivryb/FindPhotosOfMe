@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-06",
+  "environment": "Live Cloudflare Worker, Convex, Modal and R2",
+  "applicationCommit": "11fe8c3",
+  "workerVersion": "d3cc3a9d-e289-447c-a3cf-c904dfd237d3",
+  "verificationVersions": {
+    "coreFunctionalSmoke": "b368f2aa-fceb-448f-8c4e-39fdb248757a",
+    "responsiveBrowserChecks": "7f93bde5-4a85-45a8-adfe-1cd350cea5ab",
+    "finalRuntimeBindingVerification": "d3cc3a9d-e289-447c-a3cf-c904dfd237d3",
+    "note": "Later changes wrap long gallery titles and correct the runtime Convex configuration key; upload, billing, processing and access behavior was unchanged."
+  },
+  "convexDeployment": "honorable-firefly-904",
+  "testGalleryId": "jd74mxdjvdpj84zayfcrd77hs98fsc7f",
+  "photoOutcome": {
+    "submitted": 3,
+    "kept": 2,
+    "corruptSkipped": 1,
+    "portraitMatches": 1
+  },
+  "billing": {
+    "netChargeMills": 25,
+    "breakdown": {
+      "twoRetainedPhotos": 10,
+      "oneSuccessfulSearch": 15
+    },
+    "abandonedReservationReleased": true,
+    "corruptPhotoRefunded": true
+  },
+  "expiry": {
+    "abandonedUploadUrlExpiredAt": "2026-10-06T14:16:04+00:00",
+    "cleanupObservedAt": "2026-10-06T14:19:19Z"
+  },
+  "checks": [
+    "new gallery starts private with secret-link sharing",
+    "other signed-in account cannot read owner gallery",
+    "unpublished gallery denies valid-link guest",
+    "published link gallery denies missing token",
+    "published link gallery denies incorrect token",
+    "empty crowdsourced gallery is accessible with token",
+    "presigning reserves one photo without charging",
+    "R2 preflight permits gallery subdomain origin",
+    "actual signed R2 PUT succeeds for subdomain origin",
+    "three-photo batch adds exact hold without charge",
+    "retry reuses batch, storage URLs and reservation",
+    "R2 rejects incorrect signed content type",
+    "R2 rejects incorrect signed byte length",
+    "R2 stores portrait.jpg at declared size",
+    "R2 stores faceless.png at declared size",
+    "R2 stores corrupt.jpg at declared size",
+    "server completion converts only completed batch hold to charge",
+    "completion retry does not charge twice",
+    "Modal retains portrait and faceless image while skipping corrupt photo",
+    "guest sees both processed originals",
+    "download bytes match faceless.png",
+    "media without token denied after authorized cache warm",
+    "media with wrong token denied after authorized cache warm",
+    "download bytes match portrait.jpg",
+    "listing without token denied",
+    "listing with wrong token denied",
+    "secret gallery responds with crawler exclusion",
+    "secret gallery suppresses outbound referrer",
+    "real guest selfie search completes through Worker and Modal",
+    "face search returns only portrait from mixed gallery",
+    "cron releases abandoned reservation and refunds corrupt photo after expiry",
+    "expired abandoned batch record removed",
+    "expired upload URL cannot recreate abandoned storage",
+    "switching to secret link closes the former subdomain",
+    "owner can read secret-gallery photo without guest token",
+    "other signed-in account cannot read secret-gallery photo without token",
+    "guest media works immediately before unpublishing",
+    "unpublishing immediately denies warmed guest media",
+    "unpublishing closes prior guest search result",
+    "owner retains media access after unpublishing",
+    "unpublished gallery rejects new guest upload",
+    "R2 contains no abandoned or rejected staging objects after cron cleanup",
+    "test gallery storage deletion succeeds",
+    "test gallery and associated app records removed",
+    "test gallery storage prefixes are empty"
+  ],
+  "browserChecks": [
+    "Guest gallery changed reactively from empty to two processed photos.",
+    "Upload and Find me sheets opened on the deployed site.",
+    "Long gallery title and compact actions fit a 320 px viewport after wrapping fix.",
+    "Exact 179-byte PNG PUT through browser fetch succeeded on the canonical origin.",
+    "Temporary public subdomain loaded both thumbnails and browser fetch PUT succeeded from that origin."
+  ],
+  "cleanup": {
+    "deletedStorageObjects": 5,
+    "galleryRemoved": true
+  },
+  "limits": [
+    "Owner and second-account access used existing sessions through the authenticated Convex administrator CLI; this did not repeat interactive Google sign-in.",
+    "No Telegram chat delivery or paid checkout was performed.",
+    "The existing portrait fixture was reused without modifying its source file."
+  ]
+}
