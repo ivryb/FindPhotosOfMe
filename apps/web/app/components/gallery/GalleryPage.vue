@@ -72,7 +72,8 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
 .logo img { width: 28px; height: 28px; }
 /* The gallery name gets the full width; the count and description sit under it */
 .intro { padding-block: clamp(16px, 3vw, 36px) clamp(24px, 3vw, 36px); }
-.intro h1 { font-size: clamp(2.4rem, 6.4vw, 5.4rem); }
+/* Long event names must still fit narrow phones. */
+.intro h1 { font-size: clamp(2.4rem, 6.4vw, 5.4rem); overflow-wrap: anywhere; }
 .about { display: flex; flex-wrap: wrap; gap: 4px 20px; max-width: 72ch; margin-top: clamp(14px, 2vw, 22px); color: #b3b3ad; white-space: pre-line; }
 .about b { color: var(--background); font-weight: 800; font-stretch: 112%; white-space: nowrap; }
 .selection { max-width: 60ch; margin-top: 14px; color: #b3b3ad; font-size: .95rem; }
