@@ -264,6 +264,19 @@ deployed from a clean worktree, leaving unrelated uncommitted guest-upload work 
 checks, and the production build passed. Production home, personal, photographers, and organizers pages show
 the new rates, trial, and minimum. A real charge at the new rates was not exercised on production.
 
+### Guest photo moderation and upload status (8 October 2026)
+
+Pushed `f75a987`. Convex went to `honorable-firefly-904` with `convex dev --once`, then Modal (its image now
+includes `openai==3.22.1`), then Worker version `01712f99-cf28-4b75-8524-2adfffae0ddb`, which also ships `1c1b9d8`:
+guest uploads finish once their photos reach storage. `OPENAI_API_KEY` was added to the Modal secret
+`findphotosofme-backend` with the SDK's `modal.Secret.update`, which keeps the other keys; the CLI can only replace a
+whole secret.
+
+Backend tests (66), web tests (41), Python tests (17; the thumbnail test skips without Pillow), type checks, and the
+production build passed. A one-off function on the production image and secret called the moderation endpoint and
+allowed a plain landscape. Production home, sign-in, and organizers pages return 200. A real guest upload through
+moderation was not exercised on production, and no explicit image was sent.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
