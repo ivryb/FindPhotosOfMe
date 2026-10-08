@@ -5,6 +5,7 @@ insightface==0.7.3
 onnxruntime==1.15.1
 python-dotenv==1.0.0
 convex==0.7.0
+openai==3.22.1
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6

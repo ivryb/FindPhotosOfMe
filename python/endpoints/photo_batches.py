@@ -47,8 +47,9 @@ async def submit_merge(body: MergeRequest, request: Request):
 
 
 def process_batch(batch_id: str) -> dict:
-    """Keeps valid photos (face-only unless crowdsourcing), saves thumbnails and face indexes, and reports
-    what was kept. The rest are refunded; uploaded copies are deleted once Convex has the result."""
+    """Keeps valid photos (face-only unless crowdsourcing; guest photos only if moderation allows them), saves
+    thumbnails and face indexes, and reports what was kept. The rest are refunded; uploaded copies are deleted
+    once Convex has the result."""
     convex = ConvexService()
     batch = convex.get_batch(batch_id)
     if not batch or batch["status"] not in ("pending", "running"):
@@ -60,7 +61,9 @@ def process_batch(batch_id: str) -> dict:
         r2 = R2StorageService()
         from services.face_index import Faces, batch_key
         from services.face_recognition_service import get_face_service
+        from services.moderation import ModerationService
         face_service = get_face_service()
+        moderation = ModerationService() if batch.get("moderate", False) else None
         found: dict[str, list[dict]] = {}
         saved: list[str] = []
         saved_bytes = 0
@@ -83,6 +86,9 @@ def process_batch(batch_id: str) -> dict:
                         thumbnail = make_thumbnail(image)
                     except ValueError:
                         # A corrupt guest photo must not discard the other photos in its batch.
+                        continue
+                    if moderation and not moderation.allows(thumbnail):
+                        log(f"Batch {batch_id}: turned away {photo['name']} after moderation")
                         continue
                     if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), THUMBNAIL_TYPE) \
                             or not r2.copy_file(photo["source"], photo["key"]):

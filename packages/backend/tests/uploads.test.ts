@@ -108,6 +108,7 @@ describe("processing", () => {
     const [batch] = await batches(collectionId);
 
     const work = await t.query(api.uploads.getBatchForService, { id: batch!._id, serviceToken });
+    expect(work?.moderate).toBe(false);
     expect(work?.photos[0]).toEqual({ name: "photo-0.jpg", source: stagingKey(collectionId, batch!._id, "photo-0.jpg"), key: photoKey(collectionId, uploadId, "photo-0.jpg") });
 
     const done = { id: batch!._id, saved: names(30), savedBytes: 3e6, serviceToken };

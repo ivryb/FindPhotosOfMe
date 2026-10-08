@@ -30,11 +30,14 @@ R2_SECRET_ACCESS_KEY
 R2_BUCKET_NAME
 CONVEX_URL
 SERVICE_TOKEN
+OPENAI_API_KEY
 ```
 
 `SERVICE_TOKEN` must match Convex's `SERVICE_TOKEN` and the web app's private
-`NUXT_SERVICE_TOKEN`. Keep these values out of source control. Modal's CLI
-credentials are separate from the application's service token.
+`NUXT_SERVICE_TOKEN`. `OPENAI_API_KEY` is used only for the free moderation
+endpoint; guest uploads fail without it. Keep these values out of source
+control. Modal's CLI credentials are separate from the application's service
+token.
 
 After testing a new endpoint, set `PYTHON_API_URL` in Convex and
 `NUXT_PYTHON_API_URL` in the frontend. See [the Cloudflare handoff](../docs/modal-handoff.md).
@@ -62,7 +65,10 @@ and Telegram flows rely on.
   galleries still discard and refund photos without faces. The batch records
   this policy when submitted, so closing contributions does not discard queued
   guest photos. Unreadable files are skipped and refunded without failing the
-  other photos in the batch.
+  other photos in the batch. Guest photos are also screened by OpenAI's
+  moderation endpoint, using their thumbnails; sexual content, gore and
+  self-harm are skipped and refunded the same way. Owners' photos are not
+  screened. If moderation stays unreachable, the batch fails and is retried.
 - **Merges**: fold finished batch files into `{collection}/faces/index.npz`, one
   merge per gallery at a time, up to four galleries at once, five-minute limit.
 - **Search**: up to two workers, 1 CPU / 2 GiB, five-minute limit. It reads the
