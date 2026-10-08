@@ -181,7 +181,7 @@ export function startBackend(port = 0) {
       const changes: { imagesCount?: number; showAllPhotos?: boolean; crowdsource?: boolean; listingError?: boolean } = await request.json();
       imagesCount = changes.imagesCount ?? imagesCount;
       crowdsource = changes.crowdsource ?? crowdsource;
-      showAllPhotos = crowdsource || (changes.showAllPhotos ?? showAllPhotos);
+      showAllPhotos = changes.showAllPhotos ?? showAllPhotos;
       listingError = changes.listingError ?? listingError;
       for (const socket of sockets) transition(socket);
       return Response.json({ imagesCount, showAllPhotos, crowdsource, listingError });

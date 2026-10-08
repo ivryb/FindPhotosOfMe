@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import type { Sending } from "@/composables/usePhotoUpload";
 
-const props = defineProps<{ galleryId: Id<"collections">; shareToken?: string }>();
+// `browse` says whether guests can scroll the whole gallery; without it they find their photos by searching.
+const props = defineProps<{ galleryId: Id<"collections">; shareToken?: string; browse: boolean }>();
 const open = defineModel<boolean>("open", { default: false });
 const dragging = ref(false);
 const picker = useTemplateRef("picker");
@@ -63,7 +64,7 @@ function sendingRow(entry: Sending): Row {
 function uploadRow(item: Doc<"uploads">): Row {
   const row = { key: item._id, name: item.name };
   if (item.sent < item.photos) return { ...row, tone: "error", text: `${count.format(item.sent)} of ${photos(item.photos)} uploaded. Choose the same files to continue.` };
-  if (item.processed < item.photos) return { ...row, tone: "done", text: "Uploaded. Your photos will appear in the gallery as they’re processed, which can take a while." };
+  if (item.processed < item.photos) return { ...row, tone: "done", text: props.browse ? "Uploaded. Your photos will appear in the gallery as they’re processed, which can take a while." : "Uploaded. Once they’re processed, which can take a while, search with a selfie to find the ones you’re in." };
   const missing = item.processed - item.saved;
   return { ...row, tone: item.saved ? "done" : "error", text: `${photos(item.saved)} added to the gallery${missing ? `. ${count.format(missing)} couldn’t be processed` : ""}.` };
 }

@@ -21,7 +21,6 @@ const form = reactive({
   sharing: props.gallery.sharing ?? "subdomain",
   crowdsource: props.gallery.crowdsource ?? false,
 });
-watch(() => form.crowdsource, (enabled) => { if (enabled) form.showAllPhotos = true; });
 const { host } = useGalleryAddress();
 
 // The tab stays mounted while hidden, so the preview's photos load only once it's on screen.
@@ -107,14 +106,14 @@ async function publish(value: boolean) {
           <Switch id="page-crowdsource" v-model="form.crowdsource" class="mt-0.5" @update:model-value="saved = false" />
           <div class="grid gap-1">
             <Label for="page-crowdsource">Let guests upload photos</Label>
-            <p class="text-sm text-muted-foreground">Anyone with access can contribute through the gallery or Telegram, without signing in. All photos appear after processing, including photos without faces. Uploads use your balance.</p>
+            <p class="text-sm text-muted-foreground">Anyone with access can contribute through the gallery or Telegram, without signing in. Photos without faces are kept too. Uploads use your balance.</p>
           </div>
         </div>
-        <div v-if="!form.crowdsource" class="flex items-start gap-3">
+        <div class="flex items-start gap-3">
           <Switch id="page-browse" v-model="form.showAllPhotos" class="mt-0.5" @update:model-value="saved = false" />
           <div class="grid gap-1">
             <Label for="page-browse">Let people browse every photo</Label>
-            <p class="text-sm text-muted-foreground">When this is off, people see a few photos and find the rest with a selfie.</p>
+            <p class="text-sm text-muted-foreground">When this is off, people see a few photos and find the rest with a selfie{{ form.crowdsource ? ", so guest photos without faces are visible only to you" : "" }}.</p>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-3">

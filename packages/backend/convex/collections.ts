@@ -33,7 +33,7 @@ function publicView(collection: Doc<"collections"> | null, shareToken?: string) 
     subdomain: collection.subdomain,
     imagesCount: collection.imagesCount,
     previewImages: collection.previewImages ?? [],
-    showAllPhotos: collection.crowdsource || (collection.showAllPhotos ?? true),
+    showAllPhotos: collection.showAllPhotos ?? true,
     crowdsource: collection.crowdsource ?? false,
   };
 }
@@ -207,8 +207,7 @@ export const update = mutation({
       title: args.title.trim(),
       description: args.description.trim(),
       welcomeMessage: args.welcomeMessage?.trim() || undefined,
-      // Closing contributions later must not unexpectedly hide photos people have already shared.
-      showAllPhotos: crowdsource || (args.showAllPhotos ?? collection.showAllPhotos ?? true),
+      showAllPhotos: args.showAllPhotos ?? collection.showAllPhotos ?? true,
       ...(canClaimLegacy ? { createdBy: user._id } : {}),
     });
   },

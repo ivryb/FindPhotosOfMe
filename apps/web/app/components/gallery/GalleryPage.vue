@@ -7,7 +7,7 @@ const props = defineProps<{ gallery: NonNullable<FunctionReturnType<typeof api.c
 const home = useRuntimeConfig().public.origin || "/";
 const { photos, loaded, failed, load } = useGalleryPhotos(() => props.gallery._id, { preload: true, shareToken: props.shareToken });
 onMounted(() => load());
-// Enabling contributions also reveals existing photos without changing their count.
+// Turning on browsing reveals existing photos without changing their count.
 watch([() => props.gallery.imagesCount, () => props.gallery.showAllPhotos], () => load(true));
 // Galleries that show only previews have just those to browse; search still covers every photo.
 const browsable = computed(() => (props.gallery.showAllPhotos ? props.gallery.imagesCount : props.gallery.previewImages.length));
@@ -52,7 +52,7 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
     </main>
 
     <div v-show="!sheet" class="gallery-actions" aria-label="Gallery actions">
-      <GalleryUpload v-if="gallery.crowdsource" :gallery-id="gallery._id" :share-token="shareToken"
+      <GalleryUpload v-if="gallery.crowdsource" :gallery-id="gallery._id" :share-token="shareToken" :browse="gallery.showAllPhotos"
         :open="sheet === 'upload'" @update:open="sheet = $event ? 'upload' : sheet === 'upload' ? null : sheet" />
       <GallerySearch v-if="gallery.imagesCount" compact :share-token="shareToken" :gallery-id="gallery._id" :total="gallery.imagesCount"
         :open="sheet === 'search'" @update:open="sheet = $event ? 'search' : sheet === 'search' ? null : sheet"

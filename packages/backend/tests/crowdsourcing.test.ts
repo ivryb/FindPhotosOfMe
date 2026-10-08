@@ -42,7 +42,7 @@ test("an empty gallery publishes by secret link without a subdomain or public ID
 
 test("secret gallery metadata, media and search enforce link possession; unpublishing closes them", async () => {
   const { t, owner, id, shareToken } = await setup();
-  await t.run((ctx) => ctx.db.patch(id, { imagesCount: 2, subdomain: "old-address", showAllPhotos: false }));
+  await t.run((ctx) => ctx.db.patch(id, { imagesCount: 2, subdomain: "old-address" }));
   expect(await t.query(api.collections.getPublicBySubdomain, { subdomain: "old-address" })).toBeNull();
   for (const key of [`${id}/photo.jpg`, `${id}/thumbs/photo.jpg`]) {
     expect(await t.query(api.collections.canReadPhoto, { key })).toBe(false);
