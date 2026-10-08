@@ -79,7 +79,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
   </DrawerTrigger>
   <div v-else v-show="!open" :class="['banner', { inline }]" :data-state="state.kind" aria-live="polite">
     <button type="button" class="banner-main" aria-haspopup="dialog" @click="open = true">
-      <span v-if="selfie" :class="['ring', { done: state.kind !== 'searching' }]"><img :src="selfie" alt="Your selfie"></span>
+      <span v-if="selfie" class="ring"><img :src="selfie" alt="Your selfie"></span>
       <span v-else class="slot"><Camera /></span>
       <span class="banner-text">
         <b>{{ banner.title }}</b>
@@ -110,7 +110,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
       <DrawerClose class="selfie-sheet-minimize" aria-label="Minimize"><ChevronDown /></DrawerClose>
       <div class="selfie-sheet-body">
         <div v-if="selfie && state.kind !== 'idle'" class="selfie-sheet-head">
-          <span :class="['ring', 'big', { done: state.kind !== 'searching' }]"><img :src="selfie" alt="Your selfie"></span>
+          <span class="ring big"><img :src="selfie" alt="Your selfie"></span>
           <div>
             <DrawerTitle as="h2">{{ banner.title }}</DrawerTitle>
             <DrawerDescription class="selfie-sheet-sub">
@@ -215,14 +215,9 @@ async function downloadAll(photos: GalleryPhoto[]) {
 
 <!-- Not scoped: the sheet is teleported to the end of the page, and the ring and progress bar are shared with it. -->
 <style>
-.ring { display: grid; flex: none; place-items: center; padding: 3px; background: conic-gradient(var(--foreground) 25%, rgb(21 21 21 / .15) 0); border-radius: 50%; animation: ring-turn 1.2s linear infinite; }
+.ring { display: grid; flex: none; place-items: center; padding: 3px; background: var(--foreground); border-radius: 50%; }
 .ring img { width: 100%; height: 100%; object-fit: cover; border: 2px solid var(--brand); border-radius: 50%; }
-.ring.done { background: var(--foreground); animation: none; }
 .ring.big { width: 72px; height: 72px; padding: 4px; }
-@keyframes ring-turn { to { rotate: 1turn; } }
-.ring img { animation: ring-hold 1.2s linear infinite; }
-.ring.done img { animation: none; }
-@keyframes ring-hold { to { rotate: -1turn; } }
 .working { position: relative; display: block; height: 6px; overflow: hidden; background: rgb(21 21 21 / .15); border-radius: 3px; }
 .working::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 35%; background: var(--foreground); border-radius: 3px; animation: working 1.4s ease-in-out infinite; }
 .working.big { margin-top: 20px; }
@@ -274,6 +269,6 @@ async function downloadAll(photos: GalleryPhoto[]) {
   .selfie-sheet-privacy { justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ring, .ring img, .working::after, .selfie-sheet-found li { animation: none; }
+  .working::after, .selfie-sheet-found li { animation: none; }
 }
 </style>
