@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { Button } from "@/components/ui/button";
 import { LIMITS, MINIMUM_TOP_UP, PRICE_TEXT, STORAGE_DAYS, clampCount, count, estimateTopUp, formatMoney } from "@/utils/pricing";
+
+// The pricing section and the top-up dialog share this calculator; each puts its own action in the slot.
+// `compact` is the dialog's lighter version, without the ink tray and the photo sheet.
+defineProps<{ compact?: boolean }>();
+defineSlots<{ default(props: { total: number }): unknown }>();
 
 const id = useId();
 const photos = ref(2_000);
@@ -34,7 +38,7 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
 </script>
 
 <template>
-  <div class="tray">
+  <div :class="['tray', { compact }]">
     <div class="controls">
       <div>
         <div class="field">
@@ -67,10 +71,12 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
     </div>
 
     <div class="slip">
-      <div class="sheet" aria-hidden="true" :style="{ '--columns': columns }" @pointerdown="pick" @pointermove="pick">
-        <span v-for="n in tiles" :key="n" :class="{ on: n <= filled }" />
-      </div>
-      <p class="sheet-caption">Each tile is 100 photos</p>
+      <template v-if="!compact">
+        <div class="sheet" aria-hidden="true" :style="{ '--columns': columns }" @pointerdown="pick" @pointermove="pick">
+          <span v-for="n in tiles" :key="n" :class="{ on: n <= filled }" />
+        </div>
+        <p class="sheet-caption">Each tile is 100 photos</p>
+      </template>
 
       <p class="slip-title">You pay once</p>
       <output class="total" aria-live="polite" aria-atomic="true" aria-label="Estimated total">{{ formatMoney(price.total) }}</output>
@@ -80,9 +86,7 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
         <div><dt>{{ days }} days of storage</dt><dd>{{ price.storageCost === 0 ? 'Included' : formatMoney(price.storageCost) }}</dd></div>
         <div v-if="price.subtotal < MINIMUM_TOP_UP" class="minimum"><dt>Topped up to the {{ PRICE_TEXT.minimum }} minimum</dt><dd>{{ formatMoney(MINIMUM_TOP_UP - price.subtotal) }}</dd></div>
       </dl>
-      <Button as-child size="xl" variant="outline" class="w-full">
-        <NuxtLink to="/admin">Start free, top up later</NuxtLink>
-      </Button>
+      <div class="action"><slot :total="price.total" /></div>
     </div>
   </div>
 </template>
@@ -90,43 +94,65 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
 <style scoped>
 
 /* Ink controls beside a white price slip; yellow stays with the free trial above. The rules below read these colors. */
-.tray { --soft: #b3b3ad; --field: #2a2a28; --track: #3a3a38; --slip-soft: var(--muted-foreground); --tile: #e6e6e2; --rule: var(--border); }
+.tray { --soft: #b3b3ad; --field: #2a2a28; --track: #3a3a38; --accent: var(--brand); --accent-ink: var(--foreground); --slip: var(--background); --slip-soft: var(--muted-foreground); --tile: #e6e6e2; --rule: var(--border); }
+/* The dialog already has a white surface, so its controls sit on it in ink beside a grey slip. */
+.tray.compact { --soft: var(--muted-foreground); --field: var(--muted); --track: var(--border); --accent: var(--foreground); --accent-ink: var(--background); --slip: var(--muted); }
 .tray { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; padding: 12px; background: var(--foreground); color: var(--background); border-radius: 24px; text-align: left; }
+.tray.compact { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 28px; padding: 0; background: none; color: var(--foreground); border-radius: 0; }
 .tray :deep(:focus-visible) { outline-color: currentColor; }
 .controls { display: flex; flex-direction: column; gap: 36px; padding: clamp(16px, 3vw, 36px); }
+.compact .controls { gap: 24px; padding: 4px 0 0; }
 .field { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.compact .field { margin-bottom: 6px; }
 .field label, legend { font-weight: 650; }
-input[type="number"] { width: 104px; padding: 6px 12px; background: var(--field); color: var(--background); border: 0; border-radius: 999px; font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+input[type="number"] { width: 104px; padding: 6px 12px; background: var(--field); color: inherit; border: 0; border-radius: 999px; font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { margin: 0; appearance: none; }
+.compact input[type="number"] { width: 88px; padding-block: 4px; }
 
 input[type="range"] { display: block; width: 100%; height: 28px; margin: 0; appearance: none; background: transparent; cursor: pointer; }
-input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--brand) var(--progress), var(--track) var(--progress)); }
-input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--brand) var(--progress), var(--track) var(--progress)); }
-input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -9px; appearance: none; border: 2px solid var(--brand); border-radius: 50%; background: var(--brand); }
-input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border: 2px solid var(--brand); border-radius: 50%; background: var(--brand); }
+input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--progress), var(--track) var(--progress)); }
+input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--progress), var(--track) var(--progress)); }
+input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -9px; appearance: none; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent); }
+input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent); }
+.compact input[type="range"]::-webkit-slider-runnable-track { height: 4px; }
+.compact input[type="range"]::-moz-range-track { height: 4px; }
+.compact input[type="range"]::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -7px; }
+.compact input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; }
 .help { margin-top: 8px; color: var(--soft); font-size: .85rem; }
+.compact .help { margin-top: 6px; font-size: .8rem; }
 
 .days { display: flex; gap: 8px; margin-top: 14px; }
+.compact .days { margin-top: 8px; }
 .days label { position: relative; cursor: pointer; }
 .days input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.days span { display: block; padding: 8px 20px; background: var(--field); border-radius: 999px; font-weight: 650; }
-.days input:checked + span { background: var(--brand); color: var(--foreground); }
+.days span { display: block; padding: 8px 20px; background: var(--field); border-radius: 999px; font-weight: 650; white-space: nowrap; }
+.compact .days span { padding: 6px 16px; font-size: .9rem; }
+.days input:checked + span { background: var(--accent); color: var(--accent-ink); }
 .days input:focus-visible + span { outline: 3px solid currentColor; outline-offset: 2px; }
 
-.slip { display: flex; flex-direction: column; padding: clamp(24px, 3vw, 36px); background: var(--background); color: var(--foreground); border-radius: 16px; }
+.slip { display: flex; flex-direction: column; padding: clamp(24px, 3vw, 36px); background: var(--slip); color: var(--foreground); border-radius: 16px; }
+.compact .slip { padding: 20px; border-radius: 12px; }
 .sheet { display: grid; grid-template-columns: repeat(var(--columns), 1fr); gap: 3px; cursor: crosshair; touch-action: pan-y; user-select: none; }
 .sheet span { aspect-ratio: 3 / 2; background: var(--tile); border-radius: 2px; }
 .sheet span.on { background: var(--foreground); }
 .sheet-caption { margin: 8px 0 28px; color: var(--slip-soft); font-size: .8rem; }
 .slip-title { font-weight: 650; }
 .total { display: block; margin: 2px 0 16px; font-size: clamp(2.2rem, 3.6vw, 2.8rem); font-weight: 850; font-stretch: 118%; letter-spacing: -.05em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.compact .total { margin-bottom: 12px; font-size: 2rem; }
 .lines { margin-bottom: 28px; }
+.compact .lines { margin-bottom: 16px; font-size: .9rem; }
 .lines > div { display: flex; justify-content: space-between; gap: 16px; padding-block: 10px; border-top: 1px dashed var(--rule); font-variant-numeric: tabular-nums; }
+.compact .lines > div { padding-block: 7px; }
 .lines dd { font-weight: 650; }
 .lines .minimum { color: var(--slip-soft); font-size: .85rem; }
-.slip :deep(a) { margin-top: auto; }
+.action { margin-top: auto; }
 
 @media (max-width: 820px) {
-  .tray { grid-template-columns: minmax(0, 1fr); }
+  .tray, .tray.compact { grid-template-columns: minmax(0, 1fr); }
   .sheet { gap: 2px; }
+}
+@media (max-width: 480px) {
+  .days label { flex: 1; }
+  .tray .days span { padding-inline: 8px; text-align: center; }
 }
 </style>

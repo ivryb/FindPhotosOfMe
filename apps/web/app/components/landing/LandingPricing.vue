@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
 import { PRICE_TEXT } from "@/utils/pricing";
-import LandingPricingCalculator from "./LandingPricingCalculator.vue";
 
 // The free trial first and loudest, then the calculator for anyone who needs more.
 defineProps<{ title: string; text: string; note: string }>();
@@ -28,7 +27,11 @@ defineProps<{ title: string; text: string; note: string }>();
     </div>
 
     <h3 class="more">Need more? Calculate your price</h3>
-    <LandingPricingCalculator />
+    <PricingCalculator>
+      <Button as-child size="xl" variant="outline" class="w-full">
+        <NuxtLink to="/admin">Start free, top up later</NuxtLink>
+      </Button>
+    </PricingCalculator>
     <p class="note">{{ note }} No subscription. {{ PRICE_TEXT.minimum }} minimum payment. USD before tax.</p>
   </LandingSection>
 </template>
