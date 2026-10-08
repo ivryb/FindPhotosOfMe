@@ -302,6 +302,33 @@ unrelated uncommitted gallery-browsing work out.
 Backend tests (67), Python processing tests, and type checks passed on the release commit. Production home, sign-in,
 and IT Arena return 200. No batch was running after the deploy, so live progress reports were not observed.
 
+### Event reliability, screen-size photos, and clearer guest uploads (8 October 2026)
+
+Pushed `3249741` through `c7908c7`, deployed during IT Arena from a clean worktree together with the dashboard polish
+(`c1ab077`, `cd6d40d`, `008dd8b`) and balance top-up (`988278a`, `ce7e86c`, `d35a2ed`) commits on main.
+
+- Better Auth counted every visitor as the Worker's IP, so its shared limit of 30 requests a minute ran out, Convex
+  could no longer fetch the signing keys, and it rejected every token: the dashboard returned 500 and uploads stopped.
+  Session checks and the key endpoint no longer count.
+- Every upload step retries brief failures, signed requests never send `Bearer null` (the server answers 401, not
+  500), and adding a finished ZIP again returns the finished upload instead of uploading and charging it twice.
+- www redirects to the root host, and browsers keep photos for ten minutes.
+- Processing saves a 2048px WebP screen version beside each thumbnail, which storage billing doesn't count. The viewer
+  and the Telegram bot use it and fall back to the original; Telegram fetches linked photos only up to 5 MB, so larger
+  originals had failed whole albums.
+- The guest upload sheet says Add photos, carries title icons, and links to Find me.
+- Maintenance: `remove_upload` (Modal) with `uploads:removeUpload`, and `collections:moveTelegramBot`.
+
+On `honorable-firefly-904` they removed one duplicated IT Arena upload (350 photos, 1,279 faces, 700 files, $0.70
+refunded) and two guest selfies, and moved @it_arena_photos_bot from IT Arena 2025 to 2026, renamed for 2026. The
+screen backfill ran for IT Arena 2026; other galleries still need it. Final versions: Convex at 23:00 local, Modal
+with `remove_upload`, and Worker version `f749e5c5-6dec-41c8-ad81-f046f911b04f`.
+
+Backend (70), web (42), and Python (19) tests and both type checks passed. On production, www redirects, photos carry
+`private, max-age=600`, `Bearer null` gets 401, both sheets and the Find me switch work, Telegram accepts the WebP
+screen versions as photos, and the bot's webhook points at IT Arena 2026. A Telegram selfie search after the delivery
+fix was not repeated.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
