@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Upload, ChevronDown, CircleAlert, CircleCheck, CircleDashed, LoaderCircle } from "@lucide/vue";
+import { Upload, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CirclePlus, LoaderCircle } from "@lucide/vue";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Doc, Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { useConvexClient } from "convex-vue";
@@ -8,7 +8,9 @@ import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerTitle, Dra
 import type { Sending } from "@/composables/usePhotoUpload";
 
 // `browse` says whether guests can scroll the whole gallery; without it they find their photos by searching.
-const props = defineProps<{ galleryId: Id<"collections">; shareToken?: string; browse: boolean }>();
+// `canSearch` points guests looking for themselves to Find me, which `find` opens.
+const props = defineProps<{ galleryId: Id<"collections">; shareToken?: string; browse: boolean; canSearch: boolean }>();
+defineEmits<{ find: [] }>();
 const open = defineModel<boolean>("open", { default: false });
 const dragging = ref(false);
 const picker = useTemplateRef("picker");
@@ -84,8 +86,11 @@ function uploadRow(item: Doc<"uploads">): Row {
       <DrawerClose class="upload-sheet-close" aria-label="Close uploads"><ChevronDown /></DrawerClose>
       <section id="guest-upload" class="upload-sheet-body">
         <!-- Guests looking for themselves uploaded selfies here, so this says what it's for and points to Find me. -->
-        <DrawerTitle as="h2">Add your photos to this gallery</DrawerTitle>
-        <DrawerDescription class="description">Share photos you took at the event. Everyone with access to this gallery can see and download them. No account needed. Looking for photos of yourself? Use Find me instead.</DrawerDescription>
+        <DrawerTitle as="h2"><CirclePlus class="title-icon" aria-hidden="true" />Add your photos to this gallery</DrawerTitle>
+        <DrawerDescription class="description">
+          Share photos you took at the event. Everyone with access to this gallery can see and download them.
+          <span v-if="canSearch" class="find-me"><b>Looking for photos of yourself?</b> Use <button type="button" @click="$emit('find')">Find me</button> instead.</span>
+        </DrawerDescription>
         <p v-if="failure" class="failure" role="alert">{{ failure }}</p>
         <!-- Once photos are chosen, their progress leads and choosing more steps back. -->
         <ul v-if="rows.length" class="progress" aria-live="polite">
@@ -117,7 +122,11 @@ function uploadRow(item: Doc<"uploads">): Row {
 .upload-sheet-close svg { width: 22px; height: 22px; }
 .upload-sheet-body { overflow-y: auto; padding: 26px 32px 32px; }
 .upload-sheet-body h2 { padding-right: 56px; font-size: clamp(1.9rem, 4vw, 2.4rem); font-weight: 800; }
+.title-icon { display: inline-block; width: .82em; height: .82em; margin-right: .28em; vertical-align: -.08em; stroke-width: 2.5; }
 .description { max-width: 60ch; margin-top: 8px; color: #4f4826; font-size: 1.05rem; }
+.find-me { display: block; margin-top: 6px; }
+.find-me b, .find-me button { color: var(--brand-foreground); font-weight: 700; }
+.find-me button { padding: 0; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .drop { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; margin-top: 24px; padding: 28px 20px; background: var(--background); color: var(--foreground); border: 2px dashed #b4b4ae; border-radius: 18px; text-align: center; cursor: pointer; }
 .drop:hover { border-color: var(--foreground); }
 .drop > svg { width: 32px; height: 32px; margin-bottom: 6px; }

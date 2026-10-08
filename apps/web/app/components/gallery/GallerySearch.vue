@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { Camera, ChevronDown, Download, LoaderCircle, ShieldCheck } from "@lucide/vue";
+import { Camera, ChevronDown, Download, LoaderCircle, Search, ShieldCheck } from "@lucide/vue";
 import type { GalleryPhoto } from "#shared/types/gallery";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
@@ -87,7 +87,7 @@ function drop(event: DragEvent) {
           </div>
         </div>
         <div v-else>
-          <DrawerTitle as="h2">{{ headline.title }}</DrawerTitle>
+          <DrawerTitle as="h2"><Search class="title-icon" aria-hidden="true" />{{ headline.title }}</DrawerTitle>
           <DrawerDescription class="selfie-sheet-sub">{{ headline.text }}</DrawerDescription>
         </div>
 
@@ -155,6 +155,7 @@ function drop(event: DragEvent) {
 .selfie-sheet-body { display: flex; flex: 1; flex-direction: column; overflow-y: auto; padding: 26px 32px 32px; }
 .selfie-sheet-body > :first-child { padding-right: 56px; }
 .selfie-sheet h2 { font-size: clamp(1.9rem, 4vw, 2.4rem); font-weight: 800; }
+.selfie-sheet .title-icon { display: inline-block; width: .82em; height: .82em; margin-right: .28em; vertical-align: -.08em; stroke-width: 2.5; }
 .selfie-sheet-head { display: flex; align-items: center; gap: 18px; }
 .selfie-sheet-sub { margin-top: 8px; color: #4f4826; font-size: 1.05rem; }
 .selfie-sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }

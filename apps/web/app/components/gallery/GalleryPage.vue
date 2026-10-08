@@ -53,7 +53,8 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
 
     <div v-show="!sheet" class="gallery-actions" aria-label="Gallery actions">
       <GalleryUpload v-if="gallery.crowdsource" :gallery-id="gallery._id" :share-token="shareToken" :browse="gallery.showAllPhotos"
-        :open="sheet === 'upload'" @update:open="sheet = $event ? 'upload' : sheet === 'upload' ? null : sheet" />
+        :can-search="Boolean(gallery.imagesCount)" :open="sheet === 'upload'"
+        @update:open="sheet = $event ? 'upload' : sheet === 'upload' ? null : sheet" @find="sheet = 'search'" />
       <GallerySearch v-if="gallery.imagesCount" :share-token="shareToken" :gallery-id="gallery._id" :total="gallery.imagesCount"
         :open="sheet === 'search'" @update:open="sheet = $event ? 'search' : sheet === 'search' ? null : sheet"
         @view="(found: GalleryPhoto[], index: number) => view(index, found)" />
