@@ -34,7 +34,7 @@ const link = computed(() => (props.gallery.published === false ? "" : address.li
           <span v-for="(photo, n) in tiles" :key="n"><img v-if="photo" :src="photo.thumb" alt=""></span>
         </div>
         <div class="actions">
-          <span v-if="uploads"><Upload />Upload your photos</span>
+          <span v-if="uploads"><Upload />Add photos</span>
           <span v-if="gallery.imagesCount"><Camera />Find me</span>
         </div>
       </div>

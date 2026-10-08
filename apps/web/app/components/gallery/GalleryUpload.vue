@@ -75,7 +75,7 @@ function uploadRow(item: Doc<"uploads">): Row {
     <DrawerTrigger as-child>
       <button class="gallery-action" type="button">
         <LoaderCircle v-if="uploading" class="uploading-icon" aria-hidden="true" /><Upload v-else aria-hidden="true" />
-        <span>Upload your photos</span>
+        <span>Add photos</span>
         <span v-if="uploading" class="sr-only">, uploading</span>
       </button>
     </DrawerTrigger>
@@ -83,8 +83,9 @@ function uploadRow(item: Doc<"uploads">): Row {
       @drop.prevent="dragging = false; add($event.dataTransfer?.files)">
       <DrawerClose class="upload-sheet-close" aria-label="Close uploads"><ChevronDown /></DrawerClose>
       <section id="guest-upload" class="upload-sheet-body">
-        <DrawerTitle as="h2">Upload your photos of this event</DrawerTitle>
-        <DrawerDescription class="description">Everyone with access to this gallery can see and download your photos. No account needed.</DrawerDescription>
+        <!-- Guests looking for themselves uploaded selfies here, so this says what it's for and points to Find me. -->
+        <DrawerTitle as="h2">Add your photos to this gallery</DrawerTitle>
+        <DrawerDescription class="description">Share photos you took at the event. Everyone with access to this gallery can see and download them. No account needed. Looking for photos of yourself? Use Find me instead.</DrawerDescription>
         <p v-if="failure" class="failure" role="alert">{{ failure }}</p>
         <!-- Once photos are chosen, their progress leads and choosing more steps back. -->
         <ul v-if="rows.length" class="progress" aria-live="polite">

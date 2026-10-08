@@ -132,7 +132,7 @@ test("secret galleries render anonymously with crawler and referrer protection, 
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(response.headers.get("cache-control")).toContain("no-store");
     const html = await response.text();
-    expect(html).toContain("Upload your photos");
+    expect(html).toContain("Add photos");
     expect(html).toContain('name="robots" content="noindex, nofollow, noarchive"');
   }
   expect((await fetch(`${app.origin}/gallery/invalid-token`)).status).toBe(404);
