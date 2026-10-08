@@ -277,6 +277,18 @@ production build passed. A one-off function on the production image and secret c
 allowed a plain landscape. Production home, sign-in, and organizers pages return 200. A real guest upload through
 moderation was not exercised on production, and no explicit image was sent.
 
+### Guest sheets lead with their status (8 October 2026)
+
+Pushed `160187b` and `d7e538e`, then published Worker version `3a914276-15a4-47b7-91c2-220820fb3f67` from a clean
+worktree. Once a guest has chosen photos, the upload sheet leads with their uploads and offers **Add more photos**
+below them; the searching selfie sheet drops its **Keep browsing** link and fits its content on phones. Convex and
+Modal are unchanged. [Recordings of every sheet state](docs/review/crowdsource/README.md#sheet-state-recordings) were
+made against the fixture app.
+
+Web tests (41), the web type check, the production build, and the Wrangler dry run passed. Production home, sign-in,
+and organizers pages return 200, IT Arena redirects to its search page as before, and the deployed sheet bundle is
+byte-identical to the release build. A guest upload and search on a live crowdsourced gallery were not repeated.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
