@@ -13,7 +13,7 @@ const props = defineProps<{ gallery: Gallery; credit: number }>();
 const emit = defineEmits<{ topUp: [] }>();
 
 const { data: uploads } = useConvexQuery(api.uploads.list, { collectionId: props.gallery._id }, { server: false });
-const { sending, upload } = usePhotoUpload(() => props.gallery._id);
+const { sending, upload } = usePhotoUpload(() => props.gallery._id, uploads);
 
 const ready = computed(() => props.gallery.imagesCount);
 const busy = computed(() => (uploads.value ?? []).reduce((sum, item) => sum + item.sent - item.processed, 0));

@@ -1,6 +1,6 @@
 import type { FunctionArgs } from "convex/server";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
+import type { Doc, Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { BATCH_PHOTOS, photoType } from "@FindPhotosOfMe/backend/convex/photoKeys";
 import { defaultWindow, useEventListener } from "@vueuse/core";
 import { useConvexClient } from "convex-vue";
@@ -14,9 +14,13 @@ const PARALLEL = 4;
 /**
  * Sends photos straight from the browser to R2, 50 at a time, and registers each batch so workers can start on it
  * while the rest are still uploading. ZIPs are unpacked here, one photo at a time. Adding the same files again
- * continues an upload that stopped.
+ * continues an upload that stopped. `uploads` is the gallery's uploads as Convex reports them.
  */
-export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>, guest?: MaybeRefOrGetter<FunctionArgs<typeof api.uploads.start>["access"]>) {
+export function usePhotoUpload(
+  galleryId: MaybeRefOrGetter<Id<"collections">>,
+  uploads: MaybeRefOrGetter<Doc<"uploads">[] | undefined>,
+  guest?: MaybeRefOrGetter<FunctionArgs<typeof api.uploads.start>["access"]>,
+) {
   const convex = useConvexClient();
   const sending = ref<Sending[]>([]);
   /** Whether this tab still has photos to send. Processing needs nothing from the tab. */
@@ -24,6 +28,11 @@ export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>, g
   // Closing the tab stops the upload, so the browser asks first.
   useEventListener(defaultWindow, "beforeunload", (event) => {
     if (uploading.value) event.preventDefault();
+  });
+  // A finished upload stays here until Convex reports all its photos sent. Dropped as soon as the last batch was
+  // committed, it read as stopped until that news arrived.
+  watch(() => toValue(uploads), (known) => {
+    sending.value = sending.value.filter((entry) => !known?.some((item) => item._id === entry.uploadId && item.sent === item.photos));
   });
 
   async function upload(files: File[]) {
@@ -68,7 +77,6 @@ export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>, g
         });
         await $fetch("/api/uploads/complete", { method: "POST", body: { batchId, access }, headers });
       }
-      sending.value = sending.value.filter((item) => item !== entry);
     } catch (cause) {
       entry.error = readableError(cause, `Uploading stopped. Check your connection, then add ${source.name} again to continue.`);
     } finally {
