@@ -289,6 +289,19 @@ Web tests (41), the web type check, the production build, and the Wrangler dry r
 and organizers pages return 200, IT Arena redirects to its search page as before, and the deployed sheet bundle is
 byte-identical to the release build. A guest upload and search on a live crowdsourced gallery were not repeated.
 
+### Upload progress while batches run (8 October 2026)
+
+Pushed `9296334` and `a072f1d`. Workers now report every 8 photos they go through, so an upload's Finding faces
+count moves within a batch instead of jumping by 50; a finished upload no longer flashes Stopped before Convex
+reports its last batch. Order mattered: a worker reporting to a Convex without `uploads:reportProgressForService`
+fails its batch. Convex went to `honorable-firefly-904` with `convex dev --once` (the new mutation was confirmed in
+its function spec), then Modal with its default rolling deploy, so running batches finished on the old workers, then
+Worker version `6787c674-4f88-4502-aad6-f86f619f58fd`. All three were deployed from a clean worktree, leaving
+unrelated uncommitted gallery-browsing work out.
+
+Backend tests (67), Python processing tests, and type checks passed on the release commit. Production home, sign-in,
+and IT Arena return 200. No batch was running after the deploy, so live progress reports were not observed.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:
