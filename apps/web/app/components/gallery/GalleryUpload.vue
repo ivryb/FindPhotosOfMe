@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Upload, ChevronDown, LoaderCircle } from "@lucide/vue";
+import { Upload, ChevronDown, CircleCheck, LoaderCircle } from "@lucide/vue";
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import type { Doc, Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { useConvexClient } from "convex-vue";
@@ -11,7 +11,7 @@ const over = ref(false);
 const picker = useTemplateRef("picker");
 const contributorKey = ref("");
 const access = computed(() => ({ shareToken: props.shareToken, contributorKey: contributorKey.value }));
-const { sending, upload } = usePhotoUpload(() => props.galleryId, access);
+const { sending, uploading, upload } = usePhotoUpload(() => props.galleryId, access);
 const uploads = ref<Doc<"uploads">[]>([]);
 const failure = ref("");
 const convex = useConvexClient();
@@ -32,29 +32,33 @@ function add(files: FileList | null | undefined) {
   if (files?.length && contributorKey.value) upload(Array.from(files));
   if (picker.value) picker.value.value = "";
 }
-const rows = computed(() => [
-  ...sending.value.map((entry) => ({
-    key: entry.key, name: entry.name,
-    text: entry.error || (entry.photos ? `${entry.sent} of ${entry.photos} photos uploaded` : "Opening your photos…"),
-    error: Boolean(entry.error),
+const photos = (n: number) => `${count.format(n)} ${n === 1 ? "photo" : "photos"}`;
+type Row = { key: string; name: string; text: string; tone?: "done" | "error" };
+const rows = computed<Row[]>(() => [
+  ...sending.value.map((entry): Row => ({
+    key: entry.key, name: entry.name, tone: entry.error ? "error" : undefined,
+    text: entry.error || (entry.photos ? `${count.format(entry.sent)} of ${photos(entry.photos)} uploaded` : "Opening your photos…"),
   })),
-  ...uploads.value.filter((item) => !sending.value.some((entry) => entry.uploadId === item._id)).map((item) => ({
-    key: item._id, name: item.name, error: item.processed === item.photos && item.saved < item.photos,
-    text: item.sent < item.photos ? `${item.sent} of ${item.photos} uploaded. Choose the same files to continue.`
-      : item.processed < item.photos ? `Processing ${item.photos} photos. They’ll appear here as they’re ready.`
-        : `${item.saved} photos added${item.processed > item.saved ? `; ${item.processed - item.saved} couldn’t be processed` : ""}.`,
-  })),
+  ...uploads.value.filter((item) => !sending.value.some((entry) => entry.uploadId === item._id)).map(uploadRow),
 ]);
-const busy = computed(() => sending.value.some((entry) => !entry.error) || uploads.value.some((item) => item.sent === item.photos && item.processed < item.photos));
+// A guest is done once their photos reach storage. Processing runs on our side and can take a while, so it isn't
+// shown as something to wait for.
+function uploadRow(item: Doc<"uploads">): Row {
+  const row = { key: item._id, name: item.name };
+  if (item.sent < item.photos) return { ...row, text: `${count.format(item.sent)} of ${photos(item.photos)} uploaded. Choose the same files to continue.` };
+  if (item.processed < item.photos) return { ...row, tone: "done", text: "Uploaded. Your photos will appear in the gallery as they’re processed, which can take a while." };
+  const missing = item.processed - item.saved;
+  return { ...row, tone: item.saved ? "done" : "error", text: `${photos(item.saved)} added to the gallery${missing ? `. ${count.format(missing)} couldn’t be processed` : ""}.` };
+}
 </script>
 
 <template>
   <Drawer v-model:open="open">
     <DrawerTrigger as-child>
-      <button class="gallery-action" type="button" aria-label="Upload your photos">
-        <LoaderCircle v-if="busy" class="uploading-icon" aria-hidden="true" /><Upload v-else aria-hidden="true" />
+      <button class="gallery-action" type="button">
+        <LoaderCircle v-if="uploading" class="uploading-icon" aria-hidden="true" /><Upload v-else aria-hidden="true" />
         <span>Upload your photos</span>
-        <span v-if="busy" class="sr-only">Photos uploading or processing</span>
+        <span v-if="uploading" class="sr-only">, uploading</span>
       </button>
     </DrawerTrigger>
     <DrawerContent class="upload-sheet">
@@ -68,10 +72,13 @@ const busy = computed(() => sending.value.some((entry) => !entry.error) || uploa
           <Upload aria-hidden="true" /><b>Choose photos or ZIPs</b><span>Or drop them here. JPEG or PNG, up to 50 MB each.</span>
         </button>
         <input ref="picker" type="file" accept=".zip,application/zip,image/jpeg,image/png" multiple hidden @change="add(($event.target as HTMLInputElement).files)">
-        <p class="hint">Keep this tab open until uploading finishes. You can close this sheet and keep browsing.</p>
+        <p class="hint">Keep this tab open while your photos upload. You can close this sheet and keep browsing.</p>
         <p v-if="failure" class="error" role="alert">{{ failure }}</p>
         <ul v-if="rows.length" class="progress" aria-live="polite">
-          <li v-for="row in rows" :key="row.key"><b>{{ row.name }}</b><span :class="{ error: row.error }">{{ row.text }}</span></li>
+          <li v-for="row in rows" :key="row.key">
+            <b>{{ row.name }}</b>
+            <span :class="row.tone"><CircleCheck v-if="row.tone === 'done'" aria-hidden="true" />{{ row.text }}</span>
+          </li>
         </ul>
       </section>
     </DrawerContent>
@@ -97,6 +104,8 @@ const busy = computed(() => sending.value.some((entry) => !entry.error) || uploa
 .progress { margin-top: 20px; }
 .progress li { display: grid; gap: 4px; padding-block: 12px; border-top: 1px solid rgb(21 21 21 / .2); overflow-wrap: anywhere; }
 .progress span { color: #4f4826; font-size: .9rem; }
+.progress .done { display: flex; align-items: flex-start; gap: 6px; color: var(--brand-foreground); }
+.progress .done svg { flex: none; width: 17px; height: 17px; margin-top: 1px; }
 .error, .progress .error { color: #8a2218; }
 @media (max-width: 640px) {
   .upload-sheet-close { top: 28px; right: 16px; }

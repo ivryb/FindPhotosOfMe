@@ -19,15 +19,17 @@ The guest gallery now has two compact floating pills together at the bottom: **U
 
 ![Compact desktop actions](guest-actions-desktop.png)
 
-![Upload sheet with preserved processing progress](guest-upload-sheet-desktop.png)
+![Upload sheet after the photos reached storage, with processing still pending](guest-upload-sheet-desktop.png)
 
 ![Find me opens the existing selfie explanation](guest-find-me-desktop.png)
 
 Mobile views at 390 × 844: [gallery actions](guest-actions-mobile.png), [upload sheet](guest-upload-sheet-mobile.png), [selfie sheet](guest-find-me-mobile.png). Both pills also fit a 320-pixel-wide viewport without clipping.
 
-Verified 55 selected photos reached the fixture storage in batches of 50 and 5. Processing status survived closing, opening the search sheet, and reopening uploads. Close buttons and Escape return focus to the triggering pill; backdrop dismissal works. Disabling contributions while its sheet is open restores the remaining **Find me** action. These captures use the same pending-processing fixture described below.
+On 8 October 2026 the guest sheet stopped treating processing as part of the upload. The pill spins only while files are going to storage. As soon as the last batch is confirmed, the row reads **Uploaded** with a note that processing can take a while, although the fixture still reports no processed photos. The two upload sheet captures above show that state.
 
-The final browser pass repeated the 55-photo upload while signed out through the updated batch reservation and completion endpoints. All 55 unique objects reached storage, both batches were confirmed after the server checked stored sizes, and the page showed processing with no upload errors. [Recorded verification values](upload-verification.json). The collaborative browser disconnected after opening the search sheet during this final pass, so the existing screenshots remain the visual evidence and the earlier pass covers reopening behavior.
+Verified 55 selected photos reached the fixture storage in batches of 50 and 5. Upload status survived closing, opening the search sheet, and reopening uploads. Close buttons and Escape return focus to the triggering pill; backdrop dismissal works. Disabling contributions while its sheet is open restores the remaining **Find me** action. These captures use the same pending-processing fixture described below.
+
+The final browser pass repeated the 55-photo upload while signed out through the updated batch reservation and completion endpoints. All 55 unique objects reached storage, both batches were confirmed after the server checked stored sizes, and the page showed processing with no upload errors. [Recorded verification values](upload-verification.json). The collaborative browser disconnected after opening the search sheet during this final pass, so the 6 October screenshots remained the visual evidence until the 8 October recapture, and the earlier pass covers reopening behavior.
 
 ## Earlier recordings
 

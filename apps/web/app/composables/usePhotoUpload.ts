@@ -19,9 +19,11 @@ const PARALLEL = 4;
 export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>, guest?: MaybeRefOrGetter<FunctionArgs<typeof api.uploads.start>["access"]>) {
   const convex = useConvexClient();
   const sending = ref<Sending[]>([]);
+  /** Whether this tab still has photos to send. Processing needs nothing from the tab. */
+  const uploading = computed(() => sending.value.some((entry) => !entry.error));
   // Closing the tab stops the upload, so the browser asks first.
   useEventListener(defaultWindow, "beforeunload", (event) => {
-    if (sending.value.some((entry) => !entry.error)) event.preventDefault();
+    if (uploading.value) event.preventDefault();
   });
 
   async function upload(files: File[]) {
@@ -74,7 +76,7 @@ export function usePhotoUpload(galleryId: MaybeRefOrGetter<Id<"collections">>, g
     }
   }
 
-  return { sending, upload };
+  return { sending, uploading, upload };
 }
 
 /** Runs a few at a time; after one fails, the others finish what they're on and take nothing new. */
