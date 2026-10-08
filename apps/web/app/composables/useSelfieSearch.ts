@@ -61,6 +61,17 @@ export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>, 
   return { state, search };
 }
 
+// Browsers save each photo from its signed download link; a short pause keeps them from dropping some.
+export async function downloadAll(photos: GalleryPhoto[]) {
+  for (const photo of photos) {
+    const link = Object.assign(document.createElement("a"), { href: photo.download, download: "" });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+}
+
 async function photoLinks(requestId: Id<"searchRequests">, keys: string[], headers?: { Authorization: string }) {
   const { photos } = await $fetch("/api/r2/authorize", { method: "POST", body: { requestId, keys }, headers });
   return photos;

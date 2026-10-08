@@ -170,7 +170,14 @@ export function startBackend(port = 0) {
     if (request.headers.get("upgrade") === "websocket") {
       if (server.upgrade(request, { data: { version: { querySet: 0, identity: 0, ts: "AAAAAAAAAAA=" }, queries: new Map() } })) return;
     }
-    if (new URL(request.url).pathname === "/__fixture/uploads") return Response.json({ uploads, batches, putKeys });
+    if (new URL(request.url).pathname === "/__fixture/uploads") {
+      // Posting adds uploads as they are, such as a day of guests' photos, for looking at the dashboard by hand.
+      if (request.method === "POST") {
+        uploads.push(...await request.json());
+        for (const socket of sockets) transition(socket);
+      }
+      return Response.json({ uploads, batches, putKeys });
+    }
     if (new URL(request.url).pathname === "/__fixture/title") {
       title = await request.text();
       for (const socket of sockets) transition(socket);

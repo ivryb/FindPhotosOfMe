@@ -53,7 +53,8 @@ const tab = computed({
 .tab-list button { padding: 12px 18px; border-radius: 8px 8px 0 0; color: var(--muted-foreground); font-weight: 700; font-stretch: 110%; white-space: nowrap; cursor: pointer; }
 .tab-list button:hover { color: var(--foreground); }
 .tab-list button[data-state="active"] { background: var(--foreground); color: var(--background); }
-.tabs :deep([role="tabpanel"] > section) { border-top-left-radius: 0; }
+/* The first card of each tab hangs from the tabs, also when the tab wraps its cards to catch dropped files */
+.tabs :deep([role="tabpanel"] > section), .tabs :deep([role="tabpanel"] > div > section:first-child) { border-top-left-radius: 0; }
 @media (max-width: 900px) {
   .tabs { margin-top: 24px; }
   .tab-list { display: none; }

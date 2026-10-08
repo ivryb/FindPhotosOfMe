@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
-import { Camera, ChevronDown, ChevronUp, Download, LoaderCircle, ShieldCheck } from "@lucide/vue";
+import { Camera, ChevronDown, Download, LoaderCircle, ShieldCheck } from "@lucide/vue";
 import type { GalleryPhoto } from "#shared/types/gallery";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
-import { SELFIE_TYPES } from "@/composables/useSelfieSearch";
+import { SELFIE_TYPES, downloadAll } from "@/composables/useSelfieSearch";
 
-// The selfie search: a banner floating over the gallery that opens into a sheet.
-// While a search runs the sheet can be closed; the banner then shows that it's running, and later the result.
-const props = defineProps<{ galleryId: Id<"collections">; total: number; owner?: boolean; inline?: boolean; compact?: boolean; shareToken?: string }>();
+// The selfie search: a Find me button floating over the gallery that opens into a sheet.
+// While a search runs the sheet can be closed; the button then shows that it's running, and later the result.
+const props = defineProps<{ galleryId: Id<"collections">; total: number; shareToken?: string }>();
 const emit = defineEmits<{ view: [photos: GalleryPhoto[], index: number] }>();
 
-const { state, search } = useSelfieSearch(() => props.galleryId, { owner: props.owner, shareToken: props.shareToken });
+const { state, search } = useSelfieSearch(() => props.galleryId, { shareToken: props.shareToken });
 const open = defineModel<boolean>("open", { default: false });
 const picker = useTemplateRef("picker");
 const camera = useTemplateRef("camera");
@@ -22,10 +22,8 @@ const selfie = computed(() => ("selfie" in state.value ? state.value.selfie : un
 const canPick = computed(() => ["idle", "none", "no_face", "unreadable", "failed"].includes(state.value.kind));
 // With no picker or photos to show, the sheet is a few lines; on phones it fits them instead of covering most of the screen.
 const short = computed(() => state.value.kind === "searching" || state.value.kind === "paused");
-// While searching and once photos are found, the whole banner opens the sheet; the side button is for wide screens.
-const expandable = computed(() => state.value.kind === "searching" || state.value.kind === "found");
 
-const banner = computed(() => {
+const headline = computed(() => {
   const s = state.value;
   switch (s.kind) {
     case "idle": return { title: "Find photos with you", text: "Upload a photo of your face to see only photos you’re in." };
@@ -55,56 +53,22 @@ function drop(event: DragEvent) {
   const file = event.dataTransfer?.files[0];
   if (file) start(file);
 }
-
-// Browsers save each photo from its signed download link; a short pause keeps them from dropping some.
-async function downloadAll(photos: GalleryPhoto[]) {
-  for (const photo of photos) {
-    const link = Object.assign(document.createElement("a"), { href: photo.download, download: "" });
-    document.body.append(link);
-    link.click();
-    link.remove();
-    await new Promise((resolve) => setTimeout(resolve, 400));
-  }
-}
 </script>
 
 <template>
   <div>
   <Drawer v-model:open="open">
-  <DrawerTrigger v-if="compact" as-child>
-    <button type="button" class="gallery-action" aria-label="Find me" :title="banner.title">
+  <DrawerTrigger as-child>
+    <button type="button" class="gallery-action" aria-label="Find me" :title="headline.title">
       <LoaderCircle v-if="state.kind === 'searching'" class="searching-icon" aria-hidden="true" />
       <Camera v-else aria-hidden="true" /><span>Find me</span>
       <span v-if="state.kind === 'found'" class="found-count">{{ state.photos.length }}</span>
-      <span class="sr-only" aria-live="polite">{{ state.kind === 'idle' ? '' : banner.title }}</span>
+      <span class="sr-only" aria-live="polite">{{ state.kind === 'idle' ? '' : headline.title }}</span>
     </button>
   </DrawerTrigger>
-  <div v-else v-show="!open" :class="['banner', { inline }]" :data-state="state.kind" aria-live="polite">
-    <button type="button" class="banner-main" aria-haspopup="dialog" @click="open = true">
-      <span v-if="selfie" class="ring"><img :src="selfie" alt="Your selfie"></span>
-      <span v-else class="slot"><Camera /></span>
-      <span class="banner-text">
-        <b>{{ banner.title }}</b>
-        <small>{{ banner.text }}</small>
-        <span v-if="state.kind === 'searching'" class="working" aria-hidden="true" />
-      </span>
-      <span v-if="expandable" class="chevron" aria-hidden="true"><ChevronUp /></span>
-    </button>
-    <div v-if="state.kind !== 'paused'" :class="['banner-side', { expand: expandable }]">
-      <span v-if="state.kind === 'found'" class="stack" aria-hidden="true">
-        <img v-for="photo in state.photos.slice(0, 3)" :key="photo.key" :src="photo.thumb" alt="">
-      </span>
-      <Button v-if="state.kind === 'searching'" size="xl" variant="outline" class="banner-button" @click="open = true"><ChevronUp />Show</Button>
-      <Button v-else-if="state.kind === 'found'" size="xl" class="banner-button" @click="open = true">See your photos</Button>
-      <Button v-else-if="state.kind === 'idle'" size="xl" class="banner-button" @click="open = true">
-        <Camera /><span class="wide-only">Search with a selfie</span><span class="narrow-only">Search</span>
-      </Button>
-      <Button v-else size="xl" class="banner-button" @click="open = true"><Camera />New selfie</Button>
-    </div>
-  </div>
 
     <DrawerContent
-      :class="['selfie-sheet', { dragging, short, 'owner-search': owner }]"
+      :class="['selfie-sheet', { dragging, short }]"
       @dragover.prevent="dragging = true"
       @dragleave="dragging = false"
       @drop.prevent="drop"
@@ -114,17 +78,17 @@ async function downloadAll(photos: GalleryPhoto[]) {
         <div v-if="selfie && state.kind !== 'idle'" class="selfie-sheet-head">
           <span class="ring big"><img :src="selfie" alt="Your selfie"></span>
           <div>
-            <DrawerTitle as="h2">{{ banner.title }}</DrawerTitle>
+            <DrawerTitle as="h2">{{ headline.title }}</DrawerTitle>
             <DrawerDescription class="selfie-sheet-sub">
               <template v-if="state.kind === 'none'">We checked all {{ total }} photos. A different selfie can help: one face, looking at the camera, in good light.</template>
               <template v-else-if="state.kind === 'no_face'">Use a photo where your face is clear and looking at the camera.</template>
-              <template v-else>{{ banner.text }}</template>
+              <template v-else>{{ headline.text }}</template>
             </DrawerDescription>
           </div>
         </div>
         <div v-else>
-          <DrawerTitle as="h2">{{ banner.title }}</DrawerTitle>
-          <DrawerDescription class="selfie-sheet-sub">{{ banner.text }}</DrawerDescription>
+          <DrawerTitle as="h2">{{ headline.title }}</DrawerTitle>
+          <DrawerDescription class="selfie-sheet-sub">{{ headline.text }}</DrawerDescription>
         </div>
 
         <span v-if="state.kind === 'searching'" class="working big" aria-hidden="true" />
@@ -170,46 +134,6 @@ async function downloadAll(photos: GalleryPhoto[]) {
 .found-count { position: absolute; top: -7px; right: -3px; display: grid; place-items: center; min-width: 26px; height: 26px; padding-inline: 5px; border: 2px solid var(--brand); border-radius: 50%; background: var(--foreground); color: var(--brand); font-size: .8rem; }
 @keyframes searching-turn { to { rotate: 1turn; } }
 @media (prefers-reduced-motion: reduce) { .searching-icon { animation: none; } }
-.banner { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; z-index: 30; display: flex; align-items: center; gap: 16px; width: min(780px, calc(100% - 24px)); padding: 12px; background: var(--brand); color: var(--brand-foreground); border-radius: 18px; box-shadow: 0 24px 48px -16px rgb(0 0 0 / .8); translate: -50% 0; }
-.banner.inline { position: static; width: 100%; margin-bottom: 24px; box-shadow: none; translate: none; }
-.banner :focus-visible { outline: 3px solid var(--foreground); outline-offset: 2px; }
-.banner-main { display: flex; flex: 1; align-items: center; gap: 16px; min-width: 0; padding: 0; color: inherit; text-align: left; border-radius: 10px; cursor: pointer; }
-.slot { display: grid; flex: none; place-items: center; width: 64px; height: 64px; border: 2px dashed rgb(21 21 21 / .4); border-radius: 50%; }
-.slot svg { width: 26px; height: 26px; }
-.banner .ring { width: 64px; height: 64px; }
-.banner-text { flex: 1; min-width: 0; line-height: 1.3; }
-.banner-text b { display: block; font-size: 1.15rem; font-weight: 800; font-stretch: 112%; }
-.banner-text small { display: block; margin-top: 2px; color: #4f4826; font-size: .95rem; }
-.banner-text .working { margin-top: 8px; }
-.banner-side { display: flex; align-items: center; gap: 14px; }
-.stack { display: flex; padding-left: 10px; }
-.stack img { width: 44px; height: 44px; margin-left: -10px; object-fit: cover; border: 2px solid var(--brand); border-radius: 8px; }
-.chevron, .narrow-only { display: none; }
-.chevron svg { width: 22px; height: 22px; }
-
-/* On phones and narrow windows the banner is one slim row, so the photos stay in view.
-   Descriptions go, and while searching or once photos are found the whole banner opens the sheet. */
-@media (max-width: 760px) {
-  .banner { bottom: max(10px, env(safe-area-inset-bottom)); gap: 10px; width: calc(100% - 16px); padding: 8px; border-radius: 16px; }
-  .banner-main { gap: 10px; }
-  .slot, .banner .ring { width: 44px; height: 44px; }
-  .slot svg { width: 20px; height: 20px; }
-  .banner-text b { display: -webkit-box; overflow: hidden; font-size: 1rem; line-height: 1.15; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-  .banner-text small { overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
-  /* Before a search and after a miss the button carries the camera, so the slot and description go */
-  .banner:not([data-state="searching"], [data-state="found"]) :is(small, .slot, .ring) { display: none; }
-  .banner:not([data-state="searching"], [data-state="found"]) .banner-main { padding-left: 8px; }
-  .banner-text .working { height: 4px; margin-top: 6px; }
-  .banner-button { height: 44px; padding-inline: 14px; font-size: .95rem; }
-  .wide-only, .stack, .banner-side.expand { display: none; }
-  .narrow-only { display: inline; }
-  .chevron { display: grid; flex: none; place-items: center; width: 36px; height: 36px; }
-}
-@media (max-width: 380px) {
-  .banner-text b { font-size: .95rem; font-stretch: 100%; }
-  .banner-button { padding-inline: 12px; }
-  .banner .ring { width: 40px; height: 40px; }
-}
 </style>
 
 <!-- Not scoped: the sheet is teleported to the end of the page, and the ring and progress bar are shared with it. -->
@@ -257,7 +181,6 @@ async function downloadAll(photos: GalleryPhoto[]) {
 @media (pointer: fine) { .selfie-sheet .touch-only { display: none; } }
 @media (pointer: coarse) { .selfie-sheet .fine-only { display: none; } }
 
-@media (max-width: 900px) { .selfie-sheet.owner-search h2 { font-size: 1.5rem; } }
 @media (max-width: 640px) {
   /* The sheet opens to most of the screen, so its first lines sit where people read */
   .selfie-sheet.selfie-sheet { inset: auto 0 0; width: 100%; min-height: 82dvh; max-height: 92dvh; border-radius: 24px 24px 0 0; }
