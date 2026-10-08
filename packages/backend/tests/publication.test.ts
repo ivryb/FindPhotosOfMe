@@ -45,7 +45,8 @@ test("public media follows the gallery policy and never exposes its stored index
   await ready(); await address(); await publish(true);
   expect(await t.query(api.collections.canReadPhoto, { key: `${id}/me.jpg` })).toBe(true);
   expect(await t.query(api.collections.canReadPhoto, { key: `${id}/thumbs/me.jpg` })).toBe(true);
-  for (const key of [`${id}/embeddings.json`, `${id}/faces/index.npz`, `${id}/thumbs/embeddings.json`, "invalid-id/me.jpg"]) {
+  expect(await t.query(api.collections.canReadPhoto, { key: `${id}/screen/me.jpg` })).toBe(true);
+  for (const key of [`${id}/embeddings.json`, `${id}/faces/index.npz`, `${id}/thumbs/embeddings.json`, `${id}/screen/embeddings.json`, "invalid-id/me.jpg"]) {
     expect(await t.query(api.collections.canReadPhoto, { key })).toBe(false);
   }
   await publish(false);

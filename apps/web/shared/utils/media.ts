@@ -8,7 +8,8 @@ export function mediaLinks(key: string, { requestId, shareToken }: { requestId?:
   query.set("download", "1");
   return {
     key,
-    thumb: mediaUrl(thumbKey(key), view),
+    thumb: mediaUrl(resizedKey(key, "thumbs"), view),
+    screen: mediaUrl(resizedKey(key, "screen"), view),
     full: mediaUrl(key, view),
     download: mediaUrl(key, query.toString()),
   };
@@ -16,5 +17,5 @@ export function mediaLinks(key: string, { requestId, shareToken }: { requestId?:
 
 const mediaUrl = (key: string, query: string) => `/media/${key.split("/").map(encodeURIComponent).join("/")}${query ? `?${query}` : ""}`;
 
-/** Where a gallery photo's thumbnail is stored: beside it, under thumbs/. */
-export const thumbKey = (key: string) => key.replace(/^([^/]+)\//, "$1/thumbs/");
+/** Where a gallery photo's smaller versions are stored, beside it: thumbs/ for grids, screen/ for the full-screen viewer. */
+export const resizedKey = (key: string, size: "thumbs" | "screen") => key.replace(/^([^/]+)\//, `$1/${size}/`);

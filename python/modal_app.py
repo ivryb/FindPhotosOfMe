@@ -78,6 +78,16 @@ def backfill_thumbnails():
     return run()
 
 
+# Four cores for the eight photos the backfill makes at once.
+@app.function(image=model_image, secrets=[secret], cpu=4, memory=4096, timeout=7200, retries=0)
+def backfill_screens(collection_id: str | None = None):
+    """One-time: screen versions for photos processed before they existed. Safe to rerun and during uploads.
+    One gallery: `modal run --detach python/modal_app.py::backfill_screens --collection-id <id>`; all galleries:
+    `modal run --detach python/modal_app.py::backfill_screens`"""
+    from maintenance.backfill_screens import backfill_screens as run
+    return run(collection_id)
+
+
 @app.function(image=model_image, secrets=[secret], cpu=1, memory=4096, timeout=3600, retries=0)
 def convert_face_indexes():
     """One-time, right after deploying: old face indexes to the new format. `modal run python/modal_app.py::convert_face_indexes`"""

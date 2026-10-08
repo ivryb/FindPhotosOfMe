@@ -14,7 +14,7 @@ from starlette.concurrency import run_in_threadpool
 from security import require_service_token
 from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
-from services.thumbnails import THUMBNAIL_TYPE, make_thumbnail, thumbnail_key
+from services.renditions import RENDITION_TYPE, make_renditions, screen_key, thumbnail_key
 
 router = APIRouter(dependencies=[Depends(require_service_token)])
 # The face index and model are imported inside the workers: the web endpoint that loads this module has no numpy.
@@ -48,8 +48,8 @@ async def submit_merge(body: MergeRequest, request: Request):
 
 def process_batch(batch_id: str) -> dict:
     """Keeps valid photos (face-only unless crowdsourcing; guest photos only if moderation allows them), saves
-    thumbnails and face indexes, and reports what was kept. The rest are refunded; uploaded copies are deleted
-    once Convex has the result."""
+    their thumbnails, screen versions and face indexes, and reports what was kept with its billed bytes. The rest are
+    refunded; uploaded copies are deleted once Convex has the result."""
     convex = ConvexService()
     batch = convex.get_batch(batch_id)
     if not batch or batch["status"] not in ("pending", "running"):
@@ -83,20 +83,24 @@ def process_batch(batch_id: str) -> dict:
                         continue
                     name = photo["key"].split("/", 1)[1]
                     try:
-                        thumbnail = make_thumbnail(image)
+                        renditions = make_renditions(image)
                     except ValueError:
                         # A corrupt guest photo must not discard the other photos in its batch.
                         continue
-                    if moderation and not moderation.allows(thumbnail):
+                    if moderation and not moderation.allows(renditions.thumbnail):
                         log(f"Batch {batch_id}: turned away {photo['name']} after moderation")
                         continue
-                    if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), THUMBNAIL_TYPE) \
+                    # The original goes last: a photo in the gallery always has its smaller copies, which the screen
+                    # version backfill relies on to run alongside uploads.
+                    if not r2.upload_file(renditions.thumbnail, thumbnail_key(collection_id, name), RENDITION_TYPE) \
+                            or not r2.upload_file(renditions.screen, screen_key(collection_id, name), RENDITION_TYPE) \
                             or not r2.copy_file(photo["source"], photo["key"]):
                         raise RuntimeError(f"Could not save {photo['key']}")
                     if faces:
                         found[name] = faces
                     saved.append(photo["name"])
-                    saved_bytes += len(image) + len(thumbnail)
+                    # Storage is billed for the photo and its thumbnail; the screen version only makes the viewer fast.
+                    saved_bytes += len(image) + len(renditions.thumbnail)
                 done = start + len(chunk)
                 convex.report_progress(batch_id, batch["attempt"], done)
                 log(f"Batch {batch_id}: went through {done} of {len(photos)} photos")

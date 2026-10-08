@@ -11,6 +11,7 @@ from main import create_app
 from endpoints import photo_batches
 from endpoints.search_photos import process_search
 from services.face_index import Faces, batch_key, index_key
+from services.renditions import Renditions
 
 FACE = [{'embedding': [1.0, 0.0], 'gender': 0}]
 
@@ -99,7 +100,7 @@ def backend(monkeypatch):
     module = types.ModuleType('services.moderation')
     module.ModerationService = ModerationService
     monkeypatch.setitem(sys.modules, module.__name__, module)
-    monkeypatch.setattr(photo_batches, 'make_thumbnail', lambda data: b'small-' + data)
+    monkeypatch.setattr(photo_batches, 'make_renditions', lambda data: Renditions(screen=b'screen-' + data, thumbnail=b'small-' + data))
     for target in (photo_batches, sys.modules['endpoints.search_photos']):
         monkeypatch.setattr(target, 'R2StorageService', Storage)
         monkeypatch.setattr(target, 'ConvexService', Convex)
@@ -111,10 +112,11 @@ def test_batch_keeps_photos_with_faces_and_clears_the_uploads(backend):
     objects = backend['objects']
     assert objects['event/tag-a.jpg'] == b'face'
     assert objects['event/thumbs/tag-a.jpg'] == b'small-face'
+    assert objects['event/screen/tag-a.jpg'] == b'screen-face'
     assert 'event/tag-b.jpg' not in objects
     assert not [key for key in objects if key.startswith('uploads/')]
     assert Faces.decode(objects[batch_key('event', 'b1')]).names.tolist() == ['tag-a.jpg']
-    # One photo of 4 bytes and its thumbnail of 10 bytes
+    # One photo of 4 bytes and its thumbnail of 10 bytes; the screen version isn't billed
     assert backend['completed'] == [('b1', ['a.jpg'], 14)]
 
 
@@ -197,8 +199,9 @@ def test_crowdsourced_batch_keeps_scenery_but_indexes_only_faces(backend):
     objects = backend['objects']
     assert objects['event/tag-b.jpg'] == b'no face'
     assert objects['event/thumbs/tag-b.jpg'] == b'small-no face'
+    assert objects['event/screen/tag-b.jpg'] == b'screen-no face'
     assert Faces.decode(objects[batch_key('event', 'b1')]).names.tolist() == ['tag-a.jpg']
-    assert backend['completed'] == [('b1', ['a.jpg', 'b.jpg'], 34)]
+    assert backend['completed'] == [('b1', ['a.jpg', 'b.jpg'], 14 + 20)]
     assert not [key for key in objects if key.startswith('uploads/')]
     # The owner uploaded these, so they are not screened.
     assert backend['screened'] == []
@@ -212,6 +215,7 @@ def test_guest_photos_that_fail_moderation_are_skipped_and_refunded(backend):
     assert backend['screened'] == [b'small-face', b'small-explicit']
     assert 'event/tag-b.jpg' not in objects
     assert 'event/thumbs/tag-b.jpg' not in objects
+    assert 'event/screen/tag-b.jpg' not in objects
     assert backend['completed'] == [('b1', ['a.jpg'], 14)]
     assert not [key for key in objects if key.startswith('uploads/')]
 
@@ -220,7 +224,7 @@ def test_guest_photos_that_fail_moderation_are_skipped_and_refunded(backend):
 def test_corrupt_guest_photo_does_not_drop_the_valid_photos_in_its_batch(backend, monkeypatch, unreadable):
     cv2 = pytest.importorskip('cv2')
     import numpy as np
-    from services.thumbnails import make_thumbnail
+    from services.renditions import make_renditions
 
     ok, encoded = cv2.imencode('.jpg', np.zeros((8, 8, 3), dtype=np.uint8))
     assert ok
@@ -229,14 +233,15 @@ def test_corrupt_guest_photo_does_not_drop_the_valid_photos_in_its_batch(backend
     objects = backend['objects']
     objects['uploads/event/up/a.jpg'] = valid_photo
     objects['uploads/event/up/b.jpg'] = unreadable
-    monkeypatch.setattr(photo_batches, 'make_thumbnail', make_thumbnail)
+    monkeypatch.setattr(photo_batches, 'make_renditions', make_renditions)
 
     assert photo_batches.process_batch('b1') == {'ok': True, 'saved': 1}
     assert objects['event/tag-a.jpg'] == valid_photo
-    thumbnail = objects['event/thumbs/tag-a.jpg']
-    assert thumbnail[8:12] == b'WEBP'
+    thumbnail, screen = objects['event/thumbs/tag-a.jpg'], objects['event/screen/tag-a.jpg']
+    assert thumbnail[8:12] == screen[8:12] == b'WEBP'
     assert 'event/tag-b.jpg' not in objects
     assert 'event/thumbs/tag-b.jpg' not in objects
+    assert 'event/screen/tag-b.jpg' not in objects
     assert not [key for key in objects if key.startswith('uploads/')]
     assert backend['completed'] == [('b1', ['a.jpg'], len(valid_photo) + len(thumbnail))]
     assert backend['failed'] == []

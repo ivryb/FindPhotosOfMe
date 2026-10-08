@@ -59,7 +59,8 @@ and Telegram flows rely on.
 
 - **Batches**: up to 10 workers at once (Convex's `MAX_RUNNING_BATCHES`), 1 CPU /
   4 GiB, eight-minute limit; 50 photos take about two minutes. A worker finds
-  faces, saves a thumbnail, copies kept photos into the gallery inside R2,
+  faces, saves a 640px thumbnail and a 2048px screen version (WebP) under
+  `thumbs/` and `screen/`, copies kept photos into the gallery inside R2,
   and writes the batch's faces to `{collection}/faces/{batch}.npz`. Crowdsourced
   galleries keep every valid photo, including those without faces; ordinary
   galleries still discard and refund photos without faces. The batch records

@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Download, X } from "@lucide/vue";
 import { DialogClose, DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from "reka-ui";
 import type { GalleryPhoto } from "#shared/types/gallery";
 
-// Full-screen photos. It opens on the thumbnail and sharpens as the full photo loads.
+// Full-screen photos. It opens on the thumbnail and sharpens as the screen-sized version loads.
 // Arrow keys and swipes move through `photos`.
 const open = defineModel<boolean>("open", { required: true });
 const index = defineModel<number>("index", { required: true });
@@ -11,6 +11,8 @@ const props = defineProps<{ photos: GalleryPhoto[] }>();
 
 const photo = computed(() => props.photos[index.value]);
 const sharp = ref(false);
+// Photos processed before screen versions existed show the original until the backfill has made theirs.
+const original = ref(false);
 
 function go(step: number) {
   const next = index.value + step;
@@ -19,10 +21,11 @@ function go(step: number) {
 
 watch([index, open], () => {
   sharp.value = false;
+  original.value = false;
   if (!open.value) return;
   // Start the neighbors early so moving through photos feels instant.
   for (const neighbor of [props.photos[index.value + 1], props.photos[index.value - 1]]) {
-    if (neighbor) new Image().src = neighbor.full;
+    if (neighbor) new Image().src = neighbor.screen;
   }
 }, { immediate: true });
 
@@ -48,7 +51,7 @@ function swipeEnd(event: PointerEvent) {
         </div>
         <div class="photo-viewer-stage" @pointerdown="swipeFrom = $event.clientX" @pointerup="swipeEnd">
           <img v-show="!sharp" class="photo-viewer-placeholder" :src="photo.thumb" alt="" aria-hidden="true">
-          <img :key="photo.key" class="photo-viewer-photo" :class="{ sharp }" :src="photo.full" :alt="`Photo ${index + 1}`" @load="sharp = true">
+          <img :key="photo.key" class="photo-viewer-photo" :class="{ sharp }" :src="original ? photo.full : photo.screen" :alt="`Photo ${index + 1}`" @load="sharp = true" @error="original = true">
           <button v-if="index > 0" type="button" class="photo-viewer-button photo-viewer-prev" aria-label="Previous photo" @click="go(-1)"><ChevronLeft /></button>
           <button v-if="index < photos.length - 1" type="button" class="photo-viewer-button photo-viewer-next" aria-label="Next photo" @click="go(1)"><ChevronRight /></button>
         </div>

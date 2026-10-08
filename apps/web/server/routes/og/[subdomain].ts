@@ -1,6 +1,6 @@
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { ConvexHttpClient } from "convex/browser";
-import { thumbKey } from "#shared/utils/media";
+import { resizedKey } from "#shared/utils/media";
 
 /**
  * A public gallery's link preview image (see renderGalleryCard), drawn from its first previews' thumbnails.
@@ -10,7 +10,7 @@ import { thumbKey } from "#shared/utils/media";
 export default defineEventHandler(async (event) => {
   const convex = new ConvexHttpClient(useRuntimeConfig(event).public.convexUrl);
   const gallery = await convex.query(api.collections.getPublicBySubdomain, { subdomain: getRouterParam(event, "subdomain") ?? "" });
-  const keys = gallery?.previewImages.slice(0, 5).map(thumbKey) ?? [];
+  const keys = gallery?.previewImages.slice(0, 5).map((key) => resizedKey(key, "thumbs")) ?? [];
   if (!gallery || !keys.length) throw createError({ statusCode: 404, statusMessage: "This gallery isn’t online" });
 
   const shown = getRequestURL(event);

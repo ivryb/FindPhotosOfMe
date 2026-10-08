@@ -4,7 +4,7 @@ import base64
 
 from openai import OpenAI
 
-from services.thumbnails import THUMBNAIL_TYPE
+from services.renditions import RENDITION_TYPE
 
 
 class ModerationService:
@@ -15,7 +15,7 @@ class ModerationService:
 
     def allows(self, thumbnail: bytes) -> bool:
         """Whether a photo may join the gallery, judged by its thumbnail: originals can exceed the 20 MB limit."""
-        url = f"data:{THUMBNAIL_TYPE};base64,{base64.b64encode(thumbnail).decode()}"
+        url = f"data:{RENDITION_TYPE};base64,{base64.b64encode(thumbnail).decode()}"
         result = self.client.moderations.create(
             model="omni-moderation-latest", input=[{"type": "image_url", "image_url": {"url": url}}],
         ).results[0]

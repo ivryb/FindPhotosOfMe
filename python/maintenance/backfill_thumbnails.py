@@ -7,7 +7,7 @@ from datetime import datetime
 
 from services.convex_client import ConvexService
 from services.r2_storage import R2StorageService
-from services.thumbnails import THUMBNAIL_TYPE, make_thumbnail, thumbnail_key
+from services.renditions import RENDITION_TYPE, make_renditions, thumbnail_key
 
 
 def backfill_thumbnails(r2=None, convex=None) -> dict:
@@ -34,8 +34,8 @@ def backfill_thumbnails(r2=None, convex=None) -> dict:
         for name in gallery["photos"]:
             if name in gallery["thumbs"]:
                 continue
-            thumbnail = make_thumbnail(r2.download_file(f"{collection_id}/{name}"))
-            if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), THUMBNAIL_TYPE):
+            thumbnail = make_renditions(r2.download_file(f"{collection_id}/{name}")).thumbnail
+            if not r2.upload_file(thumbnail, thumbnail_key(collection_id, name), RENDITION_TYPE):
                 raise RuntimeError(f"Could not save the thumbnail for {collection_id}/{name}")
             gallery["bytes"] += len(thumbnail)
             made += 1
