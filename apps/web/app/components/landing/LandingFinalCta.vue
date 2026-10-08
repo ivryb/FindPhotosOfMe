@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
+import { PRICE_TEXT } from "@/utils/pricing";
 
 // The last call to try it, at the bottom of every landing page: the pitch beside a receipt for the free trial.
 defineProps<{ title: string; text: string }>();
@@ -17,8 +18,8 @@ defineProps<{ title: string; text: string }>();
         <div class="receipt">
           <p class="receipt-head"><img src="/icon.svg" alt="">Your free trial</p>
           <dl>
-            <div><dt>500 photos</dt><dd>Free</dd></div>
-            <div><dt>50 selfie searches</dt><dd>Free</dd></div>
+            <div><dt>{{ PRICE_TEXT.trialPhotos }} photos</dt><dd>Free</dd></div>
+            <div><dt>{{ PRICE_TEXT.trialSearches }} selfie searches</dt><dd>Free</dd></div>
             <div><dt>7 days online</dt><dd>Free</dd></div>
             <div><dt>Card</dt><dd>Not needed</dd></div>
           </dl>

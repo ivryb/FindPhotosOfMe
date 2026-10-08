@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "../convex/_generated/api";
 import type { QueryCtx } from "../convex/_generated/server";
 import { MAX_PHOTO_BYTES } from "../convex/photoKeys";
-import { DAY, PRICES } from "../convex/pricing";
+import { DAY, PRICES, dailyStorageCost } from "../convex/pricing";
 import schema from "../convex/schema";
 
 vi.mock("../convex/auth", async (original) => {
@@ -67,13 +67,15 @@ test("other uploads and searches cannot spend money held by an unfinished guest 
 });
 
 test("storage billing leaves upload holds intact when the available balance runs out", async () => {
-  const { t, owner, access, start, balance } = await setup(100);
+  // The balance covers a day of the older gallery's storage, but not once the upload's hold is set aside
+  const day = dailyStorageCost({ storedBytes: 30e9, imagesCount: 0 });
+  const { t, owner, access, start, balance } = await setup(day);
   const otherId = await owner.mutation(api.collections.create, { title: "Older gallery", description: "" });
   await t.run((ctx) => ctx.db.patch(otherId, { trial: undefined, storedBytes: 30e9, storagePaidUntil: Date.now() - 60_000, expiresAt: Date.now() + DAY }));
   const { uploadId } = await start();
   await t.mutation(api.uploads.prepareBatch, { uploadId, first: 0, photos, access });
   await t.mutation(internal.balances.chargeStorage, {});
-  expect(await balance()).toMatchObject({ credit: 100, reserved: PRICES.photo });
+  expect(await balance()).toMatchObject({ credit: day, reserved: PRICES.photo });
   expect((await t.run((ctx) => ctx.db.get(otherId)))?.expiresAt).toBeLessThanOrEqual(Date.now());
 });
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PRICE_TEXT } from "@/utils/pricing";
 
 // Adds money to the balance every gallery shares, through a Lemon Squeezy checkout.
 const open = defineModel<boolean>("open", { required: true });
@@ -72,7 +73,7 @@ async function pay() {
         </fieldset>
         <div class="slip">
           <p class="flex items-baseline justify-between gap-4"><span>Your balance after</span><b class="total">{{ formatMoney(after) }}</b></p>
-          <p class="mt-2 text-sm">About {{ count.format(coveredBy(after, "photo")) }} photos or {{ count.format(coveredBy(after, "search")) }} searches. Photos are $5 per 1,000, searches $1.50 per 100.</p>
+          <p class="mt-2 text-sm">About {{ count.format(coveredBy(after, "photo")) }} photos or {{ count.format(coveredBy(after, "search")) }} searches. Photos are {{ PRICE_TEXT.photos }}, searches {{ PRICE_TEXT.searches }}.</p>
         </div>
         <p v-if="!valid" class="text-sm text-destructive">Top up between {{ formatMoney(MINIMUM_TOP_UP) }} and {{ formatMoney(MAXIMUM_TOP_UP) }}.</p>
         <p v-if="error" class="text-sm text-destructive" role="alert">{{ error }}</p>

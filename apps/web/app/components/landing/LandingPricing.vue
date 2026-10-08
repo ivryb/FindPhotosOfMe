@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
+import { PRICE_TEXT } from "@/utils/pricing";
 import LandingPricingCalculator from "./LandingPricingCalculator.vue";
 
 // The free trial first and loudest, then the calculator for anyone who needs more.
@@ -16,8 +17,8 @@ defineProps<{ title: string; text: string; note: string }>();
     <div class="free">
       <p class="free-title"><span>Start with</span>Free</p>
       <ul>
-        <li><b>500</b>photos</li>
-        <li><b>50</b>selfie searches</li>
+        <li><b>{{ PRICE_TEXT.trialPhotos }}</b>photos</li>
+        <li><b>{{ PRICE_TEXT.trialSearches }}</b>selfie searches</li>
         <li><b>7</b>days online</li>
       </ul>
       <div class="free-action">
@@ -28,7 +29,7 @@ defineProps<{ title: string; text: string; note: string }>();
 
     <h3 class="more">Need more? Calculate your price</h3>
     <LandingPricingCalculator />
-    <p class="note">{{ note }} No subscription. $10 minimum payment. USD before tax.</p>
+    <p class="note">{{ note }} No subscription. {{ PRICE_TEXT.minimum }} minimum payment. USD before tax.</p>
   </LandingSection>
 </template>
 

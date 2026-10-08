@@ -250,6 +250,20 @@ Worker secrets. Already-open upload pages using the former API need
 a refresh. Fresh Google sign-in, live Telegram delivery, and checkout were not
 repeated for this release.
 
+### Lower prices and a still selfie while searching (8 October 2026)
+
+Prices dropped to $2 per 1,000 photos, $1 per 100 searches, and $0.05/GB for each 30 days of storage past the
+included 30, aiming at about 50% margin after infrastructure and payment fees. The free trial grows to 1,000
+photos and 50 searches; the $10 minimum payment is unchanged. Existing balances are stored as money, so they
+simply cover more. Pages read their price copy from the backend rates. The selfie search no longer spins the
+avatar ring; the progress bar alone shows a search is running.
+
+Convex functions went to `honorable-firefly-904` with `convex dev --once`, then Worker version
+`70f6cd63-a90c-4870-95ab-ffbc6c92634f` (the ring change alone had shipped earlier as `ab64a186`). Both were
+deployed from a clean worktree, leaving unrelated uncommitted guest-upload work out. Backend tests (66), type
+checks, and the production build passed. Production home, personal, photographers, and organizers pages show
+the new rates, trial, and minimum. A real charge at the new rates was not exercised on production.
+
 ## Python ML Service on Modal
 
 The Python backend is deployed as `findphotosofme` in Modal workspace `ivryb`:

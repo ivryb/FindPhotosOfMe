@@ -55,9 +55,9 @@ describe("sending photos", () => {
   test("is refused up front when the balance can't cover the upload", async () => {
     const { t, gallery, setCredit } = setup();
     const collectionId = await gallery();
-    await setCredit(4 * PRICES.photo);
-    await expect(t.mutation(api.uploads.start, { collectionId, name: "day-1.zip", size: 1, photos: 5 }))
-      .rejects.toThrow("day-1.zip has 5 photos ($0.02), but your balance is $0.02");
+    await setCredit(499 * PRICES.photo);
+    await expect(t.mutation(api.uploads.start, { collectionId, name: "day-1.zip", size: 1, photos: 500 }))
+      .rejects.toThrow("day-1.zip has 500 photos ($1), but your balance is $0.99");
   });
 
   test("charges each batch once as it arrives, and resumes an interrupted upload where it stopped", async () => {

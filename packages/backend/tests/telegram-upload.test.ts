@@ -2,6 +2,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "../convex/_generated/api";
+import { PRICES } from "../convex/pricing";
 import schema from "../convex/schema";
 
 const external = vi.hoisted(() => ({
@@ -45,7 +46,7 @@ test("a Telegram photo reaches R2 staging and the existing paid processing queue
   const { t, collectionId, args } = await setup();
   external.store.mockImplementationOnce(async () => {
     expect(await t.run((ctx) => ctx.db.query("uploadBatches").first())).toMatchObject({ status: "staging", names: ["photo.jpg"] });
-    expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: 5 });
+    expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: PRICES.photo });
     expect(await t.run((ctx) => ctx.db.query("balanceEntries").collect())).toEqual([]);
     return {};
   });
@@ -57,7 +58,7 @@ test("a Telegram photo reaches R2 staging and the existing paid processing queue
     Key: `uploads/${collectionId}/${batch!._id}/photo.jpg`, ContentType: "image/jpeg", Body: new Uint8Array([1, 2, 3, 4, 5]),
   }) }));
   expect(batch).toMatchObject({ names: ["photo.jpg"], keepAllPhotos: true, status: "pending" });
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 95 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 - PRICES.photo });
   expect(external.sendMessage).toHaveBeenCalledWith("123", expect.stringContaining("Photo uploaded"));
 });
 
@@ -67,7 +68,7 @@ test("a failed Telegram upload retries against the same reserved batch and charg
   await t.action(internal.telegram.uploadAndReply, args);
   const reserved = await t.run((ctx) => ctx.db.query("uploadBatches").first());
   expect(reserved).toMatchObject({ status: "staging", names: ["photo.jpg"] });
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: 5 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: PRICES.photo });
   expect(await t.run((ctx) => ctx.db.query("balanceEntries").collect())).toEqual([]);
   expect(external.sendMessage).toHaveBeenCalledWith("123", expect.stringContaining("couldn’t be uploaded"));
 
@@ -75,8 +76,8 @@ test("a failed Telegram upload retries against the same reserved batch and charg
   const batches = await t.run((ctx) => ctx.db.query("uploadBatches").collect());
   expect(batches).toHaveLength(1);
   expect(batches[0]).toMatchObject({ _id: reserved?._id, status: "pending" });
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 95, reserved: 0 });
-  expect(await t.run((ctx) => ctx.db.query("balanceEntries").collect())).toMatchObject([{ reason: "photos", amount: -5 }]);
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 - PRICES.photo, reserved: 0 });
+  expect(await t.run((ctx) => ctx.db.query("balanceEntries").collect())).toMatchObject([{ reason: "photos", amount: -PRICES.photo }]);
   expect(external.store).toHaveBeenNthCalledWith(2, expect.objectContaining({ input: expect.objectContaining({
     Key: `uploads/${collectionId}/${reserved?._id}/photo.jpg`,
   }) }));
@@ -91,11 +92,11 @@ test("an abandoned upload releases its hold only after expired upload links can 
   vi.setSystemTime(batch.expiresAt + 59_999);
   await t.action(internal.stagingStorage.cleanup, { id: batch.batchId });
   expect(external.store).not.toHaveBeenCalled();
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: 5 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: PRICES.photo });
 
   vi.setSystemTime(batch.expiresAt + 60_000);
   external.store.mockImplementationOnce(async () => {
-    expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: 5 });
+    expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: PRICES.photo });
     return {};
   });
   await t.action(internal.stagingStorage.cleanup, { id: batch.batchId });
@@ -111,7 +112,7 @@ test("an abandoned upload releases its hold only after expired upload links can 
   external.store.mockClear();
   await t.action(internal.stagingStorage.cleanup, { id: batch.batchId });
   expect(external.store).not.toHaveBeenCalled();
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: 5 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: PRICES.photo });
 });
 
 test("a per-photo storage deletion error keeps the credit reserved until cleanup succeeds", async () => {
@@ -123,7 +124,7 @@ test("a per-photo storage deletion error keeps the credit reserved until cleanup
   external.store.mockResolvedValueOnce({ Errors: [{ Code: "AccessDenied", Key: "photo.jpg" }] });
   await expect(t.action(internal.stagingStorage.cleanup, { id: batch.batchId })).rejects.toThrow("cleanup failed");
   expect(await t.run((ctx) => ctx.db.get(batch.batchId))).toMatchObject({ status: "staging" });
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: 5 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: PRICES.photo });
 
   await t.action(internal.stagingStorage.cleanup, { id: batch.batchId });
   expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100, reserved: 0 });
@@ -136,19 +137,19 @@ test("a rejected photo is refunded only after its upload URL expires and storage
   const batch = await t.run((ctx) => ctx.db.query("uploadBatches").first());
   if (!batch?.staging) throw new Error("Expected a staged Telegram upload");
   await t.mutation(api.uploads.completeBatchForService, { id: batch._id, saved: [], savedBytes: 0, serviceToken: "fixture" });
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 95, reserved: 0 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 - PRICES.photo, reserved: 0 });
   external.store.mockClear();
 
   vi.setSystemTime(batch.staging.expiresAt + 59_999);
   await t.action(internal.stagingStorage.cleanup, { id: batch._id });
   expect(external.store).not.toHaveBeenCalled();
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 95 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 - PRICES.photo });
 
   vi.setSystemTime(batch.staging.expiresAt + 60_000);
   external.store.mockResolvedValueOnce({ Errors: [{ Code: "AccessDenied", Key: "photo.jpg" }] });
   await expect(t.action(internal.stagingStorage.cleanup, { id: batch._id })).rejects.toThrow("cleanup failed");
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 95 });
-  expect(await t.run((ctx) => ctx.db.query("balanceEntries").collect())).toMatchObject([{ reason: "photos", amount: -5 }]);
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 - PRICES.photo });
+  expect(await t.run((ctx) => ctx.db.query("balanceEntries").collect())).toMatchObject([{ reason: "photos", amount: -PRICES.photo }]);
 
   await t.action(internal.stagingStorage.cleanup, { id: batch._id });
   expect(external.store).toHaveBeenLastCalledWith(expect.objectContaining({ input: {
@@ -156,7 +157,7 @@ test("a rejected photo is refunded only after its upload URL expires and storage
   } }));
   expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 });
   expect(await t.run((ctx) => ctx.db.query("balanceEntries").collect())).toMatchObject([
-    { reason: "photos", amount: -5 }, { reason: "photos_returned", amount: 5 },
+    { reason: "photos", amount: -PRICES.photo }, { reason: "photos_returned", amount: PRICES.photo },
   ]);
   external.store.mockClear();
   await t.action(internal.stagingStorage.cleanup, { id: batch._id });
@@ -173,7 +174,7 @@ test("a Telegram album queues every photo but sends only one acknowledgement", a
   expect(external.store).toHaveBeenCalledTimes(2);
   expect(external.sendMessage).toHaveBeenCalledTimes(1);
   expect(external.sendMessage).toHaveBeenCalledWith("123", expect.stringContaining("album"));
-  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 90 });
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 - 2 * PRICES.photo });
 });
 
 test("closing contributions before a queued Telegram upload runs prevents storage and charging", async () => {

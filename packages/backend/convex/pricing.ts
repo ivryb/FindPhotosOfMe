@@ -1,16 +1,17 @@
 // The one place prices live: the landing calculator, top-up checkout, and balance charges all read these.
-// Money is counted in mills, thousandths of a dollar, so a $0.005 photo is a whole number.
+// Money is counted in mills, thousandths of a dollar, so a $0.002 photo is a whole number.
 
 export const MILLS_PER_DOLLAR = 1_000;
 
 /** What each thing costs, in mills. Storage is per GB for each 30 days beyond the included time, charged by the day. */
-export const PRICES = { photo: 5, search: 15, storageGbMonth: 100 } as const;
+export const PRICES = { photo: 2, search: 10, storageGbMonth: 50 } as const;
 const MONTH_DAYS = 30;
 
 export const MINIMUM_TOP_UP = 10 * MILLS_PER_DOLLAR;
 export const MAXIMUM_TOP_UP = 1_000 * MILLS_PER_DOLLAR;
-/** New accounts can try 500 photos and 50 searches. */
-export const TRIAL_CREDIT = 500 * PRICES.photo + 50 * PRICES.search;
+/** What new accounts can try for free, given to them as credit. */
+export const TRIAL = { photos: 1_000, searches: 50 } as const;
+export const TRIAL_CREDIT = TRIAL.photos * PRICES.photo + TRIAL.searches * PRICES.search;
 
 export const DAY = 24 * 60 * 60 * 1000;
 /** How long a gallery stays online after it's created without paying for storage; the owner can keep it online longer. */

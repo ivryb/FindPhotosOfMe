@@ -108,9 +108,9 @@ describe("top-ups", () => {
 });
 
 describe("storage", () => {
-  // 30 GB costs $0.10 a day
+  // 30 GB costs $0.05 a day
   const size = { storedBytes: 30e9 };
-  const DAILY = 100;
+  const DAILY = 50;
 
   test("is free during the paid time, then taken a day at a time", async () => {
     const { t, gallery, credit, setCredit, read } = setup();
@@ -142,7 +142,7 @@ describe("storage", () => {
     const id = await gallery({ ...size, storagePaidUntil: offlineSince, expiresAt: offlineSince });
     const until = Date.now() + 20 * DAY;
     await setCredit(0);
-    await expect(t.mutation(api.balances.keepOnlineUntil, { id, until })).rejects.toThrow("costs $0.10 a day");
+    await expect(t.mutation(api.balances.keepOnlineUntil, { id, until })).rejects.toThrow("costs $0.05 a day");
 
     await setCredit(1_000);
     await t.mutation(api.balances.keepOnlineUntil, { id, until });

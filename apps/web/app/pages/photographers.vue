@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { FAQ, ask, whoCanSee } from "@/utils/landing";
+import { PRICE_TEXT } from "@/utils/pricing";
 
 useSeoMeta({
   title: "FindPhotosOfMe for photographers: galleries your clients can search with a selfie",
@@ -24,7 +25,7 @@ useSeoMeta({
     <LandingDashboard />
     <LandingPricing
       title="Free to try. One payment per gallery"
-      text="Try it free first. When you need more, pay once for the photos and searches you use, from $10. Guests always search for free."
+      :text="`Try it free first. When you need more, pay once for the photos and searches you use, from ${PRICE_TEXT.minimum}. Guests always search for free.`"
       note="Guests never pay."
     />
     <LandingFaq
@@ -39,6 +40,6 @@ useSeoMeta({
         ] },
       ]"
     />
-    <LandingFinalCta title="Try it on your last shoot" text="Upload up to 500 photos and search them with a selfie, the same way your clients will." />
+    <LandingFinalCta title="Try it on your last shoot" :text="`Upload up to ${PRICE_TEXT.trialPhotos} photos and search them with a selfie, the same way your clients will.`" />
   </LandingPage>
 </template>

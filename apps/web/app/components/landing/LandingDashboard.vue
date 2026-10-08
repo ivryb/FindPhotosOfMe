@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Check, Copy, ExternalLink, Plus } from "@lucide/vue";
+import { PRICES, coveredBy } from "@FindPhotosOfMe/backend/convex/pricing";
+import { count, formatMoney } from "@/utils/pricing";
 
 // A photographer's dashboard, as in the app: every shoot in the sidebar with the shared balance, one gallery open.
 const GALLERIES = [
@@ -9,9 +11,10 @@ const GALLERIES = [
   { photo: "p20", name: "Northwind team offsite", status: "742 photos, ready" },
 ];
 
-// Tiles of 100 photos: the wedding's 1,860 ready, then the 8,500 more the $42.50 balance covers.
+// Tiles of 100 photos: the wedding's 1,860 ready, then the 8,500 more the balance covers at today's prices.
 const READY_TILES = 19;
 const TILES = 104;
+const BALANCE = 8_500 * PRICES.photo;
 </script>
 
 <template>
@@ -20,7 +23,7 @@ const TILES = 104;
       title="All your galleries in one account"
       text="Every shoot gets its own gallery, link, and QR code. One balance pays for all of them."
     />
-    <div class="browser" role="img" aria-label="The dashboard: four galleries in the sidebar with a $42.50 balance, and Marta and Joon’s wedding open, with its link, QR code, and 1,860 ready photos.">
+    <div class="browser" role="img" :aria-label="`The dashboard: four galleries in the sidebar with a ${formatMoney(BALANCE)} balance, and Marta and Joon’s wedding open, with its link, QR code, and 1,860 ready photos.`">
       <div class="browser-bar" aria-hidden="true"><i /><i /><i /><span>findphotosofme.com/admin</span></div>
       <div class="app" aria-hidden="true">
         <div class="bar"><b>FindPhotosOfMe</b><span>Lumen Studio</span><u>Sign out</u></div>
@@ -36,8 +39,8 @@ const TILES = 104;
             </ul>
             <div class="balance">
               <p class="label">Balance</p>
-              <p class="credit">$42.50</p>
-              <p class="covers">About 8,500 photos or 2,833 searches</p>
+              <p class="credit">{{ formatMoney(BALANCE) }}</p>
+              <p class="covers">About 8,500 photos or {{ count.format(coveredBy(BALANCE, "search")) }} searches</p>
               <span class="top-up">Top up</span>
             </div>
           </aside>

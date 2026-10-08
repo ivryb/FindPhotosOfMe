@@ -1,5 +1,19 @@
-// Calculator limits for the landing page. Prices and the math behind them live in the backend's pricing module.
+// Calculator limits and price copy for the pages. Prices and the math behind them live in the backend's pricing module.
+import { MINIMUM_TOP_UP, PRICES, TRIAL, formatMoney } from "@FindPhotosOfMe/backend/convex/pricing";
+
 export { MINIMUM_TOP_UP, estimateTopUp, formatMoney, type Usage } from "@FindPhotosOfMe/backend/convex/pricing";
+
+export const count = new Intl.NumberFormat("en-US");
+
+/** Prices and the free trial as the pages state them, e.g. "$2 per 1,000", so the copy always matches what's charged. */
+export const PRICE_TEXT = {
+  photos: `${formatMoney(1_000 * PRICES.photo)} per 1,000`,
+  searches: `${formatMoney(100 * PRICES.search)} per 100`,
+  storage: `${formatMoney(PRICES.storageGbMonth)} per GB`,
+  minimum: formatMoney(MINIMUM_TOP_UP),
+  trialPhotos: count.format(TRIAL.photos),
+  trialSearches: count.format(TRIAL.searches),
+};
 
 export const LIMITS = {
   photos: { min: 100, max: 20_000, step: 100 },
@@ -14,5 +28,3 @@ export function clampCount(value: number, kind: keyof typeof LIMITS) {
   const { min, max, step } = LIMITS[kind];
   return Math.min(max, Math.max(min, Math.round(value / step) * step));
 }
-
-export const count = new Intl.NumberFormat("en-US");

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { FAQ, ask } from "@/utils/landing";
+import { PRICE_TEXT } from "@/utils/pricing";
 
 useSeoMeta({
   title: "FindPhotosOfMe for personal use: filter a pile of photos by face",
@@ -12,7 +13,7 @@ useSeoMeta({
     <LandingHero
       title="Filter a pile of photos by face"
       lede="Add a folder of photos and a picture of someone’s face. Get back every photo they’re in."
-      :ticks="['500 photos free', 'No app to install', 'No subscription']"
+      :ticks="[`${PRICE_TEXT.trialPhotos} photos free`, 'No app to install', 'No subscription']"
     >
       <LandingSearchDemo
         label="A photo of a face is added, every photo in the pile is checked for it, and only the 8 photos with that face remain."
@@ -31,7 +32,7 @@ useSeoMeta({
     />
     <LandingPricing
       title="Free to try. One payment, no subscription"
-      text="Try it free first. For a bigger pile, pay once for the photos and searches you use, from $10."
+      :text="`Try it free first. For a bigger pile, pay once for the photos and searches you use, from ${PRICE_TEXT.minimum}.`"
       note="People you share the link with never pay. Plans for whole photo libraries are in the works."
     />
     <LandingFaq
@@ -48,6 +49,6 @@ useSeoMeta({
         ] },
       ]"
     />
-    <LandingFinalCta title="Try it on a folder of your photos" text="Upload up to 500 photos and add a photo of one face. You’ll get back every photo that person is in." />
+    <LandingFinalCta title="Try it on a folder of your photos" :text="`Upload up to ${PRICE_TEXT.trialPhotos} photos and add a photo of one face. You’ll get back every photo that person is in.`" />
   </LandingPage>
 </template>

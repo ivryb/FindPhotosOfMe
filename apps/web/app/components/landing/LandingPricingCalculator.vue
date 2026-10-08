@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
-import { LIMITS, MINIMUM_TOP_UP, STORAGE_DAYS, clampCount, count, estimateTopUp, formatMoney } from "@/utils/pricing";
+import { LIMITS, MINIMUM_TOP_UP, PRICE_TEXT, STORAGE_DAYS, clampCount, count, estimateTopUp, formatMoney } from "@/utils/pricing";
 
 const id = useId();
 const photos = ref(2_000);
@@ -42,7 +42,7 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
           <input :id="`${id}-photos`" :value="photos" type="number" :min="LIMITS.photos.min" :max="LIMITS.photos.max" :step="LIMITS.photos.step" inputmode="numeric" @change="setCount($event, 'photos')" />
         </div>
         <input v-model.number="photos" type="range" :min="LIMITS.photos.min" :max="LIMITS.photos.max" :step="LIMITS.photos.step" aria-label="Photos to upload slider" :aria-valuetext="`${count.format(photos)} photos`" :style="{ '--progress': progress(photos, 'photos') }" />
-        <p class="help">$5 per 1,000 photos.</p>
+        <p class="help">{{ PRICE_TEXT.photos }} photos.</p>
       </div>
 
       <div>
@@ -51,7 +51,7 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
           <input :id="`${id}-searches`" :value="searches" type="number" :min="LIMITS.searches.min" :max="LIMITS.searches.max" :step="LIMITS.searches.step" inputmode="numeric" @change="setCount($event, 'searches')" />
         </div>
         <input v-model.number="searches" type="range" :min="LIMITS.searches.min" :max="LIMITS.searches.max" :step="LIMITS.searches.step" aria-label="Selfie searches slider" :aria-valuetext="`${count.format(searches)} searches`" :style="{ '--progress': progress(searches, 'searches') }" />
-        <p class="help">$1.50 per 100 searches. Each selfie someone checks against your photos is one search.</p>
+        <p class="help">{{ PRICE_TEXT.searches }} searches. Each selfie someone checks against your photos is one search.</p>
       </div>
 
       <fieldset>
@@ -62,7 +62,7 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
             <span>{{ option }} days</span>
           </label>
         </div>
-        <p class="help">The first 30 days are included. After that, it’s $0.10 per GB for every 30 days, charged by the day.</p>
+        <p class="help">The first 30 days are included. After that, it’s {{ PRICE_TEXT.storage }} for every 30 days, charged by the day.</p>
       </fieldset>
     </div>
 
@@ -78,7 +78,7 @@ function setCount(event: Event, kind: keyof typeof LIMITS) {
         <div><dt>{{ count.format(photos) }} photos</dt><dd>{{ formatMoney(price.photoCost) }}</dd></div>
         <div><dt>{{ count.format(searches) }} searches</dt><dd>{{ formatMoney(price.searchCost) }}</dd></div>
         <div><dt>{{ days }} days of storage</dt><dd>{{ price.storageCost === 0 ? 'Included' : formatMoney(price.storageCost) }}</dd></div>
-        <div v-if="price.subtotal < MINIMUM_TOP_UP" class="minimum"><dt>Topped up to the $10 minimum</dt><dd>{{ formatMoney(MINIMUM_TOP_UP - price.subtotal) }}</dd></div>
+        <div v-if="price.subtotal < MINIMUM_TOP_UP" class="minimum"><dt>Topped up to the {{ PRICE_TEXT.minimum }} minimum</dt><dd>{{ formatMoney(MINIMUM_TOP_UP - price.subtotal) }}</dd></div>
       </dl>
       <Button as-child size="xl" variant="outline" class="w-full">
         <NuxtLink to="/admin">Start free, top up later</NuxtLink>

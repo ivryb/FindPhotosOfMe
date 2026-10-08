@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { FAQ, whoCanSee } from "@/utils/landing";
+import { PRICE_TEXT } from "@/utils/pricing";
 
 useSeoMeta({
   title: "FindPhotosOfMe for event organizers: let every attendee find their photos",
@@ -28,7 +29,7 @@ useSeoMeta({
     />
     <LandingPricing
       title="Free to try. One payment per event"
-      text="Try it free first. When you need more, pay once for the photos and searches you use, from $10. Attendees always search for free."
+      :text="`Try it free first. When you need more, pay once for the photos and searches you use, from ${PRICE_TEXT.minimum}. Attendees always search for free.`"
       note="Attendees never pay."
     />
     <LandingFaq
@@ -37,6 +38,6 @@ useSeoMeta({
         { title: 'For attendees', items: [FAQ.selfie, FAQ.groups, FAQ.misses, FAQ.account, FAQ.notOrganizer] },
       ]"
     />
-    <LandingFinalCta title="Try it on photos from your last event" text="Upload up to 500 photos and search for yourself with a selfie. Then share the link with your attendees." />
+    <LandingFinalCta title="Try it on photos from your last event" :text="`Upload up to ${PRICE_TEXT.trialPhotos} photos and search for yourself with a selfie. Then share the link with your attendees.`" />
   </LandingPage>
 </template>
