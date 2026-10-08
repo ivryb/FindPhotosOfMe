@@ -40,9 +40,10 @@ export default defineEventHandler(async (event) => {
     });
   });
 
-  // Browsers can keep bytes but must recheck access after unpublishing or signing out, including for a 304.
+  // Every recheck waits on Convex, so browsers reuse a photo for ten minutes and going back to one is instant.
+  // Unpublishing or signing out reaches photos a browser already holds once those minutes pass.
   const headers = new Headers(response.headers);
-  headers.set("cache-control", "private, no-cache");
+  headers.set("cache-control", "private, max-age=600");
   if (download === "1") {
     const name = key.slice(key.lastIndexOf("/") + 1);
     headers.set("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);

@@ -40,10 +40,10 @@ test("private photos load with the owner's session and reject anonymous or forge
   expect((await fetch(url, { headers: { authorization: `Bearer ${ownerJwt}` } })).status).toBe(200);
 });
 
-test("browsers ask the Worker again so changing access also closes previously viewed photos", async () => {
+test("browsers keep a photo for ten minutes, then ask the Worker again so changed access still applies", async () => {
   const response = await fetch(`${app.origin}/media/test-collection/photo-001.jpg`);
   expect(response.status).toBe(200);
-  expect(response.headers.get("cache-control")).toBe("private, no-cache");
+  expect(response.headers.get("cache-control")).toBe("private, max-age=600");
   const etag = response.headers.get("etag");
   expect(etag).not.toBeNull();
   const revalidated = await fetch(`${app.origin}/media/test-collection/photo-001.jpg`, { headers: { "if-none-match": etag! } });
@@ -73,7 +73,7 @@ test("each photo's links load its thumbnail and full photo through this site", a
   expect(thumb.status).toBe(200);
   expect(full.status).toBe(200);
   expect(full.headers.get("content-type")).toContain("image/jpeg");
-  expect(full.headers.get("cache-control")).toBe("private, no-cache");
+  expect(full.headers.get("cache-control")).toBe("private, max-age=600");
   expect(full.headers.get("content-disposition")).toBeNull();
 });
 
