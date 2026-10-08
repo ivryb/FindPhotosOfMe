@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard polish · round 3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+/* Round 3: polish for one gallery's dashboard. The uploads list, the Search tab, and the Gallery page tab,
+   each as it is now and in three options. Switch with the strip or the ← → keys; the URL keeps the choice. */
+body { background: var(--grey); }
+.proto > span { margin-left: 14px; }
+.proto > span:first-of-type { margin-left: 0; }
+.proto em { flex-basis: 100%; padding: 6px 0 2px; color: #e6e6e2; font-style: normal; font-weight: 500; }
+.proto em[hidden] { display: none; }
+
+/* The dashboard frame, as in DashboardShell */
+.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 64px); }
+aside { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; height: 100vh; overflow-y: auto; padding: 20px 14px; background: var(--ink); color: #fff; }
+aside > .btn { width: 100%; min-height: 44px; margin-bottom: 18px; }
+aside h2 { padding: 0 10px 8px; color: #8e8e89; font-size: .85rem; font-weight: 600; font-stretch: 100%; letter-spacing: 0; }
+.side-list a { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; text-decoration: none; }
+.side-list a:hover { background: #222220; }
+.side-list a[aria-current="page"] { background: #2a2a28; box-shadow: inset 3px 0 0 var(--yellow); }
+.side-list img, .side-list .blank { flex: none; width: 48px; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+.side-list .blank { border: 2px dashed #4a4a47; }
+.side-list b { display: block; font-size: .95rem; line-height: 1.25; }
+.side-list small { display: block; margin-top: 2px; color: #8e8e89; font-size: .82rem; }
+.balance { margin-top: auto; padding: 18px; background: #222220; border-radius: 12px; }
+.balance h2 { padding: 0; margin-bottom: 4px; }
+.balance .credit { font-size: 1.9rem; font-weight: 800; font-stretch: 112%; letter-spacing: -.02em; }
+.balance p { color: #b3b3ad; font-size: .88rem; }
+.balance .btn { width: 100%; min-height: 44px; margin-top: 14px; }
+main { width: 100%; max-width: 1080px; padding: clamp(24px, 4vw, 44px) clamp(20px, 4vw, 48px) 120px; }
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; } aside { display: none; } }
+
+.g-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 24px 32px; }
+.g-head h1 { margin-top: 12px; font-size: clamp(2.2rem, 4.6vw, 3.6rem); }
+.share { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 16px; }
+.share .url { margin-right: 6px; font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.meta { margin-top: 14px; color: var(--muted); }
+.qr-card { width: 196px; padding: 14px 14px 16px; background: var(--paper); border-radius: 14px; text-align: center; }
+.qr-card p { margin: 8px 0 10px; color: var(--muted); font-size: .85rem; line-height: 1.35; }
+.qr-card .btn { width: 100%; }
+@media (max-width: 760px) { .g-head { grid-template-columns: 1fr; } .qr-card { display: none; } }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 28px; border-bottom: 2px solid var(--ink); }
+.tabs button { padding: 12px 18px; background: none; border: 0; border-radius: 8px 8px 0 0; color: var(--muted); font-weight: 700; font-stretch: 110%; white-space: nowrap; cursor: pointer; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { background: var(--ink); color: #fff; }
+.card { padding: clamp(20px, 3vw, 32px); background: var(--paper); border-radius: 0 14px 14px 14px; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 18px; }
+.card-head h2 { font-size: 1.6rem; font-stretch: 112%; letter-spacing: -.02em; }
+.card-head p { color: var(--muted); }
+.card-head p b { color: var(--ink); font-size: 1.15rem; font-weight: 800; font-stretch: 112%; font-variant-numeric: tabular-nums; }
+
+/* Shared small parts */
+.btn-sm { min-height: 38px; padding: 0 14px; font-size: .92rem; }
+.link-btn { font-size: .92rem; }
+.dot { flex: none; width: 8px; height: 8px; background: var(--ok); border-radius: 50%; }
+.dot.busy { background: var(--yellow); box-shadow: inset 0 0 0 1px #c9a400; animation: pulse 1.4s ease-in-out infinite; }
+.dot.bad { background: var(--bad); }
+.dot.idle { background: var(--dash); }
+.label-row { display: flex; align-items: baseline; gap: 8px; margin: 28px 0 6px; font-weight: 750; }
+.label-row span { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.meter { display: block; height: 6px; background: var(--grey); }
+.privacy { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--muted); font-size: .86rem; }
+.privacy svg { flex: none; width: 16px; height: 16px; }
+.switch { appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin: 2px 0 0; background: #cfcfca; border-radius: 999px; cursor: pointer; transition: background-color .2s; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: translate .2s; }
+.switch:checked { background: var(--ink); }
+.switch:checked::after { translate: 16px 0; }
+.toggle { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.toggle b { display: block; font-weight: 650; }
+.toggle small { display: block; max-width: 60ch; color: var(--muted); font-size: .88rem; }
+.in { display: block; width: 100%; min-height: 40px; padding: 8px 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.in:focus { border-color: var(--ink); outline: none; }
+textarea.in { min-height: 84px; resize: vertical; }
+.f { display: grid; gap: 6px; }
+.f > label { font-weight: 650; }
+.addr2 { display: flex; }
+.addr2 .in { border-radius: 8px 0 0 8px; }
+.addr2 span { display: flex; align-items: center; padding: 0 12px; background: var(--grey); border: 1px solid var(--line); border-left: 0; border-radius: 0 8px 8px 0; color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.hint2 { color: var(--muted); font-size: .86rem; }
+
+/* ---------- Upload photos: what all options share ---------- */
+.sheet { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; }
+.sheet i { aspect-ratio: 3 / 2; background: var(--grey); border-radius: 2px; }
+.sheet i.ready { background: var(--ink); }
+.sheet i.busy { background: var(--yellow); animation: pulse 1.6s ease-in-out infinite; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 14px; font-size: .92rem; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend span::before { content: ""; width: 14px; height: 10px; background: var(--grey); border-radius: 2px; }
+.legend .ready::before { background: var(--ink); }
+.legend .busy::before { background: var(--yellow); }
+.legend em { margin-left: auto; color: var(--muted); font-style: normal; }
+.add { display: flex; align-items: flex-start; gap: 14px; width: 100%; margin-top: 24px; padding: 18px; background: none; border: 2px dashed var(--dash); border-radius: 10px; text-align: left; cursor: pointer; transition: border-color .2s, background-color .2s; }
+.add:hover { background: var(--yellow-soft); border-color: var(--ink); }
+.add svg { flex: none; width: 28px; height: 28px; }
+.add b { display: block; font-size: 1.1rem; font-weight: 800; font-stretch: 110%; }
+.add small { display: block; max-width: 60ch; color: var(--muted); font-size: .88rem; }
+
+/* Now: as DashboardPhotos renders it today */
+.u-now { margin-top: 14px; }
+.u-now li { display: grid; gap: 6px; padding-block: 14px; border-top: 1px solid var(--line); }
+.u-now li > p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; }
+.u-now li > p b { overflow-wrap: anywhere; }
+.u-now li > p span { color: var(--muted); font-size: .88rem; }
+.u-now li > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.u-now .note-text { color: var(--muted); font-size: .9rem; }
+.u-now .meter { flex: 1 0 100%; }
+
+/* A: quiet rows */
+.ua { margin-inline: -12px; }
+.ua li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto 110px 52px; align-items: center; gap: 2px 14px; padding: 9px 12px; border-radius: 8px; }
+.ua li:hover { background: #f7f7f5; }
+.name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.name span { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.tag { flex: none; padding: 1px 7px; background: var(--grey); border-radius: 4px; color: var(--muted); font-size: .74rem; font-weight: 650; }
+.ua-status { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.ua .meter { height: 4px; }
+.ua time, .ub time { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; text-align: right; }
+.ua-problem { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; color: var(--bad); font-size: .9rem; }
+.ua-problem .link-btn { color: var(--ink); }
+.more { margin-top: 10px; }
+
+/* B: in progress, then history by day */
+.ub-now { display: grid; gap: 18px; margin-top: 20px; padding: 20px; background: #f7f7f5; border-radius: 12px; }
+.ub-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 6px 16px; }
+.ub-line b { overflow: hidden; font-weight: 800; font-stretch: 108%; text-overflow: ellipsis; white-space: nowrap; }
+.ub-line > span { color: var(--muted); font-size: .92rem; font-variant-numeric: tabular-nums; }
+.ub-line .meter { grid-column: 1 / -1; height: 8px; background: #e6e6e2; }
+.ub-line small { grid-column: 1 / -1; overflow: hidden; color: var(--muted); font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
+.ub-problem { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 14px; background: var(--bad-bg); border-radius: 8px; color: var(--bad); font-size: .92rem; }
+.ub-problem b { color: var(--ink); }
+.ub-day summary { display: grid; grid-template-columns: 16px auto minmax(0, 1fr); align-items: center; gap: 12px; margin-inline: -12px; padding: 11px 12px; border-radius: 8px; list-style: none; cursor: pointer; }
+.ub-day summary::-webkit-details-marker { display: none; }
+.ub-day summary:hover { background: #f7f7f5; }
+.ub-day summary svg { width: 16px; height: 16px; transition: rotate .2s; }
+.ub-day[open] summary svg { rotate: 90deg; }
+.ub-day summary span { color: var(--muted); font-size: .92rem; }
+.ub-day li { display: grid; grid-template-columns: minmax(0, 1fr) auto 52px; gap: 14px; padding: 5px 0 5px 28px; font-size: .92rem; }
+.ub-day li .ua-status { font-size: .88rem; }
+.ub-day li.guests b { font-weight: 650; }
+
+/* C: the drop zone carries what's happening; history is a table */
+.uc-live { margin-top: 24px; padding: 20px; background: var(--yellow-soft); border-radius: 12px; }
+.uc-live-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.uc-live-head b { font-size: 1.25rem; font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.uc-live-head span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.uc-live .meter { height: 8px; margin-top: 12px; background: rgb(0 0 0 / .08); }
+.uc-queue { display: grid; gap: 6px; margin-top: 14px; font-size: .9rem; }
+.uc-queue li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; }
+.uc-queue li span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+.uc-queue li.bad, .uc-queue li.bad span:last-child { color: var(--bad); }
+.uc-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-top: 14px; color: var(--muted); font-size: .88rem; }
+.uc-foot .link-btn { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); }
+.uc-foot svg { width: 16px; height: 16px; }
+.uc-table { width: 100%; margin-top: 28px; border-collapse: collapse; font-size: .92rem; table-layout: fixed; }
+.uc-table th { padding: 0 10px 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .82rem; font-weight: 600; text-align: left; }
+.uc-table td { padding: 8px 10px; overflow: hidden; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.uc-table tbody tr:nth-child(even) td { background: #fafaf8; }
+.uc-table .num { text-align: right; }
+.uc-table td.muted { color: var(--muted); }
+
+/* ---------- Search ---------- */
+.banner-now { display: flex; align-items: center; gap: 16px; padding: 12px; background: var(--yellow); border-radius: 18px; }
+.banner-now .slot-now { display: grid; flex: none; place-items: center; width: 64px; height: 64px; border: 2px dashed rgb(21 21 21 / .4); border-radius: 50%; }
+.banner-now .slot-now svg { width: 26px; height: 26px; }
+.banner-now > span:nth-child(2) { flex: 1; line-height: 1.3; }
+.banner-now b { display: block; font-size: 1.15rem; font-weight: 800; font-stretch: 112%; }
+.banner-now small { display: block; margin-top: 2px; color: #4f4826; font-size: .95rem; }
+.results { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 18px; }
+.results img, .results i { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
+.results img { animation: pop .4s cubic-bezier(.2, .9, .3, 1.2) both; animation-delay: calc(var(--i) * 40ms); }
+.results i { background: var(--grey); }
+.results.loading i { background: linear-gradient(90deg, var(--grey) 0 40%, #e9e9e5 50%, var(--grey) 60% 100%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
+@keyframes shimmer { to { background-position: -150% 0; } }
+.ring { display: block; flex: none; width: 52px; height: 52px; overflow: hidden; border: 3px solid var(--yellow); border-radius: 50%; }
+.ring img { width: 100%; height: 100%; object-fit: cover; }
+
+.sa-drop { display: flex; align-items: center; gap: 18px; width: 100%; padding: 18px; background: none; border: 2px dashed var(--dash); border-radius: 10px; text-align: left; cursor: pointer; transition: border-color .2s, background-color .2s; }
+.sa-drop:hover, .over { background: var(--yellow-soft) !important; border-color: var(--ink) !important; }
+.sa-drop > span:nth-child(2) { flex: 1; }
+.sa-drop b { display: block; font-size: 1.1rem; font-weight: 800; font-stretch: 110%; }
+.sa-drop small { display: block; max-width: 56ch; color: var(--muted); font-size: .9rem; }
+.sa-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.sa-head h3 { font-size: 1.3rem; }
+.sa-head p { color: var(--muted); font-size: .92rem; font-variant-numeric: tabular-nums; }
+.sa-actions { display: flex; gap: 8px; margin-left: auto; }
+
+.sb { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: start; gap: 28px; }
+.sb-face { display: grid; place-content: center; justify-items: center; gap: 4px; width: 100%; aspect-ratio: 1; padding: 16px; overflow: hidden; background: none; border: 2px dashed var(--dash); border-radius: 12px; color: var(--muted); text-align: center; cursor: pointer; }
+.sb-face svg { width: 30px; height: 30px; margin-bottom: 6px; color: var(--ink); }
+.sb-face b { color: var(--ink); }
+.sb-face small { font-size: .86rem; }
+.sb-face.has { display: block; padding: 0; border: 0; }
+.sb-face.has img { width: 100%; height: 100%; object-fit: cover; }
+.sb-change { margin-top: 10px; }
+.sb-tips { display: grid; gap: 4px; margin-top: 16px; color: var(--muted); font-size: .88rem; }
+.sb-tips li::before { content: "·"; margin-right: 8px; color: var(--ink); font-weight: 900; }
+.sb-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-height: 38px; }
+.sb-top b { font-size: 1.15rem; font-weight: 800; font-stretch: 110%; font-variant-numeric: tabular-nums; }
+.sb-top .btn { margin-left: auto; }
+.sb-top + .meter { height: 4px; margin-top: 12px; }
+.sb-empty { position: relative; }
+.sb-empty .results { margin-top: 0; }
+.sb-empty .results i { opacity: .7; }
+.sb-empty p { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 600; }
+
+.sc-bar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; min-height: 64px; padding: 10px 10px 10px 18px; overflow: hidden; background: var(--grey); border: 2px solid transparent; border-radius: 12px; }
+.sc-bar > svg { width: 22px; height: 22px; color: var(--muted); }
+.sc-hint { flex: 1; color: var(--muted); }
+.sc-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 4px; background: var(--paper); border-radius: 999px; box-shadow: 0 1px 2px rgb(0 0 0 / .12); font-size: .92rem; font-weight: 700; }
+.sc-chip img { width: 34px; height: 34px; object-fit: cover; border-radius: 50%; }
+.sc-chip button { display: grid; place-items: center; width: 28px; height: 28px; background: none; border: 0; border-radius: 50%; cursor: pointer; }
+.sc-chip button:hover { background: var(--grey); }
+.sc-chip button svg { width: 16px; height: 16px; }
+.sc-count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sc-progress { position: absolute; bottom: 0; left: 0; width: var(--p, 0%); height: 3px; background: var(--ink); }
+
+/* ---------- Gallery page ---------- */
+/* The page preview: the real gallery page, laid out at phone or desktop size and scaled down, without a fake browser */
+.pv { overflow: hidden; background: var(--ink); border-radius: 14px; box-shadow: var(--lift); }
+.pv-page { position: relative; overflow: hidden; background: var(--ink); color: #fff; font-size: 17px; }
+.pv-top { display: flex; align-items: center; gap: 10px; height: 64px; padding-inline: var(--pad); font-size: 1rem; font-weight: 900; font-stretch: 118%; letter-spacing: -.02em; }
+.pv-top img { width: 28px; height: 28px; }
+.pv-intro { padding: var(--intro) var(--pad) 28px; }
+.pv-intro h1 { font-size: var(--h1); overflow-wrap: anywhere; }
+.pv-about { display: flex; flex-wrap: wrap; gap: 4px 20px; max-width: 72ch; margin-top: 18px; color: #b3b3ad; white-space: pre-line; }
+.pv-about b { color: #fff; font-weight: 800; font-stretch: 112%; white-space: nowrap; }
+.pv-sel { max-width: 60ch; margin-top: 14px; color: #b3b3ad; font-size: .95rem; }
+.pv-grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 4px; padding-inline: 4px; }
+.pv-grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.pv-actions { position: absolute; bottom: 20px; left: 50%; display: flex; gap: 10px; translate: -50% 0; }
+.pv-actions span { display: inline-flex; align-items: center; gap: 9px; min-height: 52px; padding: 12px 18px; background: var(--yellow); color: var(--ink); border-radius: 999px; box-shadow: 0 8px 28px rgb(0 0 0 / .45); font-weight: 800; white-space: nowrap; }
+.pv-actions svg { width: 20px; height: 20px; }
+.pv-private { position: absolute; top: 76px; right: var(--pad); padding: 4px 12px; background: #2a2a28; border-radius: 999px; color: #e6e6e2; font-size: .85rem; font-weight: 700; }
+.pv-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-top: 10px; color: var(--muted); font-size: .88rem; }
+.pv-caption a { color: var(--ink); font-weight: 700; }
+.seg { display: inline-flex; padding: 3px; background: var(--grey); border-radius: 999px; }
+.seg label, .seg button { position: relative; padding: 6px 14px; background: none; border: 0; border-radius: 999px; font-size: .9rem; font-weight: 650; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked), .seg button[aria-pressed="true"] { background: var(--paper); box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
+.seg label:has(input:focus-visible) { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+/* Now: as DashboardPageSettings renders it today */
+.pn-pub { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.pn-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; gap: 28px clamp(24px, 4vw, 48px); }
+.pn-form { display: grid; gap: 20px; }
+.pn-form fieldset { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; }
+.pn-form legend { margin-bottom: 8px; font-weight: 650; }
+.pn-form fieldset label { display: flex; align-items: flex-start; gap: 12px; }
+.pn-form fieldset input { margin-top: 5px; }
+.pn-form fieldset small { display: block; color: var(--muted); }
+.browser { overflow: hidden; background: var(--ink); border-radius: 10px; box-shadow: var(--lift); }
+.browser-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #e6e6e2; color: var(--muted); font-size: .8rem; }
+.browser-bar i { width: 10px; height: 10px; background: #c9c9c4; border-radius: 50%; }
+.browser-bar span { flex: 1; max-width: 280px; margin-left: 10px; padding: 3px 12px; overflow: hidden; background: #fff; border-radius: 6px; text-overflow: ellipsis; white-space: nowrap; }
+.mini { position: relative; padding: 18px 18px 70px; color: #fff; }
+.mini-title { font-size: 1.6rem; font-weight: 800; font-stretch: 116%; letter-spacing: -.03em; line-height: 1; }
+.mini-desc { margin-top: 8px; color: #b3b3ad; font-size: .82rem; line-height: 1.4; }
+.mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-top: 14px; }
+.mini-grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.mini-pill { position: absolute; bottom: 16px; left: 50%; display: flex; align-items: center; gap: 8px; padding: 9px 16px; background: var(--yellow); color: var(--ink); border-radius: 999px; font-size: .82rem; font-weight: 800; white-space: nowrap; translate: -50% 0; }
+.mini-pill svg { width: 16px; height: 16px; }
+
+/* A: settings sections, saved together from a bar that appears with changes */
+.pa-sec { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px 36px; padding-block: 26px; }
+.pa-sec:first-of-type { padding-top: 4px; }
+.pa-sec h3 { font-size: 1.05rem; }
+.pa-sec .pa-label p { margin-top: 4px; color: var(--muted); font-size: .88rem; }
+.pa-body { display: grid; gap: 16px; align-content: start; }
+.choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choice label { display: flex; align-items: flex-start; gap: 10px; padding: 14px; background: #f7f7f5; border-radius: 10px; cursor: pointer; }
+.choice label:has(input:checked) { background: var(--paper); box-shadow: inset 0 0 0 2px var(--ink); }
+.choice input { margin-top: 4px; accent-color: var(--ink); }
+.choice small { display: block; color: var(--muted); font-size: .86rem; }
+.pa-page { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 24px; }
+.pa-danger { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.btn-danger-line { background: transparent; color: var(--bad); border-color: var(--bad-bg); }
+.btn-danger-line:hover { background: var(--bad-bg); }
+.savebar { position: fixed; bottom: 20px; left: calc(50% + 150px); z-index: 30; display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 20px; background: var(--ink); color: #fff; border-radius: 999px; box-shadow: var(--lift); translate: -50% 0; animation: rise .25s ease-out both; }
+.savebar .btn { min-height: 40px; }
+.savebar .btn-line { color: #fff; border-color: #4a4a47; }
+.savebar .btn-line:hover { background: #2a2a28; }
+.savebar .btn-yellow { padding-inline: 18px; }
+@keyframes rise { from { opacity: 0; translate: -50% 12px; } }
+@media (max-width: 900px) { .savebar { left: 50%; } .pa-sec { grid-template-columns: 1fr; } .pa-page { grid-template-columns: 1fr; } }
+
+/* B: editor beside a large live preview */
+.pb { display: grid; grid-template-columns: 330px minmax(0, 1fr); align-items: start; gap: 36px; }
+.pb-form { display: grid; gap: 16px; }
+.pb-pub { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #f7f7f5; border-radius: 12px; }
+.pb-pub b { display: block; }
+.pb-pub small { color: var(--muted); font-size: .86rem; }
+.pb-group { margin-top: 12px; color: var(--muted); font-size: .85rem; font-weight: 650; font-stretch: 100%; letter-spacing: 0; }
+.pb-preview { position: sticky; top: 16px; }
+.pb-preview-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.pb-preview-top b { font-size: .9rem; }
+.pb-preview .pv.phone { width: min(330px, 100%); margin-inline: auto; }
+.pb-radios { display: grid; gap: 10px; }
+.pb-radios label { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.pb-radios input { margin-top: 5px; accent-color: var(--ink); }
+.pb-radios small { display: block; color: var(--muted); font-size: .86rem; }
+@media (max-width: 1100px) { .pb { grid-template-columns: 1fr; } .pb-preview { position: static; } }
+
+/* C: one card per subject; switches save right away */
+.pc { display: grid; gap: 16px; }
+.pc .card + .card { border-radius: 14px; }
+.pc-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+.pc-head h2 { font-size: 1.3rem; font-stretch: 112%; letter-spacing: -.02em; }
+.pc-saved { color: var(--ok); font-size: .88rem; font-weight: 650; animation: fade 2.2s ease-out both; }
+@keyframes fade { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+.pc-share { display: grid; gap: 18px; }
+.pc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.pc-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pc-tile { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 16px; background: #f7f7f5; border-radius: 12px; cursor: pointer; }
+.pc-tile > svg { width: 22px; height: 22px; margin-top: 1px; }
+.pc-tile b { display: block; font-weight: 700; }
+.pc-tile small { display: block; margin-top: 2px; color: var(--muted); font-size: .86rem; }
+.pc-tile:has(input:checked) { background: var(--yellow-soft); }
+.pc-text { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 24px; }
+.pc-text-form { display: grid; gap: 16px; align-content: start; }
+@media (max-width: 900px) { .pc-tiles, .pc-text { grid-template-columns: 1fr; } }
+
+.placeholder { color: var(--muted); }
+/* ?shot=1 keeps only the tab, for screenshots */
+.shot :is(.proto, .bar, aside, .g-head) { display: none; }
+.shot .shell { grid-template-columns: 1fr; }
+.shot main { margin-inline: auto; padding-block: 24px; }
+.shot .tabs { margin-top: 0; }
+</style>
+</head>
+<body>
+<div class="proto" aria-label="Prototype controls"></div>
+<header class="bar"><div class="wrap" style="max-width:none"><a class="logo" href="index.html">FindPhotosOfMe</a><div class="account"><span>Ivan Rybnikov</span><a href="#" style="text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px">Sign out</a></div></div></header>
+<div class="shell">
+  <aside>
+    <button class="btn btn-yellow btn-sm" type="button"><i data-icon="plus"></i>New gallery</button>
+    <h2>Galleries</h2>
+    <nav class="side-list" aria-label="Galleries">
+      <a href="#" aria-current="page"><img src="../landing-v2/assets/nx-01.jpg" alt=""><span><b>IT Arena 2026</b><small>249 photos, published</small></span></a>
+      <a href="#"><img src="../landing-v2/assets/t05.jpg" alt=""><span><b>Lviv product meetup</b><small>1,204 photos, published</small></span></a>
+      <a href="#"><span class="blank"></span><span><b>Team offsite</b><small>private</small></span></a>
+    </nav>
+    <section class="balance"><h2>Available balance</h2><p class="credit" style="color:#fff">$102.13</p><p>About 51,065 photos or 10,213 searches</p><button class="btn btn-yellow btn-sm" type="button">Top up</button></section>
+  </aside>
+  <main>
+    <div class="g-head">
+      <div>
+        <span class="pill">Published</span>
+        <h1>IT Arena 2026</h1>
+        <div class="share"><a class="url" href="#">itarena.findphotosofme.com</a><button class="btn btn-sm btn-line" type="button"><i data-icon="copy"></i>Copy link</button><button class="btn btn-sm btn-line" type="button"><i data-icon="open"></i>Open page</button></div>
+        <p class="meta">249 photos.</p>
+      </div>
+      <div class="qr-card"><svg id="qr" viewBox="0 0 27 27" shape-rendering="crispEdges" aria-hidden="true"></svg><p>People scan this to open your gallery.</p><button class="btn btn-sm btn-line" type="button"><i data-icon="download"></i>Download</button></div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Gallery settings"></div>
+    <div id="panel"></div>
+  </main>
+</div>
+<input id="selfie-input" type="file" accept="image/*" hidden>
+
+<script src="app.js"></script>
+<script>
+// ---------- What can be switched ----------
+const TABS = [["upload", "Upload photos"], ["search", "Search"], ["page", "Gallery page"], ["bot", "Telegram bot"], ["settings", "Settings"]];
+const OPTIONS = {
+  upload: [["now", "Now"], ["A", "A · Quiet rows"], ["B", "B · In progress, then by day"], ["C", "C · Live drop zone and a table"]],
+  search: [["now", "Now"], ["A", "A · Drop zone"], ["B", "B · Face and results side by side"], ["C", "C · Search bar"]],
+  page: [["now", "Now"], ["A", "A · Settings sections"], ["B", "B · Editor with a big preview"], ["C", "C · Cards that save instantly"]],
+};
+const NOTES = {
+  upload: {
+    now: "Today’s list: every upload is a bordered three-line row, with nothing collapsed. Guests’ unfinished uploads read as “Stopped, add again”.",
+    A: "One line per upload, no borders. Anything active or broken stays on top; finished uploads past the first six fold behind “Show more”.",
+    B: "Everything in flight is summed into one panel with one bar. Finished uploads collapse into one line per day, with guests counted together.",
+    C: "While photos upload, the drop zone turns into the progress panel. Finished uploads move to a dense table, eight rows at a time.",
+  },
+  search: {
+    now: "Today: the guests’ floating yellow banner, placed inline. It opens the same bottom sheet guests get.",
+    A: "Matches the Add photos drop zone. Results open right here in the card, no sheet. Choose a photo or drop one to search.",
+    B: "A lookup tool: the face on the left, results on the right, with the empty grid showing where they land.",
+    C: "A search field that takes a face. The face becomes a removable chip with the count beside it.",
+  },
+  page: {
+    now: "Today’s layout, with the two guest switches now independent.",
+    A: "Labelled sections, top to bottom: who can open it, its link, its text, what guests can do, delete. One save bar appears when something changed.",
+    B: "Settings in a narrow column beside a large, true-to-life preview with Phone and Desktop sizes. The preview follows every change.",
+    C: "A card per subject. Switches save the moment you flip them; text gets its own Save. The preview sits next to the text it shows.",
+  },
+};
+const SCENARIOS = [["zips", "Two ZIPs"], ["single", "50 photos, one at a time"], ["batch", "30 photos at once"], ["guests", "Guests uploading"], ["problems", "Problems"]];
+
+const query = new URLSearchParams(location.search);
+const ui = { tab: query.get("tab") ?? "upload", v: query.get("v") ?? "A", s: query.get("s") ?? "zips", more: false, device: query.get("device") ?? "phone" };
+ICONS.grid = '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>';
+
+// ---------- Sample uploads ----------
+const NOW = new Date("2026-10-08T20:55:00").getTime();
+const MIN = 60_000;
+const DAY = 24 * 60 * MIN;
+const ZIP = { name: "IT arena 2206.zip", when: NOW - 52 * MIN, photos: 152, kind: "ready", saved: 152 };
+function seeded(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+
+const DATA = {
+  zips: () => [
+    { name: "1ac529b2242cb0c63f9b35773dcfe66e-it-arena-2026-day-1-3.zip", when: NOW - 4 * MIN, photos: 97, kind: "uploading", done: 44 },
+    ZIP,
+  ],
+  // Each drop is its own upload, named after its one photo
+  single: () => [
+    ...Array.from({ length: 50 }, (_, i) => {
+      const row = { name: `DSC_${4870 - i}.JPG`, when: NOW - i * 0.7 * MIN, photos: 1 };
+      if (i < 2) return { ...row, kind: "uploading", done: 0 };
+      if (i < 5) return { ...row, kind: "finding", done: 0 };
+      if (i % 9 === 4) return { ...row, kind: "ready", saved: 0, leftOut: 1 };
+      return { ...row, kind: "ready", saved: 1 };
+    }),
+    { ...ZIP, when: NOW - 3 * 60 * MIN },
+  ],
+  // Photos chosen together are one upload called “30 photos”
+  batch: () => [
+    { name: "30 photos", when: NOW - 2 * MIN, photos: 30, kind: "uploading", done: 12 },
+    { name: "12 photos", when: NOW - 20 * MIN, photos: 12, kind: "ready", saved: 10, leftOut: 2 },
+    ZIP,
+  ],
+  // The owner sees every guest’s upload too; ones still arriving from a guest’s phone have no tab here sending them
+  guests: () => {
+    const random = seeded(11);
+    const rows = Array.from({ length: 64 }, (_, i) => {
+      const photos = random() < .55 ? 1 : 2 + Math.floor(random() * 8);
+      const name = photos > 1 ? `${photos} photos` : random() < .5 ? `IMG_${2000 + Math.floor(random() * 7000)}.jpg` : `PXL_20261008_${String(100000 + Math.floor(random() * 800000))}.jpg`;
+      const row = { name, when: NOW - i * 26 * MIN - Math.floor(random() * 6) * MIN, photos, guest: true };
+      if (i < 2) return { ...row, kind: "remote", done: Math.floor(photos / 2) };
+      if (i < 4) return { ...row, kind: "finding", done: 0 };
+      // A guest who closed the page halfway; after an hour it counts as finished
+      if (i === 30) return { ...row, kind: "abandoned", done: 0 };
+      const failed = random() < .05 ? 1 : 0;
+      return { ...row, kind: "ready", saved: photos - failed, failed };
+    });
+    return [...rows, { ...ZIP, when: NOW - 30 * 60 * MIN }].sort((a, b) => b.when - a.when);
+  },
+  problems: () => [
+    { name: "speakers.zip", photos: 0, kind: "error", error: "This ZIP couldn’t be opened. Check that it isn’t damaged or password-protected." },
+    { name: "day-2.zip", when: NOW - 35 * MIN, photos: 1294, kind: "stopped", done: 410 },
+    { name: "backstage.zip", when: NOW - 2 * 60 * MIN, photos: 343, kind: "ready", saved: 300, leftOut: 41, failed: 2 },
+    { ...ZIP, when: NOW - 26 * 60 * MIN },
+  ],
+};
+const crowd = () => ui.s === "guests";
+const finished = (row) => row.kind === "ready" || row.kind === "abandoned";
+
+// ---------- Formatting ----------
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+const shortDate = (t) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const clock = (t) => (sameDay(t, NOW) ? new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : shortDate(t));
+const dayName = (t) => (sameDay(t, NOW) ? "Today" : sameDay(t, NOW - DAY) ? "Yesterday" : shortDate(t));
+const sum = (rows, read) => rows.reduce((total, row) => total + read(row), 0);
+const plural = (n, word) => `${fmt(n)} ${n === 1 ? word : `${word}s`}`;
+// Long names keep their start and their end, where the date or day usually is
+const mid = (name, max = 44) => (name.length <= max ? name : `${name.slice(0, max - 23)}…${name.slice(-22)}`);
+const meter = (p) => `<span class="meter"><i style="--p:${Math.round(p * 100)}%"></i></span>`;
+
+// One status for every option except Now
+function status(row) {
+  const of = `${fmt(row.done ?? 0)} of ${fmt(row.photos)}`;
+  switch (row.kind) {
+    case "uploading": return { tone: "busy", text: row.photos === 1 ? "Uploading" : `Uploading ${of}`, p: row.photos === 1 ? undefined : row.done / row.photos };
+    case "remote": return { tone: "idle", text: `${of} received` };
+    case "finding": return { tone: "busy", text: row.photos === 1 ? "Finding faces" : `Finding faces ${of}`, p: row.photos === 1 ? undefined : row.done / row.photos };
+    case "stopped": return { tone: "bad", text: `Stopped at ${of}`, problem: `Add ${row.name} again to continue where it stopped.`, action: "Add again" };
+    case "error": return { tone: "bad", text: "Not added", problem: row.error };
+    case "abandoned": return { tone: "idle", text: `Didn’t finish, ${of} received` };
+    default: {
+      if (row.photos === 1) return row.saved ? { tone: "ok", text: "Added" } : { tone: "idle", text: row.failed ? "Couldn’t be processed" : "No faces, left out" };
+      const notes = [`${fmt(row.saved)} photos`, row.leftOut && `${fmt(row.leftOut)} left out`, row.failed && `${fmt(row.failed)} refunded`].filter(Boolean);
+      return { tone: "ok", text: notes.join(" · ") };
+    }
+  }
+}
+
+// ---------- Upload photos ----------
+function photosHead(rows) {
+  const ready = sum(rows, (row) => row.saved ?? 0);
+  const busy = sum(rows, (row) => (row.kind === "finding" ? row.photos - row.done : row.kind === "uploading" || row.kind === "remote" ? row.done : 0));
+  const covered = 51065;
+  const unit = [1, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000].find((size) => (ready + busy + covered) / size <= 120) ?? 10000;
+  // At least one tile for any ready photos; today 152 photos at 500 a tile round to none.
+  const readyTiles = ready ? Math.max(1, Math.round(ready / unit)) : 0;
+  const busyTiles = busy ? Math.max(1, Math.round(busy / unit)) : 0;
+  const tiles = Array.from({ length: readyTiles + busyTiles + Math.round(covered / unit) }, (_, n) => (n < readyTiles ? "ready" : n < readyTiles + busyTiles ? "busy" : ""));
+  return `<div class="card-head"><h2>Upload photos</h2><p><b>${fmt(ready + busy)}</b> photos</p></div>
+    <div class="sheet">${tiles.map((tile) => `<i class="${tile}"></i>`).join("")}</div>
+    <p class="legend"><span class="ready">${fmt(ready)} ready</span>${busy ? `<span class="busy">${fmt(busy)} finding faces</span>` : ""}<span>Your balance covers ${fmt(covered)} more</span><em>Each tile is ${fmt(unit)} photos</em></p>`;
+}
+const addZone = () => `<button type="button" class="add">${icon("upload")}<span><b>Add photos</b><small>Drop ZIP files or photos here, or choose them. JPEG or PNG, up to 50 MB per photo. Keep this tab open while they upload. ${crowd() ? "All valid photos are kept, including photos without faces." : "Photos without faces are left out and not charged."}</small></span></button>`;
+
+function uploadNow(rows) {
+  const row = (r) => {
+    const of = (done) => `${fmt(done)} of ${fmt(r.photos)} photos`;
+    const [label, tone, note, p] = {
+      uploading: () => ["Uploading", "busy", `${of(r.done)} sent`, r.done / r.photos],
+      remote: () => ["Stopped", "idle", `${of(r.done)} sent. Add ${r.name} again to continue.`],
+      stopped: () => ["Stopped", "idle", `${of(r.done)} sent. Add ${r.name} again to continue.`],
+      finding: () => ["Finding faces", "busy", of(r.done), r.done / r.photos],
+      error: () => ["Not added", "bad", r.error],
+      ready: () => ["Ready", "", [`${fmt(r.saved)} photos added`, r.leftOut && `${fmt(r.leftOut)} photos were left out and not charged`, r.failed && `${fmt(r.failed)} couldn't be processed and were refunded`].filter(Boolean).join(". ")],
+    }[r.kind]();
+    return `<li><p><b>${r.name}</b>${r.when ? `<span>${shortDate(r.when)}</span>` : ""}</p><div><span class="pill ${tone}">${label}</span><span class="note-text">${note}</span>${p === undefined ? "" : meter(p)}</div></li>`;
+  };
+  return photosHead(rows) + addZone() + `<ul class="u-now">${rows.map(row).join("")}</ul>`;
+}
+
+function uploadA(rows) {
+  const pinned = rows.filter((row) => !finished(row));
+  const done = rows.filter(finished);
+  const shown = ui.more ? done : done.slice(0, Math.max(0, 6 - pinned.length));
+  const hidden = done.length - shown.length;
+  const item = (row) => {
+    const s = status(row);
+    return `<li><span class="dot ${s.tone}"></span><span class="name"><span title="${row.name}">${mid(row.name)}</span>${row.guest ? `<b class="tag">Guest</b>` : ""}</span><span class="ua-status">${s.text}</span><span>${s.p === undefined ? "" : meter(s.p)}</span><time>${row.when ? clock(row.when) : ""}</time>${s.problem ? `<p class="ua-problem">${s.problem}${s.action ? `<button class="link-btn" type="button">${s.action}</button>` : ""}</p>` : ""}</li>`;
+  };
+  const toggle = hidden ? `Show ${plural(hidden, "more upload")}` : ui.more && done.length > shown.length - pinned.length && done.length > 6 ? "Show fewer" : "";
+  return photosHead(rows) + addZone() +
+    `<div class="label-row">Uploads <span>${fmt(rows.length)}</span></div><ul class="ua">${[...pinned, ...shown].map(item).join("")}</ul>` +
+    (toggle ? `<button class="link-btn more" type="button" data-act="more">${toggle}</button>` : "");
+}
+
+function uploadB(rows) {
+  const of = (list) => [sum(list, (row) => row.done), sum(list, (row) => row.photos)];
+  const line = (title, numbers, p, small) => `<div class="ub-line"><b>${title}</b><span>${numbers}</span>${p === undefined ? "" : meter(p)}${small ? `<small>${small}</small>` : ""}</div>`;
+  const names = (list) => list.slice(0, 4).map((row) => mid(row.name, 34)).join(", ") + (list.length > 4 ? `, and ${fmt(list.length - 4)} more` : "");
+  const sending = rows.filter((row) => row.kind === "uploading");
+  const receiving = rows.filter((row) => row.kind === "remote");
+  const finding = rows.filter((row) => row.kind === "finding");
+  const problems = rows.filter((row) => row.kind === "stopped" || row.kind === "error");
+  const now = [];
+  if (sending.length) {
+    const [done, total] = of(sending);
+    now.push(line(sending.length === 1 ? `Uploading ${mid(sending[0].name, 40)}` : "Uploading", `${fmt(done)} of ${plural(total, "photo")} sent`, done / total, `Keep this tab open until it finishes.${sending.length > 1 ? ` ${names(sending)}` : ""}`));
+  }
+  if (receiving.length) {
+    const [done, total] = of(receiving);
+    now.push(line(`${plural(receiving.length, "guest upload")} arriving`, `${fmt(done)} of ${plural(total, "photo")} received`, done / total, "Guests upload from their own phones; they keep going without you."));
+  }
+  if (finding.length) {
+    const [done, total] = of(finding);
+    now.push(line("Finding faces", `${fmt(done)} of ${plural(total, "photo")}`, done / total, names(finding)));
+  }
+  for (const row of problems) {
+    const s = status(row);
+    now.push(`<div class="ub-problem"><span><b>${mid(row.name, 40)}</b> · ${row.kind === "error" ? row.error : `stopped at ${fmt(row.done)} of ${fmt(row.photos)} photos.`}</span>${s.action ? `<button class="btn btn-sm btn-line" type="button">${icon("upload")}Add it again</button>` : `<button class="link-btn" type="button">Dismiss</button>`}</div>`);
+  }
+
+  const days = Map.groupBy(rows.filter(finished), (row) => dayName(row.when));
+  const history = [...days].map(([label, list]) => {
+    const own = list.filter((row) => !row.guest);
+    const guests = list.filter((row) => row.guest);
+    const added = sum(list, (row) => row.saved ?? 0);
+    const leftOut = sum(list, (row) => (row.leftOut ?? 0) + (row.failed ?? 0));
+    const summary = [plural(list.length, "upload"), `${plural(added, "photo")} added`, leftOut && `${fmt(leftOut)} left out`].filter(Boolean).join(" · ");
+    const items = own.map((row) => `<li><span class="name"><span>${mid(row.name)}</span></span><span class="ua-status">${status(row).text}</span><time>${clock(row.when)}</time></li>`).join("") +
+      (guests.length ? `<li class="guests"><b>Guests</b><span class="ua-status">${plural(guests.length, "upload")} · ${plural(sum(guests, (row) => row.saved ?? 0), "photo")}</span><time></time></li>` : "");
+    return `<details class="ub-day"><summary>${icon("right")}<b>${label}</b><span>${summary}</span></summary><ul>${items}</ul></details>`;
+  }).join("");
+
+  return photosHead(rows) + addZone() +
+    (now.length ? `<div class="ub-now">${now.join("")}</div>` : "") +
+    (history ? `<div class="label-row">History</div>${history}` : "");
+}
+
+function uploadC(rows) {
+  const live = rows.filter((row) => !finished(row));
+  const done = rows.filter(finished);
+  let top = addZone();
+  if (live.length) {
+    const sending = live.filter((row) => row.kind === "uploading" || row.kind === "remote");
+    const finding = live.filter((row) => row.kind === "finding");
+    const broken = live.filter((row) => row.kind === "stopped" || row.kind === "error");
+    const [done, total] = [sum(sending, (row) => row.done), sum(sending, (row) => row.photos)];
+    const head = sending.length ? `<b>${fmt(done)} of ${plural(total, "photo")} uploaded</b><span>${Math.round((done / total) * 100)}%</span>`
+      : finding.length ? `<b>Finding faces in ${plural(sum(finding, (row) => row.photos - row.done), "photo")}</b>`
+      : `<b>${broken.length === 1 ? "An upload needs you" : `${fmt(broken.length)} uploads need you`}</b>`;
+    const queue = live.slice(0, 5).map((row) => `<li class="${status(row).tone === "bad" ? "bad" : ""}"><span class="name"><span>${mid(row.name)}</span>${row.guest ? `<b class="tag">Guest</b>` : ""}</span><span>${row.kind === "error" ? row.error : row.kind === "stopped" ? `${status(row).text}. Add it again to continue.` : status(row).text}</span></li>`).join("") +
+      (live.length > 5 ? `<li><span class="muted">and ${plural(live.length - 5, "more upload")}</span><span></span></li>` : "");
+    top = `<div class="uc-live">
+      <div class="uc-live-head">${head}</div>
+      ${sending.length ? meter(done / total) : finding.length ? meter(sum(finding, (row) => row.done) / sum(finding, (row) => row.photos)) : ""}
+      <ul class="uc-queue">${queue}</ul>
+      <p class="uc-foot">${sending.some((row) => row.kind === "uploading") ? "Keep this tab open while photos upload." : ""}<button class="link-btn" type="button">${icon("plus")} Add more photos</button><span>or drop them here</span></p>
+    </div>`;
+  }
+  const guests = done.some((row) => row.guest);
+  const shown = ui.more ? done : done.slice(0, 8);
+  const table = done.length ? `<table class="uc-table">
+    <colgroup><col>${guests ? `<col style="width:84px">` : ""}<col style="width:96px"><col style="width:96px"><col style="width:78px"></colgroup>
+    <thead><tr><th>Upload</th>${guests ? "<th>From</th>" : ""}<th class="num">Added</th><th class="num">Left out</th><th class="num">When</th></tr></thead>
+    <tbody>${shown.map((row) => `<tr><td title="${row.name}">${mid(row.name, 52)}</td>${guests ? `<td class="muted">${row.guest ? "Guest" : "You"}</td>` : ""}<td class="num">${row.kind === "abandoned" ? `<span class="muted">Didn’t finish</span>` : fmt(row.saved)}</td><td class="num muted">${(row.leftOut ?? 0) + (row.failed ?? 0) || "–"}</td><td class="num muted">${clock(row.when)}</td></tr>`).join("")}</tbody>
+  </table>${done.length > 8 ? `<button class="link-btn more" type="button" data-act="more">${ui.more ? "Show fewer" : `Show all ${fmt(done.length)}`}</button>` : ""}` : "";
+  return photosHead(rows) + top + table;
+}
+
+// ---------- Search ----------
+const TOTAL = 249;
+const FOUND = ["ev-01", "ev-02", "nx-02", "ev-03", "ev-04", "t05", "ev-05", "ev-06", "u13", "ev-07", "ev-08"];
+const search = { kind: "idle", face: null, checked: 0, timer: 0 };
+function runSearch(face = photo("face")) {
+  clearInterval(search.timer);
+  Object.assign(search, { kind: "searching", face, checked: 0 });
+  renderPanel();
+  const start = performance.now();
+  search.timer = setInterval(() => {
+    const t = Math.min(1, (performance.now() - start) / 2400);
+    search.checked = Math.round(TOTAL * t);
+    document.querySelectorAll("[data-checked]").forEach((el) => (el.textContent = fmt(search.checked)));
+    document.querySelectorAll("[data-progress]").forEach((el) => el.style.setProperty("--p", `${t * 100}%`));
+    if (t === 1) {
+      clearInterval(search.timer);
+      search.kind = "found";
+      renderPanel();
+    }
+  }, 60);
+}
+function resetSearch() {
+  clearInterval(search.timer);
+  Object.assign(search, { kind: "idle", face: null });
+  renderPanel();
+}
+const searchHead = () => `<div class="card-head"><h2>Search</h2><p>${fmt(TOTAL)} photos ready to search</p></div>`;
+const privacy = `<p class="privacy">${icon("shield")}The photo is used only for this search. We don’t keep it.</p>`;
+const results = () => `<ul class="results">${FOUND.map((name, i) => `<li><img src="${photo(name)}" alt="" style="--i:${i}"></li>`).join("")}</ul>`;
+const loading = (n = 10) => `<ul class="results loading">${"<li><i></i></li>".repeat(n)}</ul>`;
+const downloadAll = `<button class="btn btn-sm" type="button">${icon("download")}Download all ${FOUND.length}</button>`;
+
+function searchNow() {
+  return searchHead() + `<div class="banner-now"><span class="slot-now">${icon("camera")}</span><span><b>Find photos with you</b><small>Upload a photo of your face to see only photos you’re in.</small></span><button class="btn" type="button" data-act="pick">${icon("camera")}Search with a selfie</button></div>`;
+}
+function searchA() {
+  if (search.kind === "idle") {
+    return searchHead() + `<button type="button" class="sa-drop" data-act="pick" data-drop>
+      <span class="slot">${icon("camera")}</span>
+      <span><b>Find someone in this gallery</b><small>Drop a photo of their face here, or choose one. One face, looking at the camera, works best.</small></span>
+      <span class="btn btn-sm btn-line">Choose photo</span></button>${privacy}`;
+  }
+  const found = search.kind === "found";
+  return searchHead() + `<div class="sa-head">
+      <span class="ring"><img src="${search.face}" alt="The face searched for"></span>
+      <div><h3>${found ? `${FOUND.length} photos of this person` : "Looking for this person"}</h3><p>${found ? `Found in ${fmt(TOTAL)} photos` : `Checked <span data-checked>0</span> of ${fmt(TOTAL)} photos`}</p></div>
+      <div class="sa-actions">${found ? downloadAll : ""}<button class="btn btn-sm btn-line" type="button" data-act="pick">New search</button></div>
+    </div>` + (found ? results() : loading());
+}
+function searchB() {
+  const face = search.face
+    ? `<button type="button" class="sb-face has" data-act="pick" data-drop><img src="${search.face}" alt="The face searched for"></button><button class="link-btn sb-change" type="button" data-act="pick">Use another photo</button>`
+    : `<button type="button" class="sb-face" data-act="pick" data-drop>${icon("camera")}<b>Add a face</b><small>Drop a photo here or choose one</small></button>`;
+  const right = search.kind === "idle"
+    ? `<div class="sb-empty"><ul class="results">${"<li><i></i></li>".repeat(8)}</ul><p>Photos of this person show up here</p></div>`
+    : search.kind === "searching"
+      ? `<div class="sb-top"><b>Checked <span data-checked>0</span> of ${fmt(TOTAL)} photos</b></div><span class="meter"><i data-progress></i></span>${loading(8)}`
+      : `<div class="sb-top"><b>${FOUND.length} photos</b><span class="muted">with this person, out of ${fmt(TOTAL)}</span>${downloadAll}</div>${results()}`;
+  return searchHead() + `<div class="sb"><div>${face}<ul class="sb-tips"><li>One face in the photo</li><li>Looking at the camera</li><li>Good light</li></ul>${privacy}</div><div>${right}</div></div>`;
+}
+function searchC() {
+  const chip = search.face ? `<span class="sc-chip"><img src="${search.face}" alt=""><span>This face</span><button type="button" aria-label="Clear the search" data-act="reset">${icon("close")}</button></span>` : "";
+  const bar = search.kind === "idle"
+    ? `${icon("camera")}<span class="sc-hint">Find a person by their face. Drop a photo of them here.</span><button class="btn btn-sm btn-line" type="button" data-act="pick">Choose photo</button>`
+    : search.kind === "searching"
+      ? `${chip}<span class="sc-count">Checking <span data-checked>0</span> of ${fmt(TOTAL)}</span><i class="sc-progress" data-progress></i>`
+      : `${chip}<span class="sc-count">${FOUND.length} photos found in ${fmt(TOTAL)}</span>${downloadAll}`;
+  return searchHead() + `<div class="sc-bar" data-drop>${bar}</div>` + (search.kind === "idle" ? privacy : search.kind === "searching" ? loading() : results());
+}
+
+// ---------- Gallery page ----------
+const HOST = "findphotosofme.com";
+const page = { published: true, sharing: "subdomain", subdomain: "itarena", title: "IT Arena 2026", description: "Photos from IT Arena, October 6 to 8 at Arena Lviv. Taken by the IT Arena photo team.", browse: true, guests: true };
+let pageSaved = { ...page };
+let flash = "";
+const dirty = (keys = Object.keys(page)) => keys.some((key) => page[key] !== pageSaved[key]);
+const address = () => (page.sharing === "link" ? "Secret gallery link" : page.subdomain ? `${page.subdomain}.${HOST}` : "No address yet");
+
+const DEVICES = { phone: { w: 390, h: 760, cols: 3, pad: "20px", intro: "16px", h1: "2.4rem" }, desktop: { w: 1280, h: 800, cols: 5, pad: "40px", intro: "36px", h1: "5.4rem" } };
+function preview(device = "phone") {
+  const d = DEVICES[device];
+  const shown = page.browse ? d.cols * 6 : 6;
+  return `<div class="pv ${device}" data-preview="${device}"><div class="pv-page" data-w="${d.w}" style="width:${d.w}px;height:${d.h}px;--cols:${d.cols};--pad:${d.pad};--intro:${d.intro};--h1:${d.h1}">
+    <header class="pv-top"><img src="../../apps/web/public/icon.svg" alt="">FindPhotosOfMe</header>
+    ${page.published ? "" : `<span class="pv-private">Private</span>`}
+    <section class="pv-intro"><h1>${page.title || "Untitled gallery"}</h1><p class="pv-about"><b>${fmt(TOTAL)} photos</b>${page.description ? `<span>${page.description}</span>` : ""}</p>${page.browse ? "" : `<p class="pv-sel">You’re seeing a few of the photos. Search with a selfie to find every photo you’re in.</p>`}</section>
+    <div class="pv-grid">${PREVIEWS.slice(0, shown).map((name) => `<img src="${photo(name)}" alt="">`).join("")}</div>
+    <div class="pv-actions">${page.guests ? `<span>${icon("upload")}Upload your photos</span>` : ""}<span>${icon("camera")}Find me</span></div>
+  </div></div>`;
+}
+const caption = () => `<p class="pv-caption"><span>${page.published ? address() : "Private · only you can open it"}</span><a href="#">Open page</a></p>`;
+function fitPreviews() {
+  document.querySelectorAll(".pv").forEach((frame) => {
+    const inner = frame.firstElementChild;
+    inner.style.zoom = frame.clientWidth / Number(inner.dataset.w);
+  });
+}
+function refreshPreviews() {
+  document.querySelectorAll("[data-preview]").forEach((el) => (el.outerHTML = preview(el.dataset.preview)));
+  document.querySelectorAll("[data-address]").forEach((el) => (el.textContent = address()));
+  fitPreviews();
+}
+
+const toggle = (key, title, text, id = key) => `<label class="toggle" for="f-${id}"><input class="switch" type="checkbox" id="f-${id}" data-f="${key}" ${page[key] ? "checked" : ""}><span><b>${title}</b><small>${text}</small></span></label>`;
+const GUEST_TEXT = {
+  browse: () => `When this is off, people see a few photos and find the rest with a selfie${page.guests ? ", so guest photos without faces are visible only to you" : ""}.`,
+  guests: () => "Anyone with access can add photos from the gallery page or Telegram, without signing in. Photos without faces are kept too. Uploads use your balance.",
+};
+const nameField = (id = "title") => `<div class="f"><label for="f-${id}">Name</label><input class="in" id="f-${id}" data-f="title" value="${page.title}" required></div>`;
+const descriptionField = () => `<div class="f"><label for="f-description">Description</label><textarea class="in" id="f-description" data-f="description" rows="3" placeholder="Where and when it was, and who took the photos">${page.description}</textarea></div>`;
+const addressField = () => page.sharing === "subdomain" ? `<div class="f"><label for="f-subdomain">Page address</label><div class="addr2"><input class="in" id="f-subdomain" data-f="subdomain" value="${page.subdomain}" autocomplete="off"><span>.${HOST}</span></div><p class="hint2">Changing it breaks links you’ve already shared.</p></div>` : "";
+const pageHead = () => `<div class="card-head"><h2>Gallery page</h2><p>What people see when they open your link.</p></div>`;
+
+function pageNow() {
+  return `<div class="card">${pageHead()}
+    <div class="pn-pub">${toggle("published", "Publish this gallery", page.published ? "Anyone with the link can see this gallery and search for their photos." : "Only you can see and search this gallery. Publish when you’re ready to share it.")}</div>
+    <div class="pn-layout"><form class="pn-form" onsubmit="return false">
+      ${nameField()}
+      <fieldset><legend>Sharing</legend>
+        <label><input type="radio" name="sharing" value="link" data-f="sharing" ${page.sharing === "link" ? "checked" : ""}><span><b>Secret link</b><small>Only people with the link can open it. Hidden from search engines.</small></span></label>
+        <label><input type="radio" name="sharing" value="subdomain" data-f="sharing" ${page.sharing === "subdomain" ? "checked" : ""}><span><b>Public page address</b><small>An optional, memorable subdomain anyone can visit.</small></span></label>
+      </fieldset>
+      ${addressField()}
+      ${descriptionField()}
+      ${toggle("guests", "Let guests upload photos", GUEST_TEXT.guests())}
+      ${toggle("browse", "Let people browse every photo", GUEST_TEXT.browse())}
+      <div><button class="btn btn-sm" type="button" data-act="save">Save changes</button></div>
+    </form>
+    <div><div class="browser"><div class="browser-bar"><i></i><i></i><i></i><span data-address>${address()}</span></div>
+      <div class="mini"><p class="mini-title">${page.title}</p><p class="mini-desc">${page.description}</p><div class="mini-grid">${PREVIEWS.slice(0, 8).map((name) => `<img src="${photo(name)}" alt="">`).join("")}</div><span class="mini-pill">${icon("camera")}Find photos with you</span></div>
+    </div><p class="hint2" style="margin-top:10px">The preview changes as you type.</p></div></div>
+  </div>`;
+}
+
+const sharingChoice = () => `<div class="choice">
+  <label><input type="radio" name="sharing" value="link" data-f="sharing" ${page.sharing === "link" ? "checked" : ""}><span><b>Secret link</b><small>Only people with the link can open it. Hidden from search engines.</small></span></label>
+  <label><input type="radio" name="sharing" value="subdomain" data-f="sharing" ${page.sharing === "subdomain" ? "checked" : ""}><span><b>Public address</b><small>A memorable address anyone can visit.</small></span></label>
+</div>`;
+
+function pageA() {
+  const section = (title, text, body) => `<section class="pa-sec"><div class="pa-label"><h3>${title}</h3><p>${text}</p></div><div class="pa-body">${body}</div></section>`;
+  return `<div class="card">${pageHead()}
+    ${section("Visibility", "Prepare a gallery privately, then publish it when it’s ready.", toggle("published", page.published ? "Published" : "Private", page.published ? "Anyone with the link can see this gallery and search for their photos. Saves right away." : "Only you can see and search this gallery. Saves right away."))}
+    ${section("Link", "How people open your gallery.", sharingChoice() + addressField())}
+    ${section("Page", "The name and description at the top of your page.", `<div class="pa-page"><div class="pa-body">${nameField()}${descriptionField()}</div><div>${preview("phone")}${caption()}</div></div>`)}
+    ${section("Guests can", "What people can do once they open your link.", toggle("browse", "Browse every photo", GUEST_TEXT.browse()) + toggle("guests", "Upload their own photos", GUEST_TEXT.guests()))}
+    ${section("Delete gallery", "Its page stops working and its photos are deleted.", `<div><button class="btn btn-sm btn-line btn-danger-line" type="button">${icon("trash")}Delete gallery</button></div>`)}
+  </div>
+  ${dirty() ? `<div class="savebar" role="status"><span>Unsaved changes</span><button class="btn btn-sm btn-line" type="button" data-act="discard">Discard</button><button class="btn btn-sm btn-yellow" type="button" data-act="save">Save changes</button></div>` : ""}`;
+}
+
+function pageB() {
+  return `<div class="card">${pageHead()}<div class="pb">
+    <div class="pb-form">
+      <label class="pb-pub" for="f-published"><span><b>${page.published ? "Published" : "Private"}</b><small>${page.published ? "Anyone with the link can open it" : "Only you can open it"}</small></span><input class="switch" type="checkbox" id="f-published" data-f="published" ${page.published ? "checked" : ""}></label>
+      <h3 class="pb-group">Link</h3>
+      <div class="pb-radios">
+        <label><input type="radio" name="sharing" value="link" data-f="sharing" ${page.sharing === "link" ? "checked" : ""}><span><b>Secret link</b><small>Hidden from search engines</small></span></label>
+        <label><input type="radio" name="sharing" value="subdomain" data-f="sharing" ${page.sharing === "subdomain" ? "checked" : ""}><span><b>Public address</b><small>Anyone can visit it</small></span></label>
+      </div>
+      ${addressField()}
+      <h3 class="pb-group">Text</h3>
+      ${nameField()}${descriptionField()}
+      <h3 class="pb-group">Guests can</h3>
+      ${toggle("browse", "Browse every photo", GUEST_TEXT.browse())}
+      ${toggle("guests", "Upload their own photos", GUEST_TEXT.guests())}
+      <div style="margin-top:8px"><button class="btn btn-sm" type="button" data-act="save" ${dirty() ? "" : "disabled style='opacity:.4'"}>Save changes</button></div>
+    </div>
+    <div class="pb-preview">
+      <div class="pb-preview-top"><b>Preview</b><span class="seg"><button type="button" data-device="phone" aria-pressed="${ui.device === "phone"}">Phone</button><button type="button" data-device="desktop" aria-pressed="${ui.device === "desktop"}">Desktop</button></span></div>
+      ${preview(ui.device)}${caption()}
+    </div>
+  </div></div>`;
+}
+
+function pageC() {
+  const saved = (card) => (flash === card ? `<span class="pc-saved">Saved</span>` : "");
+  const tile = (key, svg, title, text) => `<label class="pc-tile" for="f-${key}">${icon(svg)}<span><b>${title}</b><small>${text}</small></span><input class="switch" type="checkbox" id="f-${key}" data-f="${key}" data-instant="guests" ${page[key] ? "checked" : ""}></label>`;
+  const textDirty = dirty(["title", "description"]);
+  const addressDirty = dirty(["subdomain"]);
+  return `<div class="pc">
+    <div class="card"><div class="pc-head"><h2>Sharing</h2>${saved("sharing")}</div><div class="pc-share">
+      <label class="toggle" for="f-published"><input class="switch" type="checkbox" id="f-published" data-f="published" data-instant="sharing" ${page.published ? "checked" : ""}><span><b>${page.published ? "Published" : "Private"}</b><small>${page.published ? "Anyone with the link can see this gallery and search for their photos." : "Only you can see and search this gallery."}</small></span></label>
+      <div class="pc-row"><span class="seg"><label><input type="radio" name="sharing" value="link" data-f="sharing" data-instant="sharing" ${page.sharing === "link" ? "checked" : ""}>Secret link</label><label><input type="radio" name="sharing" value="subdomain" data-f="sharing" data-instant="sharing" ${page.sharing === "subdomain" ? "checked" : ""}>Public address</label></span><span class="hint2">${page.sharing === "link" ? "Only people with the link can open it. Hidden from search engines." : "A memorable address anyone can visit."}</span></div>
+      ${page.sharing === "subdomain" ? `<div class="f"><label for="f-subdomain">Page address</label><div class="pc-row"><div class="addr2" style="flex:1;min-width:240px"><input class="in" id="f-subdomain" data-f="subdomain" value="${page.subdomain}" autocomplete="off"><span>.${HOST}</span></div>${addressDirty ? `<button class="btn btn-sm" type="button" data-act="save-card" data-card="sharing">Save address</button>` : ""}</div><p class="hint2">Changing it breaks links you’ve already shared.</p></div>` : ""}
+    </div></div>
+    <div class="card"><div class="pc-head"><h2>Guests can</h2>${saved("guests")}</div><div class="pc-tiles">
+      ${tile("browse", "grid", "Browse every photo", page.browse ? "The whole gallery is open to scroll through." : `A few photos show; the rest are found with a selfie${page.guests ? ". Guest photos without faces stay visible only to you" : ""}.`)}
+      ${tile("guests", "upload", "Upload their own photos", "From the gallery page or Telegram, without signing in. Uses your balance.")}
+    </div></div>
+    <div class="card"><div class="pc-head"><h2>Page text</h2>${saved("text")}</div><div class="pc-text">
+      <div class="pc-text-form">${nameField()}${descriptionField()}${textDirty ? `<div><button class="btn btn-sm" type="button" data-act="save-card" data-card="text">Save text</button></div>` : ""}</div>
+      <div>${preview("phone")}${caption()}</div>
+    </div></div>
+  </div>`;
+}
+
+// ---------- Rendering ----------
+const PANELS = {
+  upload: { now: uploadNow, A: uploadA, B: uploadB, C: uploadC },
+  search: { now: searchNow, A: searchA, B: searchB, C: searchC },
+  page: { now: pageNow, A: pageA, B: pageB, C: pageC },
+};
+
+function renderStrip() {
+  const group = (label, key, options) => `<span>${label}</span>` + options.map(([id, text]) => `<button type="button" data-key="${key}" data-value="${id}" aria-pressed="${ui[key] === id}">${text}</button>`).join("");
+  const options = OPTIONS[ui.tab];
+  document.querySelector(".proto").innerHTML = `<a href="index.html">All variations</a>` +
+    group("Tab", "tab", TABS.slice(0, 3)) +
+    (options ? group("Option", "v", options) : "") +
+    (ui.tab === "upload" ? group("Scenario", "s", SCENARIOS) : "") +
+    (ui.tab === "search" ? `<span>Try it</span><button type="button" data-act="sample">Search with a sample face</button><button type="button" data-act="reset">Reset</button>` : "") +
+    `<em ${options ? "" : "hidden"}>${options ? NOTES[ui.tab][ui.v] : ""}</em>`;
+}
+
+function renderPanel() {
+  const focused = document.activeElement?.id;
+  const panel = document.getElementById("panel");
+  const draw = PANELS[ui.tab]?.[ui.v];
+  if (!draw) panel.innerHTML = `<div class="card"><p class="placeholder">This tab isn’t part of this round.</p></div>`;
+  else if (ui.tab === "upload") panel.innerHTML = `<div class="card">${draw(DATA[ui.s]())}</div>`;
+  else if (ui.tab === "search") panel.innerHTML = `<div class="card">${draw()}</div>`;
+  else panel.innerHTML = draw();
+  if (focused) document.getElementById(focused)?.focus();
+  fitPreviews();
+}
+
+function render() {
+  renderStrip();
+  document.querySelector(".tabs").innerHTML = TABS.map(([id, label]) => `<button type="button" role="tab" data-key="tab" data-value="${id}" aria-selected="${ui.tab === id}">${label}</button>`).join("");
+  renderPanel();
+}
+
+function set(key, value) {
+  ui[key] = value;
+  ui.more = false;
+  if (key === "tab" && OPTIONS[value] && !OPTIONS[value].some(([id]) => id === ui.v)) ui.v = "A";
+  history.replaceState(null, "", `?${new URLSearchParams({ tab: ui.tab, v: ui.v, s: ui.s })}`);
+  render();
+}
+
+document.addEventListener("click", (event) => {
+  const choice = event.target.closest("[data-key]");
+  if (choice) return set(choice.dataset.key, choice.dataset.value);
+  const device = event.target.closest("[data-device]");
+  if (device) {
+    ui.device = device.dataset.device;
+    return renderPanel();
+  }
+  const act = event.target.closest("[data-act]")?.dataset.act;
+  if (act === "more") {
+    ui.more = !ui.more;
+    renderPanel();
+  }
+  if (act === "pick") document.getElementById("selfie-input").click();
+  if (act === "sample") runSearch();
+  if (act === "reset") resetSearch();
+  if (act === "save") {
+    pageSaved = { ...page };
+    renderPanel();
+  }
+  if (act === "discard") {
+    Object.assign(page, pageSaved);
+    renderPanel();
+  }
+  if (act === "save-card") {
+    const card = event.target.closest("[data-card]").dataset.card;
+    for (const key of card === "text" ? ["title", "description"] : ["subdomain"]) pageSaved[key] = page[key];
+    flash = card;
+    renderPanel();
+  }
+});
+
+document.getElementById("selfie-input").addEventListener("change", (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (file) runSearch(URL.createObjectURL(file));
+});
+
+// Selfies can be dropped onto any search target
+document.addEventListener("dragover", (event) => {
+  const target = event.target.closest("[data-drop]");
+  if (!target) return;
+  event.preventDefault();
+  target.classList.add("over");
+});
+document.addEventListener("dragleave", (event) => event.target.closest?.("[data-drop]")?.classList.remove("over"));
+document.addEventListener("drop", (event) => {
+  const target = event.target.closest("[data-drop]");
+  if (!target) return;
+  event.preventDefault();
+  const file = event.dataTransfer?.files[0];
+  if (file) runSearch(URL.createObjectURL(file));
+});
+
+// Typing updates the previews in place, so the caret stays put; switches and choices redraw the tab.
+document.addEventListener("input", (event) => {
+  const key = event.target.dataset?.f;
+  if (!key) return;
+  const input = event.target;
+  page[key] = input.type === "checkbox" ? input.checked : input.value;
+  // Publishing saves right away in every option, as it does today; option C saves every switch right away.
+  if (key === "published" || input.dataset.instant) {
+    pageSaved[key] = page[key];
+    flash = input.dataset.instant ?? "";
+  }
+  if (input.type === "checkbox" || input.type === "radio") return renderPanel();
+  refreshPreviews();
+  // The save controls appear with the first change and go away when it's undone
+  const saveShown = Boolean(document.querySelector(".savebar, [data-act='save-card'], .pb [data-act='save']:not([disabled])"));
+  const pending = ui.v === "C" ? dirty(["title", "description", "subdomain"]) : dirty();
+  if (saveShown !== pending && ui.v !== "now") {
+    renderPanel();
+    input.focus();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (!["ArrowLeft", "ArrowRight"].includes(event.key) || event.target.closest("input, textarea, [contenteditable]")) return;
+  const options = OPTIONS[ui.tab];
+  if (!options) return;
+  const index = options.findIndex(([id]) => id === ui.v);
+  set("v", options[(index + (event.key === "ArrowRight" ? 1 : options.length - 1)) % options.length][0]);
+});
+addEventListener("resize", fitPreviews);
+
+// A made-up QR code with real finder squares, for the header card
+(function drawQr() {
+  const random = seeded(5);
+  const finder = (x, y) => `M${x} ${y}h7v7h-7zM${x + 1} ${y + 1}v5h5v-5zM${x + 2} ${y + 2}h3v3h-3z`;
+  let path = finder(0, 0) + finder(18, 0) + finder(0, 18);
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) {
+    const inFinder = (x < 8 && y < 8) || (x > 16 && y < 8) || (x < 8 && y > 16);
+    if (!inFinder && random() < .48) path += `M${x} ${y}h1v1h-1z`;
+  }
+  document.getElementById("qr").innerHTML = `<path d="${path}" fill="#151515" fill-rule="evenodd" transform="translate(1 1)"/>`;
+})();
+
+hydrateIcons();
+// Links can open a search result or a section directly: ?search=found, #panel
+if (query.get("search") === "found") Object.assign(search, { kind: "found", face: photo("face") });
+if (query.get("more")) ui.more = true;
+if (query.get("shot")) document.body.classList.add("shot");
+render();
+if (location.hash === "#panel") document.querySelector(".tabs").scrollIntoView();
+</script>
+</body>
+</html>
