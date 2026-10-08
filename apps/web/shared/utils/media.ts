@@ -1,3 +1,4 @@
+import { resizedKey } from "@FindPhotosOfMe/backend/convex/photoKeys";
 import type { GalleryPhoto } from "#shared/types/gallery";
 
 /** A photo's stable links through /media. Search results carry their request so its access can be checked. */
@@ -16,6 +17,3 @@ export function mediaLinks(key: string, { requestId, shareToken }: { requestId?:
 }
 
 const mediaUrl = (key: string, query: string) => `/media/${key.split("/").map(encodeURIComponent).join("/")}${query ? `?${query}` : ""}`;
-
-/** Where a gallery photo's smaller versions are stored, beside it: thumbs/ for grids, screen/ for the full-screen viewer. */
-export const resizedKey = (key: string, size: "thumbs" | "screen") => key.replace(/^([^/]+)\//, `$1/${size}/`);

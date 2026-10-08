@@ -1,12 +1,12 @@
 "use node";
 
 import { Api } from "grammy";
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ConvexError, v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { photoType, stagingKey } from "./photoKeys";
+import { photoType, resizedKey, stagingKey } from "./photoKeys";
 
 export const searchAndReply = internalAction({
   args: { requestId: v.id("searchRequests"), fileId: v.string(), messageId: v.number() },
@@ -59,9 +59,13 @@ export const searchAndReply = internalAction({
         credentials: { accessKeyId, secretAccessKey },
       });
       await ctx.runQuery(api.telegramAccess.getForService, { collectionId: collection._id, chatId, serviceToken });
-      const urls = await Promise.all(result.imagesFound.map((key) =>
-        getSignedUrl(r2, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: 900 })
-      ));
+      // Telegram fetches photos of at most 5 MB from a link and many camera originals are larger, which failed whole
+      // albums, so it gets each photo's screen version. Photos the screen backfill hasn't reached go as originals.
+      const urls = await Promise.all(result.imagesFound.map(async (key) => {
+        const screen = resizedKey(key, "screen");
+        const stored = await r2.send(new HeadObjectCommand({ Bucket: bucket, Key: screen })).then(() => true, () => false);
+        return getSignedUrl(r2, new GetObjectCommand({ Bucket: bucket, Key: stored ? screen : key }), { expiresIn: 900 });
+      }));
       for (let offset = 0; offset < urls.length; offset += 10) {
         const group = urls.slice(offset, offset + 10);
         const [single] = group;

@@ -22,6 +22,9 @@ export const photoKey = (collectionId: string, uploadId: string, name: string) =
 /** An original photo directly inside a gallery, excluding indexes and other stored files. */
 export const isGalleryPhoto = (key: string) => /^[^/]+\/[^/]+\.(jpe?g|png|bmp)$/i.test(key);
 
+/** Where a gallery photo's smaller versions are stored, beside it: thumbs/ for grids, screen/ for full-screen views. */
+export const resizedKey = (key: string, size: "thumbs" | "screen") => key.replace(/^([^/]+)\//, `$1/${size}/`);
+
 /** The original photo that a media key shows, including when the key points at its thumbnail or screen version. */
 export function originalPhotoKey(key: string) {
   const original = key.replace(/^([^/]+)\/(?:thumbs|screen)\//, "$1/");

@@ -1,6 +1,6 @@
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
 import { ConvexHttpClient } from "convex/browser";
-import { resizedKey } from "#shared/utils/media";
+import { resizedKey } from "@FindPhotosOfMe/backend/convex/photoKeys";
 
 /**
  * A public gallery's link preview image (see renderGalleryCard), drawn from its first previews' thumbnails.
