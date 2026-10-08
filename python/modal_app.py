@@ -88,6 +88,14 @@ def backfill_screens(collection_id: str | None = None):
     return run(collection_id)
 
 
+@app.function(image=model_image, secrets=[secret], cpu=1, memory=2048, timeout=600, retries=0)
+def remove_upload(collection_id: str, upload_id: str):
+    """An upload added twice by mistake: `modal run python/modal_app.py::remove_upload --collection-id <id> --upload-id <id>`,
+    then `bunx convex run uploads:removeUpload` with the stored bytes it reports."""
+    from maintenance.remove_upload import remove_upload as run
+    return run(collection_id, upload_id)
+
+
 @app.function(image=model_image, secrets=[secret], cpu=1, memory=4096, timeout=3600, retries=0)
 def convert_face_indexes():
     """One-time, right after deploying: old face indexes to the new format. `modal run python/modal_app.py::convert_face_indexes`"""

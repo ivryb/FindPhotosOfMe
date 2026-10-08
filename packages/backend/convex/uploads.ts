@@ -5,7 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { canAccessGallery, requireActiveCollection, requireCollectionOwner, requireServiceToken } from "./authz";
-import { charge, releasePhotos, requireCredit, reservePhotos, returnPhotos, returnPhotosNow } from "./balances";
+import { charge, findEntry, releasePhotos, requireCredit, reservePhotos, returnPhotos, returnPhotosNow } from "./balances";
 import { BATCH_PHOTOS, MAX_PHOTO_BYTES, PHOTO_NAME, STAGING_URL_LIFETIME_MS, photoKey, stagingKey } from "./photoKeys";
 import { PRICES, formatMoney } from "./pricing";
 import { batchStatus, uploadFields } from "./schema";
@@ -404,6 +404,55 @@ export const facesMergedForService = mutation({
     await ctx.db.patch(collectionId, { mergingSince: undefined });
     // More batches may have finished during the merge.
     await ctx.scheduler.runAfter(0, internal.uploads.merge, { collectionId });
+    return null;
+  },
+});
+
+/** Maintenance that rewrites a face index holds the merge lock, then releases it through facesMergedForService. */
+export const claimFaceIndexForService = mutation({
+  args: { collectionId: v.id("collections"), serviceToken: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { collectionId, serviceToken }) => {
+    requireServiceToken(serviceToken);
+    const collection = await ctx.db.get(collectionId);
+    if (!collection || collection.mergingSince) return false;
+    await ctx.db.patch(collectionId, { mergingSince: Date.now() });
+    return true;
+  },
+});
+
+/**
+ * Forgets an upload added twice by mistake and refunds its photos, once python's remove_upload has taken its faces
+ * and files out (`bunx convex run uploads:removeUpload '{"uploadId": ..., "storedBytes": <bytes it reported>}'`).
+ */
+export const removeUpload = internalMutation({
+  args: { uploadId: v.id("uploads"), storedBytes: v.number() },
+  returns: v.null(),
+  handler: async (ctx, { uploadId, storedBytes }) => {
+    const upload = await ctx.db.get(uploadId);
+    if (!upload) return null;
+    const batches = await ctx.db.query("uploadBatches").withIndex("by_upload", (q) => q.eq("uploadId", uploadId)).collect();
+    if (batches.some((batch) => batch.status !== "merged")) throw new Error("Wait until every batch of this upload is merged");
+    // A batch refunds once, so one that already returned photos without faces would keep the rest of its charge.
+    for (const batch of batches) if (await findEntry(ctx, batch._id, "photos_returned")) throw new Error("A batch was partly refunded; refund it by hand");
+    for (const batch of batches) {
+      await returnPhotosNow(ctx, batch, batch.names.length);
+      await ctx.db.delete(batch._id);
+    }
+    const tag = photoKey(upload.collectionId, uploadId, "");
+    const collection = await ctx.db.get(upload.collectionId);
+    if (collection) {
+      await ctx.db.patch(collection._id, {
+        imagesCount: Math.max(0, collection.imagesCount - upload.saved),
+        storedBytes: Math.max(0, (collection.storedBytes ?? 0) - storedBytes),
+        previewImages: collection.previewImages?.filter((key) => !key.startsWith(tag)),
+      });
+    }
+    for (const request of await ctx.db.query("searchRequests").withIndex("by_collection", (q) => q.eq("collectionId", upload.collectionId)).collect()) {
+      const kept = request.imagesFound.filter((key) => !key.startsWith(tag));
+      if (kept.length < request.imagesFound.length) await ctx.db.patch(request._id, { imagesFound: kept });
+    }
+    await ctx.db.delete(uploadId);
     return null;
   },
 });

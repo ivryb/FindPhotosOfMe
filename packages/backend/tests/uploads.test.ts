@@ -260,3 +260,28 @@ describe("merging faces", () => {
   });
 });
 
+describe("removing an upload added twice", () => {
+  test("holds merges off the face index, then refunds the upload and takes it out of the gallery", async () => {
+    const { t, gallery, setCredit, credit, batches } = setup();
+    const collectionId = await gallery();
+    await setCredit(1_000);
+    const uploadId = await sendPhotos(t, collectionId, 50);
+    const [batch] = await batches(collectionId);
+    await t.mutation(api.uploads.completeBatchForService, { id: batch!._id, saved: names(50), savedBytes: 500, serviceToken });
+    await expect(t.mutation(internal.uploads.removeUpload, { uploadId, storedBytes: 500 })).rejects.toThrow("merged");
+    const merging = await t.mutation(internal.uploads.claimMerge, { collectionId });
+    await t.mutation(api.uploads.facesMergedForService, { collectionId, batchIds: merging!, serviceToken });
+
+    expect(await t.mutation(api.uploads.claimFaceIndexForService, { collectionId, serviceToken })).toBe(true);
+    expect(await t.mutation(api.uploads.claimFaceIndexForService, { collectionId, serviceToken })).toBe(false);
+    expect(await t.mutation(internal.uploads.claimMerge, { collectionId })).toBeNull();
+    await t.mutation(api.uploads.facesMergedForService, { collectionId, batchIds: [], serviceToken });
+
+    await t.mutation(internal.uploads.removeUpload, { uploadId, storedBytes: 500 });
+    expect(await credit()).toBe(1_000);
+    const emptied = await t.run((ctx) => ctx.db.get(collectionId));
+    expect([emptied?.imagesCount, emptied?.storedBytes, emptied?.mergingSince]).toEqual([0, 0, undefined]);
+    expect(await batches(collectionId)).toEqual([]);
+    expect(await t.run((ctx) => ctx.db.get(uploadId))).toBeNull();
+  });
+});

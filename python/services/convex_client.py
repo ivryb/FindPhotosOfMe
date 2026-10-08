@@ -33,6 +33,12 @@ class ConvexService:
     def fail_batch(self, batch_id: str, attempt: int):
         self.client.mutation("uploads:failBatchForService", {"id": batch_id, "attempt": attempt, "serviceToken": self.service_token})
 
+    def claim_face_index(self, collection_id: str) -> bool:
+        """Holds the gallery's merge lock for maintenance until faces_merged releases it. False while a merge runs."""
+        return self.client.mutation("uploads:claimFaceIndexForService", {
+            "collectionId": collection_id, "serviceToken": self.service_token,
+        })
+
     def faces_merged(self, collection_id: str, batch_ids: list[str]):
         self.client.mutation("uploads:facesMergedForService", {
             "collectionId": collection_id, "batchIds": batch_ids, "serviceToken": self.service_token,

@@ -100,3 +100,39 @@ def test_convert_moves_old_face_indexes_into_the_new_format_alongside_newer_face
     assert "event/embeddings.json" not in objects
     assert convert_face_indexes(Storage()) == {"galleries": 0}
 
+
+def test_removing_an_upload_takes_its_faces_and_files_while_holding_merges_off():
+    from maintenance.remove_upload import remove_upload
+    from services.face_index import Faces, index_key
+    face = [{"embedding": [1.0, 0.0], "gender": 0}]
+    objects = {
+        index_key("event"): Faces.of({"8fwex3ab-a.jpg": face + face, "s18fx6xk-a.jpg": face}).encode(),
+        "event/8fwex3ab-a.jpg": b"aaaa", "event/thumbs/8fwex3ab-a.jpg": b"ta", "event/screen/8fwex3ab-a.jpg": b"screen",
+        "event/8fwex3ab-b.jpg": b"bb", "event/thumbs/8fwex3ab-b.jpg": b"tb",
+        "event/s18fx6xk-a.jpg": b"aaaa", "event/thumbs/s18fx6xk-a.jpg": b"ta",
+    }
+    lock = []
+
+    class Storage:
+        def list_objects(self, prefix): return [{"Key": key, "Size": len(data)} for key, data in objects.items() if key.startswith(prefix)]
+        def download_file(self, key): return objects.get(key)
+        def upload_file(self, data, key, content_type):
+            assert lock == ["held"]
+            objects[key] = data
+            return True
+        def delete_files(self, keys):
+            for key in keys: objects.pop(key, None)
+
+    class Convex:
+        def claim_face_index(self, collection_id):
+            lock.append("held")
+            return True
+        def faces_merged(self, collection_id, batch_ids):
+            assert batch_ids == []
+            lock.append("released")
+
+    # The tag is the upload ID's last eight characters, as in its photos' names
+    assert remove_upload("event", "k57ev1k68fwex3ab", Storage(), Convex()) == {"faces": 2, "files": 5, "stored_bytes": 4 + 2 + 2 + 2}
+    assert lock == ["held", "released"]
+    assert Faces.decode(objects[index_key("event")]).names.tolist() == ["s18fx6xk-a.jpg"]
+    assert sorted(key for key in objects if key != index_key("event")) == ["event/s18fx6xk-a.jpg", "event/thumbs/s18fx6xk-a.jpg"]
