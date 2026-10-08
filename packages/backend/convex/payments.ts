@@ -180,6 +180,10 @@ export const webhook = httpAction(async (ctx, request) => {
   if (String(attributes.store_id) !== requiredEnv("LEMONSQUEEZY_STORE_ID")) {
     return new Response("Wrong store", { status: 400 });
   }
+  // Anyone can pay a test checkout with a test card, so test orders must never credit a live deployment.
+  if (Boolean(attributes.test_mode) !== (process.env.LEMONSQUEEZY_TEST_MODE === "true")) {
+    return new Response("Wrong mode", { status: 400 });
+  }
 
   if (eventName === "order_created") {
     const custom = payload?.meta?.custom_data;

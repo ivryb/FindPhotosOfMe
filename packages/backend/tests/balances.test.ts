@@ -6,10 +6,10 @@ import type { Id } from "../convex/_generated/dataModel";
 import { DAY, INCLUDED_DAYS, PRICES, TRIAL_CREDIT } from "../convex/pricing";
 import schema from "../convex/schema";
 
-// Owner-only functions see the gallery owner signed in.
+// Owner-only functions see the gallery owner signed in; the HTTP router gets no sign-in routes.
 vi.mock("../convex/auth", async (original) => {
   const owner = { _id: "owner", email: "owner@example.com" };
-  return { ...(await original<object>()), authComponent: { getAuthUser: async () => owner, safeGetAuthUser: async () => owner } };
+  return { ...(await original<object>()), authComponent: { getAuthUser: async () => owner, safeGetAuthUser: async () => owner, registerRoutesLazy() {} } };
 });
 
 const modules = import.meta.glob("../convex/**/*.ts");
@@ -17,6 +17,8 @@ const serviceToken = "test-service-token";
 
 beforeEach(() => {
   vi.stubEnv("SERVICE_TOKEN", serviceToken);
+  // The HTTP router reads the site's origin when it first loads.
+  vi.stubEnv("SITE_URL", "https://findphotosofme.test");
 });
 
 function setup() {
@@ -104,6 +106,30 @@ describe("top-ups", () => {
     await t.mutation(internal.payments.recordRefund, { providerOrderId: "order-1", refundedAmount: 2_420, full: true });
     await t.mutation(internal.payments.recordRefund, { providerOrderId: "order-1", refundedAmount: 2_420, full: true });
     expect(await credit()).toBe(TRIAL_CREDIT);
+  });
+
+  test("come from signed orders in the deployment's own mode", async () => {
+    const { t, credit } = setup();
+    vi.stubEnv("LEMONSQUEEZY_WEBHOOK_SECRET", "webhook-secret");
+    vi.stubEnv("LEMONSQUEEZY_STORE_ID", "1");
+    vi.stubEnv("LEMONSQUEEZY_PRODUCT_ID", "2");
+    vi.stubEnv("LEMONSQUEEZY_TEST_MODE", "false");
+    const deliver = async (id: string, testMode: boolean) => {
+      const body = JSON.stringify({
+        meta: { event_name: "order_created", custom_data: { user_id: "owner" } },
+        data: { type: "orders", id, attributes: {
+          store_id: 1, status: "paid", test_mode: testMode, first_order_item: { product_id: 2, variant_id: 3 },
+          subtotal_usd: 1_000, discount_total_usd: 0, total: 1_210, currency: "USD", created_at: "2026-10-08T00:00:00Z",
+        } },
+      });
+      const key = await crypto.subtle.importKey("raw", new TextEncoder().encode("webhook-secret"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+      const signature = Buffer.from(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body))).toString("hex");
+      return t.fetch("/api/lemonsqueezy/webhook", { method: "POST", body, headers: { "x-signature": signature } });
+    };
+
+    expect((await deliver("test-order", true)).status).toBe(400);
+    expect((await deliver("live-order", false)).status).toBe(200);
+    expect(await credit()).toBe(TRIAL_CREDIT + 10_000);
   });
 });
 
