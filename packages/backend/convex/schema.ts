@@ -134,6 +134,8 @@ export default defineSchema({
     status: batchStatus,
     attempts: v.number(),
     startedAt: v.optional(v.number()),
+    // Photos its current worker has gone through, while it runs
+    progress: v.optional(v.number()),
   })
     .index("by_status", ["status"])
     .index("by_refund_pending", ["refundPending"])

@@ -190,15 +190,21 @@ export const releaseExpiredBatch = internalMutation({
   },
 });
 
+/** Each upload with `progress`: photos its running batches have gone through, which join `processed` once a batch finishes. */
 export const list = query({
   args: { collectionId: v.id("collections"), access: v.optional(guestAccess) },
-  returns: v.array(v.object({ _id: v.id("uploads"), _creationTime: v.number(), ...uploadFields })),
+  returns: v.array(v.object({ _id: v.id("uploads"), _creationTime: v.number(), ...uploadFields, progress: v.number() })),
   handler: async (ctx, { collectionId, access }) => {
     if (access) await requireUploadCollection(ctx, collectionId, access);
     else await requireCollectionOwner(ctx, collectionId);
-    return access
+    const uploads = await (access
       ? ctx.db.query("uploads").withIndex("by_contributor", (q) => q.eq("collectionId", collectionId).eq("contributorKey", access.contributorKey)).order("desc").collect()
-      : ctx.db.query("uploads").withIndex("by_collection", (q) => q.eq("collectionId", collectionId)).order("desc").collect();
+      : ctx.db.query("uploads").withIndex("by_collection", (q) => q.eq("collectionId", collectionId)).order("desc").collect());
+    const progress = new Map<Id<"uploads">, number>();
+    for (const batch of await batchesIn(ctx, collectionId, "running").collect()) {
+      progress.set(batch.uploadId, (progress.get(batch.uploadId) ?? 0) + (batch.progress ?? 0));
+    }
+    return uploads.map((upload) => ({ ...upload, progress: progress.get(upload._id) ?? 0 }));
   },
 });
 
@@ -261,6 +267,19 @@ export const completeBatchForService = mutation({
   },
 });
 
+/** How many of its batch's photos a worker has gone through, so the upload's count moves while the batch runs. */
+export const reportProgressForService = mutation({
+  args: { id: v.id("uploadBatches"), attempt: v.number(), progress: v.number(), serviceToken: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { id, attempt, progress, serviceToken }) => {
+    requireServiceToken(serviceToken);
+    const batch = await ctx.db.get(id);
+    // A replaced worker may still be running; only the current one's count is shown.
+    if (batch?.status === "running" && batch.attempts === attempt) await ctx.db.patch(id, { progress });
+    return null;
+  },
+});
+
 /**
  * A worker that hit an error: the batch goes back in the queue right away, or is given up after its last try.
  * `attempt` is the try the worker was given, so a worker that was already replaced can't reset its replacement.
@@ -298,7 +317,7 @@ export const claim = internalMutation({
       const next = pending.reduce((best, batch, index) => (busy(batch) < busy(pending[best]!) ? index : best), 0);
       const [batch] = pending.splice(next, 1);
       load.set(batch!.collectionId, busy(batch!) + 1);
-      await ctx.db.patch(batch!._id, { status: "running", startedAt: Date.now(), attempts: batch!.attempts + 1 });
+      await ctx.db.patch(batch!._id, { status: "running", startedAt: Date.now(), attempts: batch!.attempts + 1, progress: undefined });
       claimed.push(batch!._id);
     }
     return claimed;
@@ -448,7 +467,7 @@ async function hasWork(ctx: MutationCtx, collectionId: Id<"collections">) {
 const batchesWith = (ctx: MutationCtx, status: Doc<"uploadBatches">["status"]) =>
   ctx.db.query("uploadBatches").withIndex("by_status", (q) => q.eq("status", status));
 
-const batchesIn = (ctx: MutationCtx, collectionId: Id<"collections">, status: Doc<"uploadBatches">["status"]) =>
+const batchesIn = (ctx: QueryCtx, collectionId: Id<"collections">, status: Doc<"uploadBatches">["status"]) =>
   ctx.db.query("uploadBatches").withIndex("by_collection_and_status", (q) => q.eq("collectionId", collectionId).eq("status", status));
 
 /** Asks the processing service to start work. False when it didn't accept, so the work goes back to wait. */

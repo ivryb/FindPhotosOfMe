@@ -121,7 +121,7 @@ export function startBackend(port = 0) {
       const interrupted = uploads.find((item) => item.collectionId === args.collectionId && item.contributorKey === args.access?.contributorKey
         && item.name === args.name && item.size === args.size && item.photos === args.photos && item.sent < item.photos);
       if (interrupted) return { uploadId: interrupted._id, sent: interrupted.sent };
-      const upload = { _id: `upload-${uploads.length + 1}`, _creationTime: Date.now(), ...args, contributorKey: args.access?.contributorKey, sent: 0, processed: 0, saved: 0, failed: 0 };
+      const upload = { _id: `upload-${uploads.length + 1}`, _creationTime: Date.now(), ...args, contributorKey: args.access?.contributorKey, sent: 0, processed: 0, saved: 0, failed: 0, progress: 0 };
       uploads.unshift(upload);
       return { uploadId: upload._id, sent: 0 };
     }

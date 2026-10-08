@@ -24,6 +24,12 @@ class ConvexService:
             "id": batch_id, "saved": saved, "savedBytes": saved_bytes, "serviceToken": self.service_token,
         })
 
+    def report_progress(self, batch_id: str, attempt: int, progress: int):
+        """How many of the batch's photos this worker has gone through, shown on the upload while the batch runs."""
+        self.client.mutation("uploads:reportProgressForService", {
+            "id": batch_id, "attempt": attempt, "progress": progress, "serviceToken": self.service_token,
+        })
+
     def fail_batch(self, batch_id: str, attempt: int):
         self.client.mutation("uploads:failBatchForService", {"id": batch_id, "attempt": attempt, "serviceToken": self.service_token})
 

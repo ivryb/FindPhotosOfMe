@@ -97,6 +97,9 @@ def process_batch(batch_id: str) -> dict:
                         found[name] = faces
                     saved.append(photo["name"])
                     saved_bytes += len(image) + len(thumbnail)
+                done = start + len(chunk)
+                convex.report_progress(batch_id, batch["attempt"], done)
+                log(f"Batch {batch_id}: went through {done} of {len(photos)} photos")
         if found and not r2.upload_file(Faces.of(found).encode(), batch_key(collection_id, batch_id), "application/octet-stream"):
             raise RuntimeError(f"Could not save the faces of batch {batch_id}")
         convex.complete_batch(batch_id, saved, saved_bytes)

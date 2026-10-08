@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
-import type { Doc } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { coveredBy } from "@FindPhotosOfMe/backend/convex/pricing";
+import type { FunctionReturnType } from "convex/server";
 import { useConvexQuery } from "convex-vue";
 import { Upload } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
@@ -57,16 +57,17 @@ function openingRow(entry: Sending): Row {
   return { ...row, label: "Opening", tone: "busy", note: "Reading the files" };
 }
 
-function uploadRow(item: Doc<"uploads">, here?: Sending): Row {
+function uploadRow(item: FunctionReturnType<typeof api.uploads.list>[number], here?: Sending): Row {
   const row = { key: item._id, name: item.name, when: item._creationTime };
   const of = (done: number) => `${count.format(done)} of ${count.format(item.photos)} photos`;
+  const checked = item.processed + item.progress;
   if (here?.error) return { ...row, label: "Stopped", tone: "bad", note: here.error };
   if (here) {
     const skipped = here.tooLarge ? `. ${count.format(here.tooLarge)} over 50 MB were skipped` : "";
     return { ...row, label: "Uploading", tone: "busy", note: `${of(here.sent)} sent${skipped}`, progress: here.sent / item.photos };
   }
   if (item.sent < item.photos) return { ...row, label: "Stopped", tone: "idle", note: `${of(item.sent)} sent. Add ${item.name} again to continue.` };
-  if (item.processed < item.photos) return { ...row, label: "Finding faces", tone: "busy", note: of(item.processed), progress: item.processed / item.photos };
+  if (item.processed < item.photos) return { ...row, label: "Finding faces", tone: "busy", note: of(checked), progress: checked / item.photos };
   const leftOut = item.processed - item.saved - item.failed;
   return {
     ...row, label: "Ready", tone: "ok",

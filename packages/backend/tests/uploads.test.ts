@@ -127,6 +127,25 @@ describe("processing", () => {
     expect(upload).toMatchObject({ photos: 50, sent: 50, processed: 50, saved: 30, failed: 0 });
   });
 
+  test("an upload shows how far its running batches have got, and counts each photo once they finish", async () => {
+    const { t, gallery, setCredit } = setup();
+    const collectionId = await gallery();
+    await setCredit(1_000);
+    await sendPhotos(t, collectionId, 100);
+    const [first, second] = await t.mutation(internal.uploads.claim, {});
+    const report = (id: Id<"uploadBatches">, attempt: number, progress: number) =>
+      t.mutation(api.uploads.reportProgressForService, { id, attempt, progress, serviceToken });
+
+    await report(first!, 1, 16);
+    await report(second!, 1, 8);
+    // A worker that was already replaced doesn't count.
+    await report(second!, 0, 48);
+    expect((await t.query(api.uploads.list, { collectionId }))[0]).toMatchObject({ processed: 0, progress: 24 });
+
+    await t.mutation(api.uploads.completeBatchForService, { id: first!, saved: names(50), savedBytes: 1, serviceToken });
+    expect((await t.query(api.uploads.list, { collectionId }))[0]).toMatchObject({ processed: 50, progress: 8 });
+  });
+
   test("workers are capped and shared between galleries, so one big upload doesn't hold up the others", async () => {
     const { t, gallery, setCredit } = setup();
     const big = await gallery();

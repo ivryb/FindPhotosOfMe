@@ -78,6 +78,7 @@ def backend(monkeypatch):
         def complete_batch(self, batch_id, saved, saved_bytes):
             state['batch']['status'] = 'done'
             state['completed'].append((batch_id, saved, saved_bytes))
+        def report_progress(self, batch_id, attempt, progress): pass
         def fail_batch(self, batch_id, attempt): state['failed'].append((batch_id, attempt))
         def faces_merged(self, collection_id, batch_ids): state['merged'].append((collection_id, batch_ids))
         def get_collection(self, _): return state['collection']
