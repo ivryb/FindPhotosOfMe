@@ -74,7 +74,13 @@ export function startBackend(port = 0) {
     ? published ? { ...publicGallery("test-collection"), ...collection() } : null
     : publicGallery(id);
   // Uploads the dashboard starts, the batches it registers, and the photos it puts in R2
-  const uploads: Array<Record<string, unknown> & { _id: string; sent: number }> = [];
+  const uploads: Array<Record<string, unknown> & { _id: string; photos: number; sent: number; processed: number; saved: number }> = [];
+  // How the next selfie searches end and how long the search service takes, for walking through every search state.
+  let search: { outcome: "found" | "none" | "no_face" | "failed" | "paused"; delayMs: number } = { outcome: "found", delayMs: 0 };
+  const searchRequest = () => ({
+    _id: "fixture-search", collectionId: "test-collection", imagesFound: search.outcome === "found" ? FOUND : [],
+    ...(search.outcome === "no_face" || search.outcome === "failed" ? { status: "error", error: search.outcome } : { status: "complete" }),
+  });
   const batches: Array<{ uploadId: string; first: number; names: string[] }> = [];
   const putKeys: string[] = [];
   type Staged = Omit<FunctionReturnType<typeof api.uploads.getStagingBatch>, "batchId" | "collectionId" | "uploadId"> & {
@@ -111,6 +117,10 @@ export function startBackend(port = 0) {
     }
     if (path === "collections:setPublished") published = args.published;
     if (path === "uploads:start") {
+      // Like Convex, adding the same files again continues an interrupted upload.
+      const interrupted = uploads.find((item) => item.collectionId === args.collectionId && item.contributorKey === args.access?.contributorKey
+        && item.name === args.name && item.size === args.size && item.photos === args.photos && item.sent < item.photos);
+      if (interrupted) return { uploadId: interrupted._id, sent: interrupted.sent };
       const upload = { _id: `upload-${uploads.length + 1}`, _creationTime: Date.now(), ...args, contributorKey: args.access?.contributorKey, sent: 0, processed: 0, saved: 0, failed: 0 };
       uploads.unshift(upload);
       return { uploadId: upload._id, sent: 0 };
@@ -139,7 +149,7 @@ export function startBackend(port = 0) {
     : path === "uploads:list" ? uploads.filter((upload) => !args.access || upload.collectionId === args.collectionId && typeof args.access === "object" && args.access !== null && "contributorKey" in args.access && upload.contributorKey === args.access.contributorKey)
     : path === "collections:getAll" ? [collection()]
     : path === "balances:mine" ? { credit: 3250, paid: false }
-    : path === "searchRequests:get" ? { _id: "fixture-search", collectionId: "test-collection", status: "complete", imagesFound: FOUND }
+    : path === "searchRequests:get" ? searchRequest()
     : path === "collections:getPublicBySubdomain" ? publicView(galleryId)
     : collection();
   function transition(socket: ServerWebSocket<SocketData>, querySet = socket.data.version.querySet, identity = socket.data.version.identity) {
@@ -175,6 +185,19 @@ export function startBackend(port = 0) {
       listingError = changes.listingError ?? listingError;
       for (const socket of sockets) transition(socket);
       return Response.json({ imagesCount, showAllPhotos, crowdsource, listingError });
+    }
+    if (new URL(request.url).pathname === "/__fixture/search") {
+      search = { ...search, ...await request.json() };
+      return Response.json(search);
+    }
+    // Finishes processing the oldest upload still waiting for it, leaving out `failed` of its photos.
+    if (new URL(request.url).pathname === "/__fixture/process") {
+      const { failed = 0 }: { failed?: number } = await request.json();
+      const upload = uploads.findLast((item) => item.sent === item.photos && item.processed < item.photos);
+      if (!upload) return new Response("No upload is waiting for processing", { status: 409 });
+      Object.assign(upload, { processed: upload.photos, saved: upload.photos - failed, failed });
+      for (const socket of sockets) transition(socket);
+      return Response.json(upload);
     }
     const url = new URL(request.url);
     const path = url.pathname;
@@ -246,7 +269,7 @@ export function startBackend(port = 0) {
       if (body.path === "searchRequests:create" && body.args[0].collectionId === "private-collection" && request.headers.get("authorization") !== `Bearer ${ownerJwt}`) {
         return Response.json({ status: "error", errorMessage: "Uncaught ConvexError", errorData: "This gallery is private", logLines: [] });
       }
-      if (body.path === "searchRequests:create" && body.args[0].collectionId === "paused-collection") {
+      if (body.path === "searchRequests:create" && (body.args[0].collectionId === "paused-collection" || search.outcome === "paused")) {
         return Response.json({ status: "error", errorMessage: "Uncaught ConvexError", errorData: "Searching is paused for this gallery. Please ask its owner to top up.", logLines: [] });
       }
       if (body.path === "searchRequests:create" && body.args[0].collectionId === "secret-collection" && body.args[0].shareToken !== galleryToken) {
@@ -261,6 +284,7 @@ export function startBackend(port = 0) {
       if (request.headers.get("authorization") !== "Bearer fixture-service-token" || form.get("search_request_id") !== "fixture-search" || !form.get("reference_photo")) {
         return new Response("Invalid search", { status: 400 });
       }
+      await Bun.sleep(search.delayMs);
       return Response.json({ success: true });
     }
     if (path === "/api/query") {

@@ -19,17 +19,28 @@ The guest gallery now has two compact floating pills together at the bottom: **U
 
 ![Compact desktop actions](guest-actions-desktop.png)
 
-![Upload sheet after the photos reached storage, with processing still pending](guest-upload-sheet-desktop.png)
+![Upload sheet listing uploads that are uploaded, stopped, refused, and processed](guest-upload-sheet-desktop.png)
 
 ![Find me opens the existing selfie explanation](guest-find-me-desktop.png)
 
-Mobile views at 390 × 844: [gallery actions](guest-actions-mobile.png), [upload sheet](guest-upload-sheet-mobile.png), [selfie sheet](guest-find-me-mobile.png). Both pills also fit a 320-pixel-wide viewport without clipping.
+Mobile views at 390 × 844: [gallery actions](guest-actions-mobile.png), [upload sheet](guest-upload-sheet-mobile.png), [selfie sheet](guest-find-me-mobile.png), [search in progress](guest-searching-mobile.png). Both pills also fit a 320-pixel-wide viewport without clipping.
 
-On 8 October 2026 the guest sheet stopped treating processing as part of the upload. The pill spins only while files are going to storage. As soon as the last batch is confirmed, the row reads **Uploaded** with a note that processing can take a while, although the fixture still reports no processed photos. The two upload sheet captures above show that state.
+On 8 October 2026 the guest sheet stopped treating processing as part of the upload. The pill spins only while files are going to storage. As soon as the last batch is confirmed, the row reads **Uploaded** with a note that processing can take a while, although the fixture still reports no processed photos.
+
+Later the same day both sheets were reworked after reviewing a first recording of every state. Once a guest has chosen photos, their uploads lead the sheet, newest first, and the large drop zone becomes an **Add more photos** button; files can be dropped anywhere on the sheet. Each upload's status icon stands beside both of its lines, and the upload being sent shows a progress bar. While a search runs, the selfie sheet shows only the selfie, its title, and the progress bar, with no separate **Keep browsing** link, and on phones it fits that content instead of covering most of the screen. The current captures above and the recordings below show these layouts.
 
 Verified 55 selected photos reached the fixture storage in batches of 50 and 5. Upload status survived closing, opening the search sheet, and reopening uploads. Close buttons and Escape return focus to the triggering pill; backdrop dismissal works. Disabling contributions while its sheet is open restores the remaining **Find me** action. These captures use the same pending-processing fixture described below.
 
 The final browser pass repeated the 55-photo upload while signed out through the updated batch reservation and completion endpoints. All 55 unique objects reached storage, both batches were confirmed after the server checked stored sizes, and the page showed processing with no upload errors. [Recorded verification values](upload-verification.json). The collaborative browser disconnected after opening the search sheet during this final pass, so the 6 October screenshots remained the visual evidence until the 8 October recapture, and the earlier pass covers reopening behavior.
+
+## Sheet state recordings
+
+Recorded on 8 October 2026 at 390 × 844 against the fixture app, after the sheet rework described above. Captions name each step and white circles mark taps. Files were assigned to the real file inputs, the fixture controls set search outcomes and finished processing, and the dropped connection was simulated by failing the browser's storage uploads.
+
+- [Upload flow, 70 seconds](guest-upload-flow.mp4): the empty sheet; a file with no photos, a damaged ZIP, and photos over 50 MB, each added after the first with **Add more photos**; a ZIP and 55 photos opening and uploading one at a time while the second waits; closing and reopening the sheet mid-upload; both marked uploaded; processing that adds all, some, or none of an upload's photos; a dropped connection; and, after the page is reopened, the same 60 photos resuming from photo 51 in the stopped upload's place. The video joins two recordings where the page reloads.
+- [Find me flow, 59 seconds](guest-find-me-flow.mp4): the sheet before a selfie; the compact searching sheet, then browsing while the button spins; three photos found and one opened in the viewer; an unsupported file type and a photo over 10 MB; no face, no matching photos, a failed search, and paused searching.
+
+The recordings omit the **Uploads are unavailable** alert, which appears only when the upload list fails to load, because the fixture cannot fail that subscription.
 
 ## Earlier recordings
 
@@ -73,3 +84,5 @@ The guest was signed out before recording. The 55 JPEG files were assigned to th
 The Telegram chat is not captured: this isolated preview has no connected test bot. Its implemented choices are **Find my photos**, **Upload photos**, and **Browse gallery → Open gallery**. A live Telegram capture remains separate from this local web review.
 
 To reproduce the local preview, run `bunx nuxt prepare` followed by `bun tests/serve.ts` from `apps/web`. Open `http://localhost:3215/gallery/0123456789abcdef0123456789abcdef`. For admin access, the fixture accepts `owner@example.com` and code `123456` at `/sign-in`; no email is sent. Open `/admin/galleries/test-collection?tab=page`. Do not run the HTTP tests concurrently with this fixture server.
+
+To walk through search and processing states, POST to the fixture controls printed by the server. `/__fixture/search` with `{"outcome":"none","delayMs":2000}` sets how later searches end (`found`, `none`, `no_face`, `failed`, or `paused`) and how long they take. `/__fixture/process` with `{"failed":2}` finishes the oldest upload still waiting for processing and leaves out that many of its photos.
