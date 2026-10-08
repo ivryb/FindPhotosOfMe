@@ -39,8 +39,8 @@ Create or select the production Convex deployment, then configure:
 | `GOOGLE_CLIENT_ID` | Google OAuth web-client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth web-client secret |
 | `LEMONSQUEEZY_STORE_ID` | Dedicated FindPhotosOfMe store: `444807` |
-| `LEMONSQUEEZY_PRODUCT_ID` | Test: `1264917`; production: create after store activation |
-| `LEMONSQUEEZY_TOP_UP_VARIANT_ID` | Pay-what-you-want "Balance top-up" variant; checkout sets the price. Create it in test and live mode |
+| `LEMONSQUEEZY_PRODUCT_ID` | Test: "Balance top-up" product `1423057`; live: copy it to Live mode after store activation |
+| `LEMONSQUEEZY_TOP_UP_VARIANT_ID` | The top-up product's only variant, priced at the $10 minimum; each checkout sets its own price. Not pay-what-you-want, so buyers can't change the amount at checkout. Test: `2222713` |
 | `LEMONSQUEEZY_API_KEY` | Dedicated FindPhotosOfMe API key |
 | `LEMONSQUEEZY_WEBHOOK_SECRET` | Random 6–40 character signing secret |
 | `LEMONSQUEEZY_TEST_MODE` | `true` in preview, `false` in production |
@@ -118,12 +118,12 @@ Convex calls Cloudflare's REST API directly. No Worker deployment is required.
 
 ## 5. Lemon Squeezy
 
-1. Complete identity verification and activate the dedicated Belgian FindPhotosOfMe store. Live mode is unavailable until this is approved.
-2. Keep test product `1264917` hidden from `findphotosofme.lemonsqueezy.com`; never create FindPhotosOfMe products or webhooks in another project's store.
+1. Activate the dedicated Belgian FindPhotosOfMe store; Live mode is unavailable until it is approved. Identity verification passed, but the activation review was rejected on 7 August 2026, while findphotosofme.com was still down. A rejected store can't resubmit from the dashboard (the form only opens while activation is `action_required`), so Lemon Squeezy support has to reopen it. The dashboard also reports an unsigned Stripe tax form.
+2. Top-ups sell test product `1423057` ("Balance top-up"), hidden from `findphotosofme.lemonsqueezy.com`. The old Event/Large Event product `1264917` is no longer used. Never create FindPhotosOfMe products or webhooks in another project's store.
 3. Use separate test and live API keys. Both current keys expire on February 3, 2027; rotate them before then.
 4. Development uses test webhook `123819` at `https://honorable-firefly-904.convex.site/api/lemonsqueezy/webhook`, subscribed only to `order_created` and `order_refunded`.
-5. After activation, create the matching hidden live product in store `444807`. Add its IDs to production Convex, deploy the production webhook route, and only then create the live webhook.
-6. Checkout, entitlement activation, idempotent redelivery, partial-refund recording, and full-refund revocation are verified in Test mode. Repeat the smoke test against the deployed preview origin before enabling live payments.
+5. After activation, use "Copy to Live Mode" on product `1423057`. Add the live product and variant IDs to production Convex, deploy the production webhook route, and only then create the live webhook. The webhook rejects orders whose test mode differs from `LEMONSQUEEZY_TEST_MODE`, so the test webhook can't credit live balances.
+6. On 8 October 2026, test order `9694809` paid a $17.50 calculator checkout: the webhook credited exactly $17.50 to the buyer's balance, and a full refund through the API took it back and marked the order refunded. Repeat the smoke test against the deployed preview origin before enabling live payments.
 7. Switch `LEMONSQUEEZY_TEST_MODE` to `false` only for the approved production rollout.
 
 ## 6. Vercel

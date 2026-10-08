@@ -4,13 +4,13 @@
 
 Organizers or photographers pay once per event. Attendee search is free. Keep seats and team billing out of launch scope. Personal find-and-export jobs and ongoing archives are distinct proposed offers; archive subscriptions need their own storage and renewal behavior.
 
-The pricing direction selected on 4 October is **one calculator with a $10 minimum payment**, replacing the fixed paid plans on the landing pages. The purchase will use a custom-priced checkout in the dedicated FindPhotosOfMe Lemon Squeezy store. The ink contact-sheet calculator design is selected; custom checkout and its entitlements are the next implementation step.
+The pricing direction selected on 4 October is **one calculator with a $10 minimum payment**, replacing the fixed paid plans on the landing pages. The dashboard's Top up dialog uses the same ink contact-sheet calculator: its total becomes the price of a custom-priced checkout in the dedicated FindPhotosOfMe Lemon Squeezy store, and what the buyer pays before tax becomes balance credit. Unused credit is refundable within 14 days of purchase.
 
 The free-trial proposal remains 500 submitted photos / 2 GB, 50 searches, and seven days, with one active trial per account and 500 total trial submissions. Photo and byte limits both apply; attendees never pay. These trial terms are not yet implemented entitlements.
 
 The rates, lowered on 8 October 2026 to target about 50% margin after infrastructure and payment fees, are $0.002 per uploaded photo, $0.01 per selfie search, and $0.05/GB per additional 30 days beyond the first included 30 days. New accounts get free credit for 1,000 photos and 50 searches. Owners choose the date a gallery goes offline; each day past the included time is taken from the balance at the gallery's current size, and a gallery the balance can't cover goes offline. It estimates storage at 5 MB/photo and offers 30, 90, or 180 days. The estimate is `max(10, photos × 0.002 + searches × 0.01 + estimated GB × 0.05 × (days / 30 − 1))`. The $10 minimum applies to the total payment, not an additional fee.
 
-The landing section uses one calculator: ink controls beside a yellow price panel, topped by a grid of tiles that shows the photo count (one tile per 100 photos). The rates live in `packages/backend/convex/pricing.ts`; pages read their price copy from `PRICE_TEXT` in `apps/web/app/utils/pricing.ts`. Before wiring checkout, settle how estimated usage becomes purchased capacity and how actual file sizes, additional searches, and extensions affect the charge. No automatic usage billing is implemented by this preview.
+The landing section uses one calculator: ink controls beside a yellow price panel, topped by a grid of tiles that shows the photo count (one tile per 100 photos). The rates live in `packages/backend/convex/pricing.ts`; pages read their price copy from `PRICE_TEXT` in `apps/web/app/utils/pricing.ts`. The estimate only sets the payment: actual photos, searches, and storage days are charged to the balance as they happen.
 
 The [3 October analysis](pricing-cost-analysis.md) uses the earlier $19/100-photo proposal; its cost assumptions remain a reference, not the current offer. The analysis includes 100–500,000-photo scenarios, 100–5,000 searches, 30/90-day retention, recurring archive pricing, payment contribution, and a [runnable cost model](pricing-cost-model.py). Public provider rates are verified; processing times, photo sizes and workload usage remain assumptions. Confirm them against representative Modal workloads and account bills, and include model licensing before finalizing prices. Do not price permanent retention from a one-time event payment or allocate shared provider credits separately to every customer.
 
@@ -26,12 +26,10 @@ The [backend environment example](../packages/backend/.env.example) lists the re
 
 The current [payment implementation](../packages/backend/convex/payments.ts) does the following:
 
-- An event owner requests checkout for the Event or Large Event variant. Checkout carries the event and owner identifiers.
-- A signed paid-order webhook grants the plan after the handler checks the configured store, product, variant, and event owner. The checkout redirect does not grant access.
+- A signed-in owner opens checkout from the Top up dialog for the calculator's total, between $10 and $1,000. Checkout carries the owner's identifier.
+- A signed paid-order webhook credits the price before tax to that owner's balance after checking the configured store, product, and test or live mode. The checkout redirect credits nothing.
 - Repeated notifications for the same order reuse its stored record.
-- A full refund marks the event as refunded. A partial refund updates the order record and keeps the event's entitlement.
-
-Existing paid events cannot purchase another plan through the current checkout action. Upgrades and renewals need a product decision before the UI offers them.
+- A refund takes back the refunded share of the credit, and the balance may go below zero. A full refund of a legacy plan order also takes its gallery offline.
 
 ## Before accepting live payments
 
