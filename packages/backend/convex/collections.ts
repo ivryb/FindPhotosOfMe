@@ -298,6 +298,24 @@ export const setTelegramBotToken = internalAction({
   },
 });
 
+/**
+ * Hands a gallery's Telegram bot to another gallery, with its welcome message unless the other one has its own, and
+ * points the bot's webhook there (`bunx convex run collections:moveTelegramBot '{"from": ..., "to": ...}'`).
+ */
+export const moveTelegramBot = internalMutation({
+  args: { from: v.id("collections"), to: v.id("collections") },
+  returns: v.null(),
+  handler: async (ctx, { from, to }) => {
+    const [source, target] = await Promise.all([ctx.db.get(from), ctx.db.get(to)]);
+    const token = source?.telegramBotToken;
+    if (!token || !target) throw new Error("Both galleries must exist, and the first must have a Telegram bot");
+    await ctx.db.patch(from, { telegramBotToken: undefined, telegramBotUsername: undefined });
+    await ctx.db.patch(to, { telegramBotToken: token, telegramBotUsername: undefined, welcomeMessage: target.welcomeMessage ?? source.welcomeMessage });
+    await ctx.scheduler.runAfter(0, internal.collections.setTelegramBotToken, { id: to, token });
+    return null;
+  },
+});
+
 export const saveBotUsername = internalMutation({
   args: { id: v.id("collections"), token: v.string(), username: v.string() },
   handler: async (ctx, { id, token, username }) => {
