@@ -78,8 +78,9 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       storage: "database",
       window: 60,
       max: 30,
-      // Every private photo verifies its session here; a gallery can exceed the ordinary auth limit in one page load.
-      customRules: { "/convex/token": false },
+      // Limits are counted per IP, but visitors reach Better Auth through the Worker and Convex fetches the signing keys
+      // itself, so these would be one budget for everyone. Once the keys were refused, Convex rejected every token.
+      customRules: { "/convex/token": false, "/convex/jwks": false, "/get-session": false },
     },
     plugins: [
       emailOTP({
