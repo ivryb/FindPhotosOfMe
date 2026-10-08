@@ -40,7 +40,7 @@ export function useSelfieSearch(galleryId: MaybeRefOrGetter<Id<"collections">>, 
     body.append("reference_photo", file);
     if (shareToken) body.append("share_token", shareToken);
     try {
-      const headers = owner ? { Authorization: `Bearer ${await getConvexAuthToken()}` } : undefined;
+      const headers = owner ? await authHeaders() : undefined;
       // Nitro's inferred response type turns the ID into a plain object type, so the type is named here.
       const { requestId } = await $fetch<{ requestId: Id<"searchRequests"> }>("/api/search", { method: "POST", body, headers });
       const request = await convex.query(api.searchRequests.get, { id: requestId });

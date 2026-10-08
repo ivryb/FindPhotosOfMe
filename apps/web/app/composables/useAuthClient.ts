@@ -26,3 +26,13 @@ export async function getConvexAuthToken() {
     return null;
   }
 }
+
+/** Signs a request to our own API routes. A missing token reads as signed out there, so brief failures are waited out. */
+export async function authHeaders() {
+  const token = await retrying(async () => {
+    const token = await getConvexAuthToken();
+    if (!token) throw new Error("Could not verify your session");
+    return token;
+  });
+  return { Authorization: `Bearer ${token}` };
+}

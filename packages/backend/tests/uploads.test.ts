@@ -79,6 +79,18 @@ describe("sending photos", () => {
     expect(gallerySoFar?.status).toBe("processing");
   });
 
+  test("a finished ZIP added again has nothing left to send, even beside a stray copy of it", async () => {
+    const { t, gallery, setCredit, credit } = setup();
+    const collectionId = await gallery();
+    await setCredit(1_000);
+    const uploadId = await sendPhotos(t, collectionId, 50);
+    // Before this was fixed, adding a finished ZIP again started a second upload of it.
+    await t.run((ctx) => ctx.db.insert("uploads", { collectionId, name: "day-1.zip", size: 1e9, photos: 50, sent: 0, processed: 0, saved: 0, failed: 0 }));
+
+    expect(await t.mutation(api.uploads.start, { collectionId, name: "day-1.zip", size: 1e9, photos: 50 })).toEqual({ uploadId, sent: 50 });
+    expect(await credit()).toBe(1_000 - 50 * PRICES.photo);
+  });
+
   test("refuses photo names that aren't plain JPEG or PNG file names", async () => {
     const { t, gallery, setCredit } = setup();
     const collectionId = await gallery();
@@ -247,3 +259,4 @@ describe("merging faces", () => {
     expect((await t.run((ctx) => ctx.db.get(collectionId)))?.mergingSince).toBeUndefined();
   });
 });
+

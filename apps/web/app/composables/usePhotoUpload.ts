@@ -38,13 +38,17 @@ export function usePhotoUpload(
   async function upload(files: File[]) {
     const reading = reactive<Sending>({ key: crypto.randomUUID(), name: files.length === 1 ? files[0]!.name : `${files.length} files`, photos: 0, sent: 0, tooLarge: 0 });
     sending.value = [...sending.value.filter((entry) => !entry.error), reading];
-    const sources = await readSources(files).catch(() => undefined);
+    let sources = await readSources(files).catch(() => undefined);
     sending.value = sending.value.filter((entry) => entry !== reading);
     if (!sources?.length) {
       reading.error = sources ? "There are no JPEG or PNG photos here." : "This ZIP couldn't be opened. Check that it isn't damaged or password-protected.";
       sending.value = [...sending.value, reading];
       return;
     }
+    // A ZIP added again while this tab is still sending it would only send the same photos twice.
+    const busy = (source: Source) => sending.value.some((entry) => !entry.error && entry.name === source.name && entry.photos === source.photos.length);
+    await Promise.all(sources.filter(busy).map((source) => source.close()));
+    sources = sources.filter((source) => !busy(source));
     const entries = sources.map((source) => reactive<Sending>({
       key: crypto.randomUUID(), name: source.name, photos: source.photos.length, sent: 0, tooLarge: source.tooLarge,
       error: source.photos.length ? undefined : `All ${source.tooLarge.toLocaleString("en-US")} photos are over 50 MB, the most a photo can be.`,
@@ -59,23 +63,23 @@ export function usePhotoUpload(
   async function send(source: Source, entry: Sending) {
     const collectionId = toValue(galleryId);
     const access = toValue(guest);
+    // A guest's link is their access. The owner signs every request, so a retry gets a fresh token.
+    const headers = async () => (access ? undefined : await authHeaders());
     try {
-      const { uploadId, sent } = await convex.mutation(api.uploads.start, { collectionId, name: source.name, size: source.size, photos: source.photos.length, access });
+      // Every step can be repeated safely: a finished ZIP has nothing left to send, and a batch is registered once.
+      const { uploadId, sent } = await retrying(() => convex.mutation(api.uploads.start, { collectionId, name: source.name, size: source.size, photos: source.photos.length, access }));
       Object.assign(entry, { uploadId, sent });
       for (let first = sent; first < source.photos.length; first += BATCH_PHOTOS) {
         const batch = source.photos.slice(first, first + BATCH_PHOTOS);
         const photos = batch.map(({ name, size }) => ({ name, size }));
-        const headers = access ? undefined : { Authorization: `Bearer ${await getConvexAuthToken()}` };
-        const { batchId, urls } = await $fetch("/api/uploads/presign", {
-          method: "POST",
-          body: { uploadId, first, photos, access },
-          headers,
-        });
+        const presign = async () => $fetch("/api/uploads/presign", { method: "POST", body: { uploadId, first, photos, access }, headers: await headers() });
+        const { batchId, urls } = await retrying(presign);
         await inParallel(batch, async (photo, index) => {
           await put(urls[index]!, await photo.read(), photoType(photo.name));
           entry.sent++;
         });
-        await $fetch("/api/uploads/complete", { method: "POST", body: { batchId, access }, headers });
+        const complete = async () => $fetch("/api/uploads/complete", { method: "POST", body: { batchId, access }, headers: await headers() });
+        await retrying(complete);
       }
     } catch (cause) {
       entry.error = readableError(cause, `Uploading stopped. Check your connection, then add ${source.name} again to continue.`);
@@ -102,12 +106,10 @@ async function inParallel<T>(items: T[], run: (item: T, index: number) => Promis
   }));
 }
 
-/** Uploads one photo, trying again twice on a dropped connection before giving up. */
+/** Uploads one photo, trying again after a dropped connection or a storage hiccup. */
 async function put(url: string, body: Blob, type: string) {
-  for (let attempt = 1; ; attempt++) {
-    const response = await fetch(url, { method: "PUT", body, headers: { "Content-Type": type } }).catch(() => undefined);
-    if (response?.ok) return;
-    if (attempt === 3) throw new Error(`Storage returned ${response?.status ?? "no response"}`);
-    await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
-  }
+  await retrying(async () => {
+    const response = await fetch(url, { method: "PUT", body, headers: { "Content-Type": type } });
+    if (!response.ok) throw Object.assign(new Error(`Storage returned ${response.status}`), { statusCode: response.status });
+  });
 }

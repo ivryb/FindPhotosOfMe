@@ -63,8 +63,11 @@ export const start = mutation({
     const collection = await requireUploadCollection(ctx, collectionId, access);
     if (!Number.isInteger(photos) || photos < 1) throw new ConvexError(`${name} has no JPEG or PNG photos.`);
     const uploads = await ctx.db.query("uploads").withIndex("by_contributor", (q) => q.eq("collectionId", collectionId).eq("contributorKey", access?.contributorKey)).collect();
-    const interrupted = uploads.find((upload) => upload.name === name && upload.size === size && upload.photos === photos && upload.sent < photos);
-    if (interrupted) return { uploadId: interrupted._id, sent: interrupted.sent };
+    const same = uploads.filter((upload) => upload.name === name && upload.size === size && upload.photos === photos);
+    // Adding a ZIP again continues it, and a finished one has nothing left to send. A tab could still show a
+    // finished upload as stopped, and adding it again used to send every photo a second time.
+    const existing = same.find((upload) => upload.sent === photos) ?? same.find((upload) => upload.sent < photos);
+    if (existing) return { uploadId: existing._id, sent: existing.sent };
 
     if (collection.createdBy) {
       const cost = photos * PRICES.photo;

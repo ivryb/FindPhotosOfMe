@@ -177,6 +177,11 @@ test("upload links bind reserved photo names, sizes and expiry; only stored phot
   const batch = { uploadId, first: 0, photos: [{ name: "IMG_1.jpg", size: 6 }, { name: "stage.png", size: 4 }] };
 
   expect((await sign(batch, false)).status).toBe(401);
+  // A tab whose token request failed sent "Bearer null", which came back as a bare 500 and read as a server fault.
+  const unsigned = await fetch(`${origin}/api/uploads/presign`, {
+    method: "POST", headers: { "content-type": "application/json", authorization: "Bearer null" }, body: JSON.stringify(batch),
+  });
+  expect(unsigned.status).toBe(401);
   for (const photo of [{ name: "../../other-gallery/x.jpg", size: 1 }, { name: "x.jpg", size: -1 }, { name: "x.jpg", size: 50 * 1024 ** 2 + 1 }]) {
     expect((await sign({ ...batch, photos: [photo] })).status).toBe(400);
   }

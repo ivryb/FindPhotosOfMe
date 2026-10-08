@@ -15,7 +15,7 @@ async function remove() {
   try {
     await $fetch(`/api/collections/${props.gallery._id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${await getConvexAuthToken()}` },
+      headers: await authHeaders(),
     });
     // The gallery page leaves for the next gallery once the live list drops this one.
     deleting.value = false;
