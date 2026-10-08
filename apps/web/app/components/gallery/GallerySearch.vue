@@ -20,6 +20,8 @@ const total = computed(() => count.format(props.total));
 
 const selfie = computed(() => ("selfie" in state.value ? state.value.selfie : undefined));
 const canPick = computed(() => ["idle", "none", "no_face", "unreadable", "failed"].includes(state.value.kind));
+// With no picker or photos to show, the sheet is a few lines; on phones it fits them instead of covering most of the screen.
+const short = computed(() => state.value.kind === "searching" || state.value.kind === "paused");
 // While searching and once photos are found, the whole banner opens the sheet; the side button is for wide screens.
 const expandable = computed(() => state.value.kind === "searching" || state.value.kind === "found");
 
@@ -102,7 +104,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
   </div>
 
     <DrawerContent
-      :class="['selfie-sheet', { dragging, 'owner-search': owner }]"
+      :class="['selfie-sheet', { dragging, short, 'owner-search': owner }]"
       @dragover.prevent="dragging = true"
       @dragleave="dragging = false"
       @drop.prevent="drop"
@@ -125,10 +127,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
           <DrawerDescription class="selfie-sheet-sub">{{ banner.text }}</DrawerDescription>
         </div>
 
-        <template v-if="state.kind === 'searching'">
-          <span class="working big" aria-hidden="true" />
-          <p class="selfie-sheet-keep">You can keep browsing while we look. <DrawerClose class="selfie-sheet-link">Keep browsing</DrawerClose></p>
-        </template>
+        <span v-if="state.kind === 'searching'" class="working big" aria-hidden="true" />
 
         <template v-if="state.kind === 'found'">
           <div class="selfie-sheet-actions">
@@ -234,8 +233,6 @@ async function downloadAll(photos: GalleryPhoto[]) {
 .selfie-sheet h2 { font-size: clamp(1.9rem, 4vw, 2.4rem); font-weight: 800; }
 .selfie-sheet-head { display: flex; align-items: center; gap: 18px; }
 .selfie-sheet-sub { margin-top: 8px; color: #4f4826; font-size: 1.05rem; }
-.selfie-sheet-keep { margin-top: 22px; color: #4f4826; }
-.selfie-sheet-link { color: var(--foreground); font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; cursor: pointer; }
 .selfie-sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .selfie-sheet-actions > * { flex: 1 1 200px; }
 .selfie-sheet-found { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 30%), 1fr)); gap: 6px; margin-top: 22px; }
@@ -264,6 +261,7 @@ async function downloadAll(photos: GalleryPhoto[]) {
 @media (max-width: 640px) {
   /* The sheet opens to most of the screen, so its first lines sit where people read */
   .selfie-sheet.selfie-sheet { inset: auto 0 0; width: 100%; min-height: 82dvh; max-height: 92dvh; border-radius: 24px 24px 0 0; }
+  .selfie-sheet.selfie-sheet.short { min-height: 0; }
   .selfie-sheet-minimize { top: 28px; right: 16px; }
   .selfie-sheet-body { padding: 8px 20px max(20px, env(safe-area-inset-bottom)); }
   .selfie-sheet-privacy { justify-content: flex-start; }
