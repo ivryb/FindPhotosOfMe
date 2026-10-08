@@ -9,12 +9,21 @@ beforeAll(async () => {
 
 afterAll(() => app?.stop());
 
-test("HTTP redirects the root, www, and event hosts to HTTPS, preserving the path and query", async () => {
-  const path = "/sign-in?redirect=%2Fadmin%3Fgallery%3Dtest";
-  for (const host of ["findphotosofme.localhost", "www.findphotosofme.localhost", "itarena.findphotosofme.localhost"]) {
+const path = "/sign-in?redirect=%2Fadmin%3Fgallery%3Dtest";
+
+test("HTTP redirects the root and event hosts to HTTPS, preserving the path and query", async () => {
+  for (const host of ["findphotosofme.localhost", "itarena.findphotosofme.localhost"]) {
     const response = await fetch(app.origin + path, { headers: { host }, redirect: "manual" });
     expect(response.status).toBe(308);
     expect(response.headers.get("location")).toBe(`https://${host}${path}`);
+  }
+});
+
+test("www moves to the main host, where people are signed in", async () => {
+  for (const proto of ["http", "https"]) {
+    const response = await fetch(app.origin + path, { headers: { host: "www.findphotosofme.localhost", "x-forwarded-proto": proto }, redirect: "manual" });
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(`https://findphotosofme.localhost${path}`);
   }
 });
 
