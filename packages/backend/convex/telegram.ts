@@ -20,6 +20,8 @@ export const searchAndReply = internalAction({
     const telegram = new Api(collection.telegramBotToken);
     const chatId = request.telegramChatId;
     const editStatus = (text: string) => telegram.editMessageText(chatId, messageId, text);
+    // Names the step that failed in the log, which can't include the error itself.
+    let stage: "download" | "search" | "delivery" = "download";
 
     try {
       const apiUrl = process.env.PYTHON_API_URL;
@@ -35,6 +37,7 @@ export const searchAndReply = internalAction({
       if (!file.file_path) throw new Error("Telegram photo is unavailable");
       const photo = await fetch(`https://api.telegram.org/file/bot${collection.telegramBotToken}/${file.file_path}`);
       if (!photo.ok) throw new Error("Telegram photo download failed");
+      stage = "search";
       const body = new FormData();
       body.append("search_request_id", requestId);
       // Telegram serves its JPEG photos as application/octet-stream; the search API validates the image MIME type.
@@ -53,6 +56,7 @@ export const searchAndReply = internalAction({
         await editStatus("No matching photos were found 😔");
         return;
       }
+      stage = "delivery";
       const r2 = new S3Client({
         region: "auto",
         endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
@@ -83,7 +87,7 @@ export const searchAndReply = internalAction({
         return;
       }
       // Do not log Telegram errors: they can contain bot tokens or private signed photo URLs.
-      console.error("Telegram search or delivery failed", { requestId });
+      console.error("Telegram search or delivery failed", { requestId, stage });
       if (result && result.status !== "complete") {
         await ctx.runMutation(api.searchRequests.updateForService, { id: requestId, serviceToken, status: "error" });
       }
