@@ -302,6 +302,19 @@ unrelated uncommitted gallery-browsing work out.
 Backend tests (67), Python processing tests, and type checks passed on the release commit. Production home, sign-in,
 and IT Arena return 200. No batch was running after the deploy, so live progress reports were not observed.
 
+### Gallery viewer gestures and edge-to-edge overlays in Telegram (9 October 2026)
+
+Pushed `08896eb` and deployed the Worker only (version `f9cb6383-f2cb-4088-a7f9-6c0f8474f948`); Convex and Modal are
+unchanged.
+
+- The photo viewer runs on PhotoSwipe 5.4.4: photos follow the finger between slides, zoom with a pinch or
+  double-tap, and close with a drag down. PhotoSwipe loads only when a photo opens.
+- Telegram's in-app browser draws the page, never fixed layers, under its bars, so overlays stopped short of the
+  screen's edges. The viewer now hides the page while open, and sheets dim the page itself. Under the bottom
+  toolbar a sheet still shows the dimmed page, which was accepted.
+- Verified in the iOS 26.5 simulator (Safari and a web view set up like Telegram's) and a desktop browser; a real
+  Telegram check on a phone is still to do.
+
 ### Event reliability, screen-size photos, and clearer guest uploads (8 October 2026)
 
 Pushed `3249741` through `c7908c7`, deployed during IT Arena from a clean worktree together with the dashboard polish
