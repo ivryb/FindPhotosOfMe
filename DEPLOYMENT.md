@@ -4,15 +4,15 @@
 
 The landing page, dashboard, API routes and Telegram webhook share the `findphotosofme` Worker. Convex retains authentication, data, ingestion coordination and Telegram search continuations; R2 retains photos. Python hosting is a separate Modal migration.
 
-From the repository root:
+From the repository root, `bun run deploy` publishes everything in order: Convex functions to
+`honorable-firefly-904` (`convex dev --once`), then Modal, then the Worker. Convex goes first because Modal workers and
+the Worker call its new functions. It stops at the first failure. Each part also deploys alone:
 
 ```bash
-bun install --frozen-lockfile
-bun --filter web build
-(cd apps/web && bunx wrangler deploy --dry-run)
-bun --filter web preview
-# Publishes to Cloudflare:
-bun --filter web run deploy
+bun --filter @FindPhotosOfMe/backend deploy   # Convex
+bun run deploy:modal                          # Modal (needs `modal setup` once)
+bun --filter web deploy                       # Cloudflare Worker
+(cd apps/web && bunx wrangler deploy --dry-run)   # check the Worker build without publishing
 ```
 
 Nitro generates `apps/web/.output/server/wrangler.json` and the Wrangler redirect under `.wrangler/deploy/`. Build before running Wrangler. The checked-in `apps/web/wrangler.jsonc` owns the Worker name and compatibility settings; Nitro supplies the entry point and static assets. This uses Nitro 2's [Workers adapter](https://v2.nitro.build/deploy/providers/cloudflare).

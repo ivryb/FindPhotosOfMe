@@ -5,6 +5,7 @@
   "scripts": {
     "build": "nuxt build",
     "check-types": "nuxt typecheck",
+    "test": "bun test",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "wrangler dev",
@@ -48,6 +49,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
+    "vue-router": "^5.3.1",
     "vue-tsc": "^3.3.12"
   }
 }
