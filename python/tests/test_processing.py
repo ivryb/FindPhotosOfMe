@@ -87,7 +87,7 @@ def backend(monkeypatch):
         def update_search_request(self, _, status, **kwargs): state['search'].update(status=status, **kwargs)
 
     class FaceService:
-        def extract_embeddings(self, data): return FACE if data == b'face' else []
+        def extract_embeddings(self, data, close_up=False): return FACE if data == b'face' else []
 
     class ModerationService:
         def allows(self, thumbnail):

@@ -37,7 +37,7 @@ def process_search(search_request_id: str, reference_data: bytes) -> dict:
         convex.update_search_request(search_request_id, "processing")
         from services.face_recognition_service import get_face_service
         face_service = get_face_service()
-        faces = face_service.extract_embeddings(reference_data)
+        faces = face_service.extract_embeddings(reference_data, close_up=True)
         if not faces:
             convex.update_search_request(search_request_id, "error", error="no_face")
             raise NoFaceError("No face detected in reference photo")

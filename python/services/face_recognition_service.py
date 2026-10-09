@@ -32,11 +32,12 @@ class FaceRecognitionService:
         """Get current time as formatted string."""
         return datetime.now().strftime("%H:%M:%S")
     
-    def extract_embeddings(self, image_data: bytes) -> List[dict]:
+    def extract_embeddings(self, image_data: bytes, close_up: bool = False) -> List[dict]:
         """Extract face embeddings from image data.
         
         Args:
             image_data: Image data as bytes
+            close_up: The photo may be a selfie whose face fills the frame
             
         Returns:
             List of dictionaries containing embedding and gender for each face
@@ -52,6 +53,11 @@ class FaceRecognitionService:
             
             # Get faces
             faces = self.app.get(img)
+            # The detector misses faces that fill the frame, which failed tight selfies as having no face,
+            # so close-ups get a second look with room around them.
+            if not faces and close_up:
+                pad = max(img.shape[:2]) // 4
+                faces = self.app.get(cv2.copyMakeBorder(img, pad, pad, pad, pad, cv2.BORDER_CONSTANT))
             
             # Extract embeddings and metadata
             results = []

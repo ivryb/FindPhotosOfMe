@@ -77,9 +77,13 @@ export const searchAndReply = internalAction({
       }
       await editStatus(`Found ${urls.length} matching photo(s) 🥳`);
     } catch {
+      const result = await ctx.runQuery(api.searchRequests.getForService, { id: requestId, serviceToken });
+      if (result?.error === "no_face") {
+        await editStatus("No face found in this photo 🤔 Send a photo where your face is clear.");
+        return;
+      }
       // Do not log Telegram errors: they can contain bot tokens or private signed photo URLs.
       console.error("Telegram search or delivery failed", { requestId });
-      const result = await ctx.runQuery(api.searchRequests.getForService, { id: requestId, serviceToken });
       if (result && result.status !== "complete") {
         await ctx.runMutation(api.searchRequests.updateForService, { id: requestId, serviceToken, status: "error" });
       }
