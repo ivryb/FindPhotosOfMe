@@ -1,163 +1,43 @@
-# Architecture Overview
+# FindPhotosOfMe
 
-FindPhotosOfMe is a face recognition service that helps users find photos of themselves from large photo collections. The system uses machine learning to analyze faces and match them across thousands of images.
+Face search for event photos. An organizer uploads an event's photos into a gallery; a guest sends a selfie, on the
+gallery page or through the gallery's Telegram bot, and gets back the photos they appear in. Galleries can also let
+guests add their own photos.
 
-### Tech Stack
+## How it fits together
 
-- **Frontend**: Nuxt 4 + Vue 3 + TypeScript + shadcn-vue components
-- **Backend**: Convex (real-time database and functions)
-- **ML Service**: Python FastAPI with InsightFace for face recognition
-- **Storage**: Cloudflare R2 for photo storage
-- **Telegram Bot**: grammY on Vercel via webhooks
-- **Monorepo**: Bun workspaces + Turborepo
+- **`apps/web`**: Nuxt 4 app on a Cloudflare Worker. It serves the landing pages, the organizer dashboard, gallery
+  pages, photos under `/media`, and each gallery's Telegram webhook (grammY).
+- **`packages/backend/convex`**: Convex holds galleries, uploads, searches, balances and auth (Better Auth), and runs
+  Telegram searches in its scheduler.
+- **`python`**: FastAPI on Modal. InsightFace finds faces in uploaded photos, builds each gallery's face index, and
+  matches selfies against it.
+- **Cloudflare R2** stores photos, their thumbnail and screen versions, and face indexes.
 
-### Data Flow
+Uploads go straight from the browser to R2 in batches. Convex hands each batch to Modal, which saves faces and resized
+versions, screens guest photos with OpenAI moderation, and merges the batch into the gallery's face index. A search
+sends the selfie to Modal, which writes the matching photos back to Convex; the page updates live, and the Telegram bot
+sends them to the chat.
 
-1. Admin uploads photo collection (zip) → Python service processes faces → stores in R2 + Convex
-2. User uploads reference photo → Python service compares against stored embeddings → returns matches
-3. Frontend subscribes to real-time progress updates via Convex
+Organizers pay from a shared balance topped up through Lemon Squeezy; see
+[Product and pricing](docs/portfolio-launch.md#product-and-pricing).
 
-## Development Commands
-
-### Root Level (Turborepo)
-
-```bash
-bun install              # Install all workspace dependencies
-bun run dev                  # Run all services (web + backend + python)
-bun run build                # Build all packages
-bun run check-types          # Type check all packages
-bun run dev:web              # Run only frontend
-bun run dev:server           # Run only Convex backend
-bun run dev:setup            # Initialize Convex development environment
-```
-
-### Python Service
+## Development
 
 ```bash
-# From repository root
-./deploy-python-local.sh                # Build and run (native platform, fast)
-./deploy-python-local.sh --linux        # Build for linux/amd64 (test production build)
-./deploy-python-local.sh --no-cache     # Force rebuild without cache
-./stop-python-local.sh                  # Stop local Docker container
-docker logs -f find-photos-of-me-service  # View service logs
-
-# Manage cached ML models (from python/ directory)
-cd python && ./manage-models-volume.sh info
+bun install
+bun run dev:web       # Nuxt on http://localhost:3001
+bun run check-types   # all workspaces
+bun run test          # web (bun test), backend (vitest), and Python (pytest through uv)
 ```
 
-### Frontend (apps/web)
+`bun run dev` and `bun run dev:server` also start `convex dev`, which pushes every saved backend file to the live
+Convex deployment. Check backend changes with the tests instead.
 
-```bash
-bun run dev               # Development server
-bun run build            # Production build
-bun run preview          # Preview production build
-```
-
-### Backend (packages/backend)
-
-```bash
-bun run dev              # Start Convex development
-bun run dev:setup        # Configure Convex project
-```
-
-## Project Structure
-
-```
-FindPhotosOfMe/
-├── apps/web/                    # Nuxt frontend application
-│   ├── app/                     # Nuxt app directory
-│   │   ├── components/          # Vue components (shadcn-vue)
-│   │   ├── composables/         # Vue composables
-│   │   └── pages/              # Nuxt pages/routes
-├── packages/backend/            # Convex backend
-│   └── convex/                 # Convex functions and schema
-│       └── schema.ts           # Database schema (collections, searchRequests)
-└── python/                     # FastAPI ML service
-    ├── endpoints/              # API endpoints
-    │   ├── upload_collection.py # Process photo collections
-    │   └── search_photos.py    # Face matching search
-    ├── services/               # Core business logic
-    └── schemas/                # Pydantic models
-```
-
-## Key Components
-
-### Convex Schema (packages/backend/convex/schema.ts)
-
-- `collections`: Photo collection metadata with processing status
-- `searchRequests`: Face search jobs with results and progress
-- Uses status tracking pattern: `not_started` → `processing` → `complete`/`error`
-
-### Python Service Architecture
-
-- **FastAPI**: REST API with two main endpoints
-- **InsightFace**: Face detection and embedding generation
-- **Cloudflare R2**: Object storage for photos
-- **Convex Python SDK**: Real-time progress updates
-
-### Frontend Integration
-
-- **Convex-Vue**: Real-time reactive queries and mutations
-- **shadcn-vue**: UI component library
-- **Nuxt**: Server-side rendering and routing
-
-## Environment Variables
-
-### Python Service (.env in python/)
-
-```bash
-R2_ACCOUNT_ID=your_r2_account_id
-R2_ACCESS_KEY_ID=your_r2_access_key_id
-R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
-R2_BUCKET_NAME=your_bucket_name
-CONVEX_URL=https://your-deployment.convex.cloud
-SERVICE_TOKEN=shared-server-token
-```
-
-### Convex (set via Convex dashboard or CLI)
-
-```bash
-CONVEX_DEPLOYMENT=your-deployment-name
-```
-
-## Development Patterns
-
-### Convex Functions
-
-- Use TypeScript with strict typing via `v` validators
-- Mutations for data changes, queries for reads, actions for external calls
-- Index frequently queried fields (e.g., `by_status`, `by_collection`)
-
-### Python Service
-
-- Async/await patterns for I/O operations
-- Detailed logging for ML processing steps
-- Progress tracking via Convex mutations during long operations
-- Service classes: `FaceRecognition`, `R2Storage`, `ConvexClient`
-
-### Frontend (Vue/Nuxt)
-
-- Composition API pattern
-- `useConvexQuery` for reactive data
-- `useConvexMutation` for data updates
-- TypeScript integration with Convex-generated types
-
-## Testing
-
-Tests are not currently implemented. When adding tests:
-
-- Frontend: Use Vitest + Vue Test Utils
-- Python: Use pytest
-- Convex: Use Convex test framework
+Each workspace lists its settings in an `.env.example`: `apps/web`, `packages/backend`, and `python`. To run the Python
+service locally, see [python/README.md](python/README.md).
 
 ## Deployment
 
-### Python Service
-
-Runs on Modal with separate CPU workers for ingestion and search, scaling to zero
-when idle. Model files are included in the deployment image; R2 and Convex retain
-the application data. See [Python deployment instructions](python/README.md).
-
-### Frontend + Backend
-
-Standard Nuxt deployment + Convex managed hosting.
+`bun run deploy` publishes Convex, then Modal, then the Worker. [DEPLOYMENT.md](DEPLOYMENT.md) covers what runs where,
+secrets, and how to read production logs and data.

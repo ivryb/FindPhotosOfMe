@@ -14,7 +14,6 @@
     "test:python": "uv run --quiet --python 3.11 --no-project --with-requirements python/requirements-test.txt pytest python/tests -q",
     "deploy": "bun --filter @FindPhotosOfMe/backend deploy && bun run deploy:modal && bun --filter web deploy",
     "deploy:modal": "uv tool run --from modal==1.6.0 modal deploy python/modal_app.py",
-    "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @FindPhotosOfMe/backend dev",
     "dev:setup": "turbo -F @FindPhotosOfMe/backend dev:setup"
