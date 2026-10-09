@@ -37,6 +37,6 @@ Confirm the dedicated store's live approval, product prices, currency, variants,
 
 Use test orders to verify successful activation, repeated delivery, invalid signatures, wrong store or variant, and ownership mismatches. Test full and partial refunds, expiry, photo limits, and access to prior results after expiry or refund. Record the outcomes rather than treating the presence of a handler as proof that billing works.
 
-Finish the organizer and attendee journey, resolve model licensing, and publish the agreed contact, privacy, retention, and refund information before enabling paid self-service.
+Finish the organizer and attendee journey and resolve model licensing before enabling paid self-service. The [Terms](../apps/web/app/pages/terms.vue), [Privacy](../apps/web/app/pages/privacy.vue) and [Refunds](../apps/web/app/pages/refunds.vue) pages are linked from every landing footer, with `support@findphotosofme.com` as the contact; Cloudflare Email Routing forwards it to the owner's inbox. The Privacy page describes what the code does with selfies, face data and retention, so update it whenever that changes. It doesn't yet name the operator's country or address, and the Terms name no governing law.
 
 For hosting and service configuration, read [DEPLOYMENT.md](../DEPLOYMENT.md).

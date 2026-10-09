@@ -1,14 +1,17 @@
 <script setup lang="ts">
-// The frame shared by the homepage and the audience pages: top bar, content, footer.
+// The frame shared by the homepage, the audience pages and the policy pages: top bar, content, footer.
+// Policy pages have no pricing or questions sections, so their menus link to the homepage's.
+const props = defineProps<{ policy?: boolean }>();
+const base = computed(() => (props.policy ? "/" : ""));
 </script>
 
 <template>
   <div class="landing">
-    <LandingHeader />
+    <LandingHeader :base="base" />
     <main>
       <slot />
     </main>
-    <LandingFooter />
+    <LandingFooter :base="base" />
   </div>
 </template>
 

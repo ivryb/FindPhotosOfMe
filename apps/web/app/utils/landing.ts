@@ -1,6 +1,9 @@
 // Pricing copy describes the calculator preview in docs/portfolio-launch.md.
 import { PRICE_TEXT } from "./pricing";
 
+/** Where customers, guests and payment providers reach us; forwarded by Cloudflare Email Routing. */
+export const SUPPORT_EMAIL = "support@findphotosofme.com";
+
 export type Faq = { q: string; a: string };
 export type FaqColumn = { title: string; items: Faq[] };
 

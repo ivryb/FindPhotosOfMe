@@ -4,6 +4,9 @@ import { useMediaQuery } from "@vueuse/core";
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from "reka-ui";
 import { Button } from "@/components/ui/button";
 
+// Where the pricing and questions anchors live: this page, or the homepage.
+defineProps<{ base: string }>();
+
 const open = ref(false);
 const mobile = useMediaQuery("(max-width: 1080px)");
 watch(mobile, () => (open.value = false));
@@ -27,8 +30,8 @@ function closeOnEscape(event: KeyboardEvent) {
       <NuxtLink class="logo" to="/">FindPhotosOfMe</NuxtLink>
       <nav class="desktop-nav" aria-label="Main">
         <NuxtLink v-for="link in audiences" :key="link.to" :to="link.to">{{ link.label }}</NuxtLink>
-        <a href="#pricing">Pricing</a>
-        <a href="#questions">Questions</a>
+        <a :href="`${base}#pricing`">Pricing</a>
+        <a :href="`${base}#questions`">Questions</a>
       </nav>
       <Button as-child size="lg" class="desktop-cta font-bold"><NuxtLink to="/admin">Try it free</NuxtLink></Button>
       <CollapsibleTrigger as-child>
@@ -41,8 +44,8 @@ function closeOnEscape(event: KeyboardEvent) {
     <CollapsibleContent class="mobile-panel">
       <nav class="mobile-nav" aria-label="Main" @click="open = false">
         <NuxtLink v-for="link in audiences" :key="link.to" :to="link.to">{{ link.label }}</NuxtLink>
-        <a href="#pricing">Pricing</a>
-        <a href="#questions">Questions</a>
+        <a :href="`${base}#pricing`">Pricing</a>
+        <a :href="`${base}#questions`">Questions</a>
         <Button as-child size="lg" class="mobile-cta"><NuxtLink to="/admin">Try it free</NuxtLink></Button>
       </nav>
     </CollapsibleContent>
