@@ -33,6 +33,7 @@
     "convex-vue": "^0.1.5",
     "grammy": "^1.46.0",
     "nuxt": "^4.5.2",
+    "photoswipe": "^5.4.4",
     "reka-ui": "^2.10.5",
     "shadcn-nuxt": "^2.8.2",
     "tailwind-merge": "^3.7.0",

@@ -21,7 +21,7 @@ watch(image, (img) => {
 </script>
 
 <template>
-  <button v-if="photo" type="button" class="tile" :aria-label="label" @click="$emit('open')">
+  <button v-if="photo" type="button" class="tile" :aria-label="label" :data-photo="photo.key" @click="$emit('open')">
     <img v-if="asked" ref="image" :src="full ? photo.full : photo.thumb" alt="" decoding="async" :class="{ loaded }" @load="loaded = true" @error="full = true">
   </button>
   <div v-else class="tile" aria-hidden="true" />

@@ -16,17 +16,13 @@ watch([() => props.gallery.crowdsource, () => props.gallery.imagesCount], ([uplo
   // An owner can remove an open action while a guest is on the page.
   if ((sheet.value === "upload" && !uploadsEnabled) || (sheet.value === "search" && !photos)) sheet.value = null;
 });
+// Sheets dim the page itself rather than cover it: in-app browsers such as Telegram's show the page, never fixed
+// layers, under their toolbars, so a covering dim would stop short of the screen's edges.
+useHead({ htmlAttrs: { "data-sheet": computed(() => sheet.value ?? undefined) } });
 
 // One viewer for the gallery and for the photos a search found.
 const viewer = reactive({ open: false, index: 0, found: null as GalleryPhoto[] | null });
 const viewerPhotos = computed(() => viewer.found ?? photos.value);
-watch(photos, (next, previous) => {
-  // New contributions can sort before the photo someone is viewing.
-  if (!viewer.open || viewer.found) return;
-  const key = previous[viewer.index]?.key;
-  const index = next.findIndex((photo) => photo.key === key);
-  if (index >= 0) viewer.index = index;
-});
 function view(index: number, found: GalleryPhoto[] | null = null) {
   Object.assign(viewer, { open: true, index, found });
 }
@@ -59,13 +55,14 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
         :open="sheet === 'search'" @update:open="sheet = $event ? 'search' : sheet === 'search' ? null : sheet"
         @view="(found: GalleryPhoto[], index: number) => view(index, found)" />
     </div>
-    <GalleryViewer v-model:open="viewer.open" v-model:index="viewer.index" :photos="viewerPhotos" />
+    <GalleryViewer v-model:open="viewer.open" :index="viewer.index" :photos="viewerPhotos" />
   </div>
 </template>
 
 <style scoped>
 .empty { padding-block: 36px; color: #b3b3ad; }
-.gallery-page { min-height: 100vh; background: var(--foreground); color: var(--background); }
+.gallery-page { min-height: 100vh; background: var(--foreground); color: var(--background); transition: opacity .5s; }
+html[data-sheet] .gallery-page { opacity: .2; }
 .gallery-page :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
 .wrap { max-width: 1140px; margin-inline: auto; padding-inline: clamp(20px, 4vw, 40px); }
 .top { display: flex; align-items: center; height: 64px; }
@@ -92,4 +89,10 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
   .gallery-actions :deep(.gallery-action) { gap: 6px; padding-inline: 10px; font-size: .85rem; }
   .gallery-actions :deep(.gallery-action > svg) { width: 18px; height: 18px; }
 }
+</style>
+
+<!-- The sheets' overlays are teleported out of this component. -->
+<style>
+/* Without `transition: none` its duration class would fade the background out, briefly dimming the page twice. */
+html[data-sheet] [data-slot="drawer-overlay"] { background: transparent; transition: none; }
 </style>

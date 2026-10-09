@@ -79,7 +79,7 @@ const asking = computed(() => state.value.kind !== "searching" && state.value.ki
           <p class="privacy"><ShieldCheck aria-hidden="true" />The photo is used only for this search. We don’t keep it.</p>
         </template>
         <input ref="picker" type="file" :accept="SELFIE_TYPES.join(',')" hidden @change="choose(($event.target as HTMLInputElement).files?.[0])">
-        <GalleryViewer v-if="state.kind === 'found'" v-model:open="viewer.open" v-model:index="viewer.index" :photos="state.photos" />
+        <GalleryViewer v-if="state.kind === 'found'" v-model:open="viewer.open" :index="viewer.index" :photos="state.photos" />
       </div>
       <p v-else class="text-muted-foreground">Photos will be searchable once they finish processing. <NuxtLink :to="{ query: {} }" class="font-semibold text-foreground underline underline-offset-4" replace>Upload photos</NuxtLink> to get started.</p>
     </DashboardCard>
