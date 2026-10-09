@@ -83,14 +83,38 @@ describe("searches", () => {
 });
 
 describe("top-ups", () => {
-  const order = { providerOrderId: "order-1", userId: "owner", variantId: "v", subtotal: 2_000, total: 2_420, currency: "USD", testMode: true, purchasedAt: 0 };
+  const secret = "webhook-secret";
+  beforeEach(() => {
+    vi.stubEnv("CREEM_WEBHOOK_SECRET", secret);
+    vi.stubEnv("CREEM_PRODUCT_ID", "prod_credit");
+  });
+
+  // Shaped like the events Creem's test mode delivers: tax on top of the chosen amount, in cents.
+  const paid = (orderId: string, { product = "prod_credit", subtotal = 2_000, tax = 420 } = {}) => ({
+    eventType: "checkout.completed",
+    object: {
+      object: "checkout", metadata: { userId: "owner" },
+      order: { id: orderId, product, amount_paid: subtotal + tax, tax_amount: tax, currency: "USD", status: "paid", created_at: "2026-10-09T14:58:07.056Z", mode: "test" },
+    },
+  });
+  const refunded = (orderId: string, refundId: string, amount: number) => ({
+    eventType: "refund.created",
+    object: { id: refundId, object: "refund", status: "succeeded", refund_amount: amount, order: { id: orderId, product: "prod_credit" } },
+  });
+
+  async function deliver(t: ReturnType<typeof setup>["t"], event: object, key = secret) {
+    const body = JSON.stringify(event);
+    const hmac = await crypto.subtle.importKey("raw", new TextEncoder().encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const signature = Buffer.from(await crypto.subtle.sign("HMAC", hmac, new TextEncoder().encode(body))).toString("hex");
+    return t.fetch("/api/creem/webhook", { method: "POST", body, headers: { "creem-signature": signature } });
+  }
 
   test("credit the price before tax once, and give trial galleries their full time", async () => {
     const { t, gallery, credit } = setup();
     const trialGallery = await gallery({ trial: true, expiresAt: 1 });
 
-    await t.mutation(internal.payments.recordTopUp, order);
-    await t.mutation(internal.payments.recordTopUp, order);
+    expect((await deliver(t, paid("ord_1"))).status).toBe(200);
+    expect((await deliver(t, paid("ord_1"))).status).toBe(200);
     expect(await credit()).toBe(TRIAL_CREDIT + 20_000);
 
     const extended = await t.run((ctx) => ctx.db.get(trialGallery));
@@ -98,38 +122,25 @@ describe("top-ups", () => {
     expect(extended?.expiresAt).toBe(extended!._creationTime + INCLUDED_DAYS * DAY);
   });
 
-  test("refunds take back the refunded share as the running total grows", async () => {
+  test("refunds take back their share of the credit, each one once", async () => {
     const { t, credit } = setup();
-    await t.mutation(internal.payments.recordTopUp, order);
-    await t.mutation(internal.payments.recordRefund, { providerOrderId: "order-1", refundedAmount: 1_210, full: false });
+    await deliver(t, paid("ord_1"));
+
+    await deliver(t, refunded("ord_1", "ref_1", 1_210));
+    await deliver(t, refunded("ord_1", "ref_1", 1_210));
     expect(await credit()).toBe(TRIAL_CREDIT + 10_000);
-    await t.mutation(internal.payments.recordRefund, { providerOrderId: "order-1", refundedAmount: 2_420, full: true });
-    await t.mutation(internal.payments.recordRefund, { providerOrderId: "order-1", refundedAmount: 2_420, full: true });
+
+    await deliver(t, refunded("ord_1", "ref_2", 1_210));
     expect(await credit()).toBe(TRIAL_CREDIT);
+    const order = await t.run((ctx) => ctx.db.query("paymentOrders").first());
+    expect(order).toMatchObject({ status: "refunded", refundedAmount: 2_420 });
   });
 
-  test("come from signed orders in the deployment's own mode", async () => {
+  test("come only from signed payments for the credit product", async () => {
     const { t, credit } = setup();
-    vi.stubEnv("LEMONSQUEEZY_WEBHOOK_SECRET", "webhook-secret");
-    vi.stubEnv("LEMONSQUEEZY_STORE_ID", "1");
-    vi.stubEnv("LEMONSQUEEZY_PRODUCT_ID", "2");
-    vi.stubEnv("LEMONSQUEEZY_TEST_MODE", "false");
-    const deliver = async (id: string, testMode: boolean) => {
-      const body = JSON.stringify({
-        meta: { event_name: "order_created", custom_data: { user_id: "owner" } },
-        data: { type: "orders", id, attributes: {
-          store_id: 1, status: "paid", test_mode: testMode, first_order_item: { product_id: 2, variant_id: 3 },
-          subtotal_usd: 1_000, discount_total_usd: 0, total: 1_210, currency: "USD", created_at: "2026-10-08T00:00:00Z",
-        } },
-      });
-      const key = await crypto.subtle.importKey("raw", new TextEncoder().encode("webhook-secret"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-      const signature = Buffer.from(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body))).toString("hex");
-      return t.fetch("/api/lemonsqueezy/webhook", { method: "POST", body, headers: { "x-signature": signature } });
-    };
-
-    expect((await deliver("test-order", true)).status).toBe(400);
-    expect((await deliver("live-order", false)).status).toBe(200);
-    expect(await credit()).toBe(TRIAL_CREDIT + 10_000);
+    expect((await deliver(t, paid("ord_forged"), "another-secret")).status).toBe(401);
+    expect((await deliver(t, paid("ord_other", { product: "prod_other" }))).status).toBe(400);
+    expect(await credit()).toBeNull();
   });
 });
 

@@ -5,7 +5,7 @@ import { useConvexClient } from "convex-vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-// Adds money to the balance every gallery shares: the calculator sets the amount, and a Lemon Squeezy checkout takes it.
+// Adds money to the balance every gallery shares: the calculator sets the amount, and a Creem checkout takes it.
 const open = defineModel<boolean>("open", { required: true });
 defineProps<{ credit: number }>();
 

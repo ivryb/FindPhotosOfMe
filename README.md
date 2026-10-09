@@ -15,11 +15,11 @@ guests add their own photos.
 - **Cloudflare R2** stores photos, their thumbnail and screen versions, and face indexes.
 
 Uploads go straight from the browser to R2 in batches. Convex hands each batch to Modal, which saves faces and resized
-versions, screens guest photos with OpenAI moderation, and merges the batch into the gallery's face index. A search
+versions, screens every photo with OpenAI moderation, and merges the batch into the gallery's face index. A search
 sends the selfie to Modal, which writes the matching photos back to Convex; the page updates live, and the Telegram bot
 sends them to the chat.
 
-Organizers pay from a shared balance topped up through Lemon Squeezy; see
+Organizers pay from a shared balance topped up through Creem; see
 [Product and pricing](docs/portfolio-launch.md#product-and-pricing).
 
 ## Development

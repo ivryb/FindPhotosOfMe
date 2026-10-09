@@ -4,7 +4,7 @@
 
 Organizers or photographers pay once per event. Attendee search is free. Keep seats and team billing out of launch scope. Personal find-and-export jobs and ongoing archives are distinct proposed offers; archive subscriptions need their own storage and renewal behavior.
 
-The pricing direction selected on 4 October is **one calculator with a $10 minimum payment**, replacing the fixed paid plans on the landing pages. The dashboard's Top up dialog uses the same ink contact-sheet calculator: its total becomes the price of a custom-priced checkout in the dedicated FindPhotosOfMe Lemon Squeezy store, and what the buyer pays before tax becomes balance credit. Unused credit is refundable within 14 days of purchase.
+The pricing direction selected on 4 October is **one calculator with a $10 minimum payment**, replacing the fixed paid plans on the landing pages. The dashboard's Top up dialog uses the same ink contact-sheet calculator: its total becomes the price of a custom-priced Creem checkout, and what the buyer pays before tax becomes balance credit. Unused credit is refundable within 14 days of purchase.
 
 The free-trial proposal remains 500 submitted photos / 2 GB, 50 searches, and seven days, with one active trial per account and 500 total trial submissions. Photo and byte limits both apply; attendees never pay. These trial terms are not yet implemented entitlements.
 
@@ -20,22 +20,22 @@ Availability expiry is not automatic deletion. The proposed policy starts paid a
 
 ## Billing rules
 
-Use only the dedicated FindPhotosOfMe Lemon Squeezy store. Keep its products, credentials, and webhooks separate from other projects, including Listenly.
+Payments go through the FindPhotosOfMe store on Creem, the merchant of record. Keep its products, credentials, and webhooks separate from other projects, including Listenly.
 
-The [backend environment example](../packages/backend/.env.example) lists the required billing variables. Read the configured environment and provider account for current store, product, and variant IDs. Historical test IDs do not establish the live configuration or store approval status.
+The [backend environment example](../packages/backend/.env.example) lists the required billing variables. Read the configured environment and Creem account for the current product ID. Historical test IDs do not establish the live configuration or store approval status.
 
 The current [payment implementation](../packages/backend/convex/payments.ts) does the following:
 
 - A signed-in owner opens checkout from the Top up dialog for the calculator's total, between $10 and $1,000. Checkout carries the owner's identifier.
-- A signed paid-order webhook credits the price before tax to that owner's balance after checking the configured store, product, and test or live mode. The checkout redirect credits nothing.
+- A signed `checkout.completed` webhook credits the price before tax to that owner's balance after checking the configured product. Test and live mode have separate products and signing secrets, so test payments can't credit a live deployment. The checkout redirect credits nothing.
 - Repeated notifications for the same order reuse its stored record.
-- A refund takes back the refunded share of the credit, and the balance may go below zero. A full refund of a legacy plan order also takes its gallery offline.
+- Each `refund.created` webhook takes back its share of the credit once, and the balance may go below zero.
 
 ## Before accepting live payments
 
-Confirm the dedicated store's live approval, product prices, currency, variants, webhook destination, and signing secret. Keep test and live configuration separate and verify that events from the wrong environment cannot grant live access.
+Confirm the live product's price, currency, webhook destination, and signing secret. Keep test and live configuration separate and verify that events from the wrong environment cannot grant live access.
 
-Use test orders to verify successful activation, repeated delivery, invalid signatures, wrong store or variant, and ownership mismatches. Test full and partial refunds, expiry, photo limits, and access to prior results after expiry or refund. Record the outcomes rather than treating the presence of a handler as proof that billing works.
+Use test orders to verify successful activation, repeated delivery, invalid signatures, wrong product, and ownership mismatches. Test full and partial refunds, expiry, photo limits, and access to prior results after expiry or refund. Record the outcomes rather than treating the presence of a handler as proof that billing works.
 
 Finish the organizer and attendee journey and resolve model licensing before enabling paid self-service. The [Terms](../apps/web/app/pages/terms.vue), [Privacy](../apps/web/app/pages/privacy.vue) and [Refunds](../apps/web/app/pages/refunds.vue) pages are linked from every landing footer, with `support@findphotosofme.com` as the contact; Cloudflare Email Routing forwards it to the owner's inbox. The Privacy page describes what the code does with selfies, face data and retention, so update it whenever that changes. The pages name the operator as Ivan Rybnikov, an individual based in Ukraine, and the Terms are governed by Ukrainian law; no postal address is published.
 

@@ -91,7 +91,7 @@ export default {
       origin: "",
       convexUrl: "",
       convexSiteUrl: "",
-      // Set NUXT_PUBLIC_PAYMENTS=true once Lemon Squeezy is live; until then Top up says top-ups open soon.
+      // Set NUXT_PUBLIC_PAYMENTS=true once Creem checkout is configured; until then Top up says top-ups open soon.
       payments: false,
     },
   },

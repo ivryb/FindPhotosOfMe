@@ -1,7 +1,7 @@
 import { httpRouter } from "convex/server";
 
 import { authComponent, createAuth, trustedOrigins } from "./auth";
-import { webhook as lemonsqueezyWebhook } from "./payments";
+import { webhook as creemWebhook } from "./payments";
 
 const http = httpRouter();
 
@@ -12,9 +12,9 @@ authComponent.registerRoutesLazy(http, createAuth, {
 });
 
 http.route({
-  path: "/api/lemonsqueezy/webhook",
+  path: "/api/creem/webhook",
   method: "POST",
-  handler: lemonsqueezyWebhook,
+  handler: creemWebhook,
 });
 
 export default http;

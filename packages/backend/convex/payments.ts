@@ -3,8 +3,8 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, httpAction, internalMutation } from "./_generated/server";
 import { authComponent } from "./auth";
-import { applyEntry, balanceFor, endTrial, findEntry } from "./balances";
-import { DAY, MAXIMUM_TOP_UP, MINIMUM_TOP_UP, formatMoney } from "./pricing";
+import { applyEntry, endTrial, findEntry } from "./balances";
+import { MAXIMUM_TOP_UP, MINIMUM_TOP_UP, formatMoney } from "./pricing";
 
 function requiredEnv(name: string) {
   const value = process.env[name];
@@ -12,7 +12,7 @@ function requiredEnv(name: string) {
   return value;
 }
 
-/** Opens a Lemon Squeezy checkout that adds `amount` (in mills) to the signed-in account's balance. */
+/** Opens a Creem checkout that adds `amount` (in mills) to the signed-in account's balance. */
 export const createTopUp = action({
   args: { amount: v.number() },
   handler: async (ctx, { amount }): Promise<string> => {
@@ -23,51 +23,33 @@ export const createTopUp = action({
       throw new Error(`Top up between ${formatMoney(MINIMUM_TOP_UP)} and ${formatMoney(MAXIMUM_TOP_UP)}`);
     }
 
-    const variantId = requiredEnv("LEMONSQUEEZY_TOP_UP_VARIANT_ID");
+    const apiKey = requiredEnv("CREEM_API_KEY");
+    // Test keys only work against Creem's sandbox.
+    const api = apiKey.startsWith("creem_test_") ? "https://test-api.creem.io" : "https://api.creem.io";
     const siteUrl = requiredEnv("SITE_URL").replace(/\/$/, "");
-    const response = await fetch("https://api.lemonsqueezy.com/v1/checkouts", {
+    const response = await fetch(`${api}/v1/checkouts`, {
       method: "POST",
-      headers: {
-        Accept: "application/vnd.api+json",
-        Authorization: `Bearer ${requiredEnv("LEMONSQUEEZY_API_KEY")}`,
-        "Content-Type": "application/vnd.api+json",
-      },
+      headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify({
-        data: {
-          type: "checkouts",
-          attributes: {
-            custom_price: cents,
-            product_options: {
-              enabled_variants: [Number(variantId)],
-              redirect_url: `${siteUrl}/admin?top_up=success`,
-              receipt_button_text: "Back to your galleries",
-              receipt_link_url: `${siteUrl}/admin`,
-            },
-            checkout_options: { embed: false, media: false, logo: true },
-            checkout_data: { email: user.email, name: user.name, custom: { user_id: user._id } },
-            expires_at: new Date(Date.now() + DAY).toISOString(),
-            test_mode: process.env.LEMONSQUEEZY_TEST_MODE === "true",
-          },
-          relationships: {
-            store: { data: { type: "stores", id: requiredEnv("LEMONSQUEEZY_STORE_ID") } },
-            variant: { data: { type: "variants", id: variantId } },
-          },
-        },
+        product_id: requiredEnv("CREEM_PRODUCT_ID"),
+        // The product is priced before tax, so the buyer pays this plus any tax, and this is what gets credited.
+        custom_price: cents,
+        customer: { email: user.email },
+        success_url: `${siteUrl}/admin?top_up=success`,
+        metadata: { userId: user._id },
       }),
     });
     const result = await response.json();
-    const url = result?.data?.attributes?.url;
-    if (!response.ok || !url) throw new Error("Could not open checkout");
-    return url;
+    if (!response.ok || !result?.checkout_url) throw new Error("Could not open checkout");
+    return result.checkout_url as string;
   },
 });
 
-/** Credits a paid order to its buyer's balance: `subtotal` is the US cents paid before tax; `total` is in the order's currency. */
+/** Credits a paid order to its buyer's balance: `subtotal` is the US cents paid before tax; `total` includes tax. */
 export const recordTopUp = internalMutation({
   args: {
     providerOrderId: v.string(),
     userId: v.string(),
-    variantId: v.string(),
     subtotal: v.number(),
     total: v.number(),
     currency: v.string(),
@@ -84,7 +66,6 @@ export const recordTopUp = internalMutation({
     const id = await ctx.db.insert("paymentOrders", {
       providerOrderId: args.providerOrderId,
       userId: args.userId,
-      variantId: args.variantId,
       status: "paid",
       amount: args.total,
       currency: args.currency,
@@ -99,48 +80,27 @@ export const recordTopUp = internalMutation({
   },
 });
 
+/** Takes back the refunded share of an order's credit; the balance may go below zero. `amount` is in the order's cents, with tax. */
 export const recordRefund = internalMutation({
-  args: {
-    providerOrderId: v.string(),
-    refundedAmount: v.number(),
-    full: v.boolean(),
-  },
-  handler: async (ctx, args) => {
+  args: { providerOrderId: v.string(), refundId: v.string(), amount: v.number() },
+  handler: async (ctx, { providerOrderId, refundId, amount }) => {
+    if (await findEntry(ctx, refundId, "top_up_refund")) return;
     const order = await ctx.db
       .query("paymentOrders")
-      .withIndex("by_provider_order", (q) => q.eq("providerOrderId", args.providerOrderId))
+      .withIndex("by_provider_order", (q) => q.eq("providerOrderId", providerOrderId))
       .unique();
-    if (!order) throw new Error("Order not found");
-    await ctx.db.patch(order._id, {
-      status: args.full ? "refunded" : "partial_refund",
-      refundedAmount: args.refundedAmount,
-      updatedAt: Date.now(),
-    });
+    const credited = await findEntry(ctx, providerOrderId, "top_up");
+    // Throwing makes Creem retry, which covers a refund delivered before its order.
+    if (!order || !credited) throw new Error("Order not found");
 
-    // Legacy plan orders bought one gallery; a full refund takes that gallery offline.
-    if (order.collectionId) {
-      const collection = await ctx.db.get(order.collectionId);
-      if (args.full && collection?.lemonsqueezyOrderId === args.providerOrderId) {
-        await ctx.db.patch(order.collectionId, { paymentStatus: "refunded" });
-      }
-      return;
-    }
-
-    // A top-up refund takes back the refunded share of its credit; the balance may go below zero.
-    // Each webhook carries the running refunded total, so the refund entry is raised to match it.
-    const credited = await findEntry(ctx, args.providerOrderId, "top_up");
-    if (!credited || !order.amount) return;
-    const owed = Math.round(credited.amount * Math.min(args.refundedAmount, order.amount) / order.amount);
-    const previous = await findEntry(ctx, args.providerOrderId, "top_up_refund");
-    const more = owed - (previous ? -previous.amount : 0);
-    if (more <= 0) return;
-    if (!previous) {
-      await applyEntry(ctx, { userId: order.userId, amount: -more, reason: "top_up_refund", sourceId: args.providerOrderId });
-      return;
-    }
-    const balance = await balanceFor(ctx, order.userId);
-    await ctx.db.patch(previous._id, { amount: -owed });
-    await ctx.db.patch(balance._id, { credit: balance.credit - more });
+    // Each refund carries only its own amount, so the order keeps the running total. Taking the difference of
+    // shares keeps several partial refunds from rounding past what was credited.
+    // A fully discounted order paid nothing, so it has nothing to take back.
+    const share = (refunded: number) => order.amount ? Math.round(credited.amount * Math.min(refunded, order.amount) / order.amount) : 0;
+    const before = order.refundedAmount ?? 0;
+    const after = before + amount;
+    await ctx.db.patch(order._id, { status: after >= order.amount ? "refunded" : "partial_refund", refundedAmount: after, updatedAt: Date.now() });
+    await applyEntry(ctx, { userId: order.userId, amount: share(before) - share(after), reason: "top_up_refund", sourceId: refundId });
   },
 });
 
@@ -164,52 +124,40 @@ async function validSignature(body: string, signature: string, secret: string) {
   return difference === 0;
 }
 
+/**
+ * Creem's payment events. Test and live mode have separate products and webhook secrets, so checking both keeps
+ * test payments, which anyone can make with a test card, from crediting a live deployment.
+ */
 export const webhook = httpAction(async (ctx, request) => {
   const body = await request.text();
-  const signature = request.headers.get("x-signature") ?? "";
-  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
-  if (!secret || !(await validSignature(body, signature, secret))) {
+  const secret = process.env.CREEM_WEBHOOK_SECRET;
+  if (!secret || !(await validSignature(body, request.headers.get("creem-signature") ?? "", secret))) {
     return new Response("Invalid signature", { status: 401 });
   }
 
-  const payload = JSON.parse(body);
-  const eventName = request.headers.get("x-event-name") ?? payload?.meta?.event_name;
-  const order = payload?.data;
-  const attributes = order?.attributes;
-  if (order?.type !== "orders" || !attributes) return new Response("Ignored", { status: 200 });
-  if (String(attributes.store_id) !== requiredEnv("LEMONSQUEEZY_STORE_ID")) {
-    return new Response("Wrong store", { status: 400 });
-  }
-  // Anyone can pay a test checkout with a test card, so test orders must never credit a live deployment.
-  if (Boolean(attributes.test_mode) !== (process.env.LEMONSQUEEZY_TEST_MODE === "true")) {
-    return new Response("Wrong mode", { status: 400 });
-  }
+  const { eventType, object } = JSON.parse(body);
+  const order = object?.order;
+  if (eventType !== "checkout.completed" && eventType !== "refund.created") return new Response("Ignored", { status: 200 });
+  if (order?.product !== requiredEnv("CREEM_PRODUCT_ID")) return new Response("Wrong product", { status: 400 });
 
-  if (eventName === "order_created") {
-    const custom = payload?.meta?.custom_data;
-    const productId = String(attributes.first_order_item?.product_id ?? "");
-    if (!custom?.user_id || productId !== requiredEnv("LEMONSQUEEZY_PRODUCT_ID") || attributes.status !== "paid") {
-      return new Response("Invalid order", { status: 400 });
-    }
-    // Every paid order credits its buyer's balance, including plan checkouts opened before balances existed.
+  if (eventType === "checkout.completed") {
+    const userId = object.metadata?.userId;
+    if (!userId || order.status !== "paid") return new Response("Invalid order", { status: 400 });
     await ctx.runMutation(internal.payments.recordTopUp, {
       providerOrderId: String(order.id),
-      userId: String(custom.user_id),
-      variantId: String(attributes.first_order_item?.variant_id ?? ""),
-      // What the buyer paid before tax, in US cents: discounts aren't credited, and other currencies are converted.
-      subtotal: Number(attributes.subtotal_usd ?? attributes.subtotal) - Number(attributes.discount_total_usd ?? attributes.discount_total ?? 0),
-      total: Number(attributes.total),
-      currency: String(attributes.currency),
-      testMode: Boolean(attributes.test_mode),
-      purchasedAt: Date.parse(attributes.created_at) || Date.now(),
+      userId: String(userId),
+      subtotal: Number(order.amount_paid) - Number(order.tax_amount ?? 0),
+      total: Number(order.amount_paid),
+      currency: String(order.currency),
+      testMode: order.mode !== "prod",
+      purchasedAt: Date.parse(order.created_at) || Date.now(),
     });
-  } else if (eventName === "order_refunded") {
+  } else {
     await ctx.runMutation(internal.payments.recordRefund, {
       providerOrderId: String(order.id),
-      refundedAmount: Number(attributes.refunded_amount ?? 0),
-      full: attributes.status === "refunded" || attributes.refunded === true,
+      refundId: String(object.id),
+      amount: Number(object.refund_amount),
     });
   }
-
   return new Response("OK", { status: 200 });
 });

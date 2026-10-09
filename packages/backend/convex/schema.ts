@@ -209,7 +209,8 @@ export default defineSchema({
     collectionId: v.optional(v.id("collections")),
     userId: v.string(),
     plan: v.optional(v.union(v.literal("event"), v.literal("large"))),
-    variantId: v.string(),
+    // Lemon Squeezy orders only
+    variantId: v.optional(v.string()),
     status: v.union(
       v.literal("paid"),
       v.literal("partial_refund"),

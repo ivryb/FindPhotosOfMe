@@ -30,7 +30,7 @@ async function signOut() {
       </div>
     </header>
 
-    <p v-if="toppedUp" class="notice" role="status">Payment received. Your balance updates as soon as Lemon Squeezy confirms it, usually within a minute.</p>
+    <p v-if="toppedUp" class="notice" role="status">Payment received. Your balance updates as soon as the payment is confirmed, usually within a minute.</p>
     <p v-if="authInterrupted" class="notice" role="status">Connection interrupted. Retrying automatically…</p>
 
     <div :class="['shell', { 'gallery-open': current, 'has-galleries': galleries.length }]">

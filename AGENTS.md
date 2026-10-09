@@ -20,4 +20,4 @@ Face search for event photos: a guest sends a selfie, on the web or through a ga
 - For Convex functions, schema, or queries, read [the Convex guidelines](docs/convex_rules.md).
 - For Python processing or local inference, read [python/README.md](python/README.md).
 - For landing-page design or public claims, read the [creative brief](docs/landing-page-brief.md).
-- For pricing or billing changes, read [Product and pricing](docs/portfolio-launch.md#product-and-pricing) for the per-event model, free attendee search, and dedicated Lemon Squeezy store.
+- For pricing or billing changes, read [Product and pricing](docs/portfolio-launch.md#product-and-pricing) for the per-event model, free attendee search, and Creem checkout.
