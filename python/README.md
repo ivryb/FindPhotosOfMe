@@ -85,7 +85,8 @@ and Telegram flows rely on.
 
   One request per kept photo. Ten workers at about 25 photos a minute each peak
   near 250 requests a minute, so the Free tier is at its edge and caps a day at
-  5,000 photos; Build or higher covers a full queue. A rejected request is
+  5,000 photos; Build or higher covers a full queue. Our account is on Launch
+  (October 2026), about eight times the peak. A rejected request is
   retried three times, then the batch is retried, and a batch that fails all
   three tries is refunded without its photos.
 - **Merges**: fold finished batch files into `{collection}/faces/index.npz`, one
