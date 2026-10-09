@@ -12,7 +12,7 @@ useSeoMeta({
 <template>
   <LandingPolicy title="Terms" updated="9 October 2026">
     <p>
-      These terms cover your use of FindPhotosOfMe, run by Ivan Rybnikov. By creating an account or using a gallery, you agree to them.
+      These terms cover your use of FindPhotosOfMe, run by Ivan Rybnikov, an individual based in Ukraine. By creating an account or using a gallery, you agree to them.
       Questions go to <a :href="`mailto:${SUPPORT_EMAIL}`">{{ SUPPORT_EMAIL }}</a>.
     </p>
 
@@ -59,6 +59,11 @@ useSeoMeta({
     <p>
       To the extent the law allows, we’re not liable for indirect losses, and our total liability is limited to what you paid us
       in the 12 months before the claim. Nothing here limits rights you have under consumer law.
+    </p>
+
+    <h2>Governing law</h2>
+    <p>
+      These terms are governed by the laws of Ukraine. If you’re a consumer, you also keep the protections of the law where you live.
     </p>
 
     <h2>Changes and ending</h2>

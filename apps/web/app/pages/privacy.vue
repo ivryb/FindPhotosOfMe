@@ -18,7 +18,7 @@ useSeoMeta({
 
     <h2>Who is responsible for what</h2>
     <p>
-      FindPhotosOfMe is run by Ivan Rybnikov. Write to <a :href="`mailto:${SUPPORT_EMAIL}`">{{ SUPPORT_EMAIL }}</a> with any question or request.
+      FindPhotosOfMe is run by Ivan Rybnikov, an individual based in Ukraine. Write to <a :href="`mailto:${SUPPORT_EMAIL}`">{{ SUPPORT_EMAIL }}</a> with any question or request.
     </p>
     <p>
       The person who creates a gallery decides which photos go into it and who can see it. They are responsible for having
