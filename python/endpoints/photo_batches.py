@@ -47,7 +47,7 @@ async def submit_merge(body: MergeRequest, request: Request):
 
 
 def process_batch(batch_id: str) -> dict:
-    """Keeps valid photos (face-only unless crowdsourcing; guest photos only if moderation allows them), saves
+    """Keeps valid photos (face-only unless crowdsourcing, and only if moderation allows them), saves
     their thumbnails, screen versions and face indexes, and reports what was kept with its billed bytes. The rest are
     refunded; uploaded copies are deleted once Convex has the result."""
     convex = ConvexService()
@@ -63,7 +63,7 @@ def process_batch(batch_id: str) -> dict:
         from services.face_recognition_service import get_face_service
         from services.moderation import ModerationService
         face_service = get_face_service()
-        moderation = ModerationService() if batch.get("moderate", False) else None
+        moderation = ModerationService()
         found: dict[str, list[dict]] = {}
         saved: list[str] = []
         saved_bytes = 0
@@ -85,9 +85,9 @@ def process_batch(batch_id: str) -> dict:
                     try:
                         renditions = make_renditions(image)
                     except ValueError:
-                        # A corrupt guest photo must not discard the other photos in its batch.
+                        # A corrupt photo must not discard the other photos in its batch.
                         continue
-                    if moderation and not moderation.allows(renditions.thumbnail):
+                    if not moderation.allows(renditions.thumbnail):
                         log(f"Batch {batch_id}: turned away {photo['name']} after moderation")
                         continue
                     # The original goes last: a photo in the gallery always has its smaller copies, which the screen

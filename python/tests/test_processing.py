@@ -203,12 +203,10 @@ def test_crowdsourced_batch_keeps_scenery_but_indexes_only_faces(backend):
     assert Faces.decode(objects[batch_key('event', 'b1')]).names.tolist() == ['tag-a.jpg']
     assert backend['completed'] == [('b1', ['a.jpg', 'b.jpg'], 14 + 20)]
     assert not [key for key in objects if key.startswith('uploads/')]
-    # The owner uploaded these, so they are not screened.
-    assert backend['screened'] == []
 
 
-def test_guest_photos_that_fail_moderation_are_skipped_and_refunded(backend):
-    backend['batch'].update(keepAllPhotos=True, moderate=True)
+def test_photos_that_fail_moderation_are_skipped_and_refunded(backend):
+    backend['batch']['keepAllPhotos'] = True
     objects = backend['objects']
     objects['uploads/event/up/b.jpg'] = b'explicit'
     photo_batches.process_batch('b1')

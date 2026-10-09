@@ -1,4 +1,4 @@
-"""Screens guest photos with OpenAI's free moderation endpoint before they join a gallery. Needs OPENAI_API_KEY."""
+"""Screens every uploaded photo with OpenAI's free moderation endpoint before they join a gallery. Needs OPENAI_API_KEY."""
 
 import base64
 

@@ -219,7 +219,6 @@ export const getBatchForService = query({
     status: batchStatus,
     attempt: v.number(),
     keepAllPhotos: v.boolean(),
-    moderate: v.boolean(),
     photos: v.array(v.object({ name: v.string(), source: v.string(), key: v.string() })),
   })),
   handler: async (ctx, { id, serviceToken }) => {
@@ -227,14 +226,11 @@ export const getBatchForService = query({
     const batch = await ctx.db.get(id);
     if (!batch) return null;
     const { collectionId, uploadId } = batch;
-    const upload = await ctx.db.get(uploadId);
     return {
       collectionId,
       status: batch.status,
       attempt: batch.attempts,
       keepAllPhotos: batch.keepAllPhotos ?? false,
-      // Anyone with the link can contribute, so guest photos are screened; owners answer for their own.
-      moderate: Boolean(upload?.contributorKey),
       photos: batch.names.map((name) => ({ name, source: stagingKey(collectionId, batch.staging ? batch._id : uploadId, name), key: photoKey(collectionId, uploadId, name) })),
     };
   },

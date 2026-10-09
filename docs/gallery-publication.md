@@ -10,7 +10,7 @@ Guest uploads use the existing owner balance and processing queue. Starting an u
 
 Abandoned batches release their reservation only after their URLs expire, a one-minute clock margin passes, and their storage objects are deleted. The existing two-minute recovery job performs cleanup and retries storage failures. Unreadable photos and failed processing are refunded through the same cleanup after URL expiry, so still-valid upload URLs cannot be reused after credit is returned. Each batch has a separate storage prefix; a cleanup retry cannot delete a later attempt's files. Owner deletion retains its existing behavior of settling outstanding credit after removing the gallery's storage.
 
-There is no additional guest quota or content moderation. Browser uploads retain the existing JPEG/PNG, 50 MiB per-photo limit and ZIP support. Basic file and access checks remain in place.
+There is no additional guest quota. Guest photos are moderated like every upload (see [python/README.md](../python/README.md)). Browser uploads retain the existing JPEG/PNG, 50 MiB per-photo limit and ZIP support. Basic file and access checks remain in place.
 
 Each guest browser stores a random contributor key locally. Upload creation, resumption, progress, and presigned storage URLs are scoped to that contributor and gallery. Clearing browser storage loses the ability to resume those uploads. Other visitors cannot list or overwrite them. Owners retain access to all gallery uploads.
 

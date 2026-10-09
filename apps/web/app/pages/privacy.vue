@@ -73,7 +73,7 @@ useSeoMeta({
       <li><b>Cloudflare</b> serves the website, stores the photos, and sends sign-in emails.</li>
       <li><b>Convex</b> stores accounts, gallery settings and search results.</li>
       <li><b>Modal</b> runs the face detection and matching.</li>
-      <li><b>OpenAI</b> checks photos added by guests for sexual, graphic or self-harm content. It receives a small copy of each guest photo for that check only.</li>
+      <li><b>OpenAI</b> checks every uploaded photo for sexual, graphic or self-harm content. It receives a small copy of each photo for that check only.</li>
       <li><b>Google</b> handles sign-in, if you choose to sign in with Google.</li>
       <li><b>Telegram</b> delivers messages for galleries that use a bot.</li>
       <li>Our <b>payment provider</b>, shown at checkout, processes payments as the merchant of record and receives your name and email for the receipt.</li>

@@ -112,7 +112,7 @@ test("guest batches spend the owner's balance once and keep all photos even if c
   expect(await credit()).toBe(before - 2 * PRICES.photo);
   const batch = await t.run((ctx) => ctx.db.query("uploadBatches").first());
   await settings(false);
-  expect(await t.query(api.uploads.getBatchForService, { id: batch!._id, serviceToken })).toMatchObject({ keepAllPhotos: true, moderate: true });
+  expect(await t.query(api.uploads.getBatchForService, { id: batch!._id, serviceToken })).toMatchObject({ keepAllPhotos: true });
   await t.mutation(api.uploads.completeBatchForService, { id: batch!._id, saved: names, savedBytes: 100, serviceToken });
   expect((await t.run((ctx) => ctx.db.get(id)))?.imagesCount).toBe(2);
   expect(await credit()).toBe(before - 2 * PRICES.photo);

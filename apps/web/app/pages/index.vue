@@ -54,7 +54,7 @@ useSeoMeta({
     />
     <LandingFaq
       :columns="[
-        { title: 'Uploading', items: [FAQ.upload, FAQ.searches, FAQ.processing, ask(FAQ.online, 'How long do my photos stay online?'), whoCanSee('event link')] },
+        { title: 'Uploading', items: [FAQ.upload, FAQ.searches, FAQ.processing, ask(FAQ.online, 'How long do my photos stay online?'), whoCanSee('event link'), FAQ.moderation] },
         { title: 'Searching', items: [FAQ.selfie, FAQ.groups, FAQ.misses, FAQ.account] },
       ]"
     />

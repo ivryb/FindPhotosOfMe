@@ -67,10 +67,27 @@ and Telegram flows rely on.
   galleries still discard and refund photos without faces. The batch records
   this policy when submitted, so closing contributions does not discard queued
   guest photos. Unreadable files are skipped and refunded without failing the
-  other photos in the batch. Guest photos are also screened by OpenAI's
-  moderation endpoint, using their thumbnails; sexual content, gore and
-  self-harm are skipped and refunded the same way. Owners' photos are not
-  screened. If moderation stays unreachable, the batch fails and is retried.
+  other photos in the batch. Every kept photo, from owners and guests alike, is
+  also screened by OpenAI's moderation endpoint, using its thumbnail; sexual
+  content, gore and self-harm are skipped and refunded the same way. If
+  moderation stays unreachable, the batch fails and is retried.
+- **Moderation limits**: OpenAI's [model page](https://developers.openai.com/api/docs/models/omni-moderation-latest)
+  (checked October 2026) lists these per-account limits for
+  `omni-moderation-latest`. The endpoint is free, sends no rate-limit headers,
+  and takes images up to 20 MB.
+
+  | OpenAI tier | Requests/minute | Requests/day | Tokens/minute |
+  | ----------- | --------------- | ------------ | ------------- |
+  | Free        | 250             | 5,000        | 10,000        |
+  | Build       | 500             | none         | 20,000        |
+  | Launch      | 2,000           | none         | 250,000       |
+  | Grow        | 5,000           | none         | 500,000       |
+
+  One request per kept photo. Ten workers at about 25 photos a minute each peak
+  near 250 requests a minute, so the Free tier is at its edge and caps a day at
+  5,000 photos; Build or higher covers a full queue. A rejected request is
+  retried three times, then the batch is retried, and a batch that fails all
+  three tries is refunded without its photos.
 - **Merges**: fold finished batch files into `{collection}/faces/index.npz`, one
   merge per gallery at a time, up to four galleries at once, five-minute limit.
 - **Search**: up to two workers, 1 CPU / 2 GiB, five-minute limit. It reads the

@@ -38,7 +38,10 @@ useSeoMeta({
       <li>Upload photos you collected from other websites or social networks to search for people.</li>
       <li>Try to get around a gallery’s privacy settings, overload the service, or access other people’s accounts.</li>
     </ul>
-    <p>We may suspend galleries or accounts that break these rules, and we’ll tell you why.</p>
+    <p>
+      Every uploaded photo is checked automatically before it joins a gallery. Photos with sexual content, graphic violence
+      or self-harm are turned away and not charged. We may suspend galleries or accounts that break these rules, and we’ll tell you why.
+    </p>
 
     <h2>Payment</h2>
     <p>
