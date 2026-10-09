@@ -117,9 +117,7 @@ Behavior tests use fake external services, real face index files and the
 FastAPI request interface. They do not download the model:
 
 ```sh
-pip install fastapi==0.109.0 pydantic==2.5.3 python-multipart==0.0.6 \
-  python-dotenv==1.0.0 boto3==1.34.162 convex==0.7.0 pytest httpx==0.27.2
-python -m pytest python/tests -q
+bun run test:python   # from the repository root; uv installs requirements-test.txt on first run
 ```
 
 Live verification is recorded in [the migration handoff](../docs/modal-handoff.md).
