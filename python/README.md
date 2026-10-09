@@ -37,7 +37,8 @@ OPENAI_API_KEY
 `NUXT_SERVICE_TOKEN`. `OPENAI_API_KEY` is used only for the free moderation
 endpoint; guest uploads fail without it. Keep these values out of source
 control. Modal's CLI credentials are separate from the application's service
-token.
+token. To change one key, use the SDK's `modal.Secret.update`, which keeps the
+others; the CLI can only replace the whole secret.
 
 After testing a new endpoint, set `PYTHON_API_URL` in Convex and
 `NUXT_PYTHON_API_URL` in the frontend. See [the Cloudflare handoff](../docs/modal-handoff.md).
