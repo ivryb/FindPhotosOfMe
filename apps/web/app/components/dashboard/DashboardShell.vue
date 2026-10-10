@@ -30,10 +30,12 @@ async function signOut() {
       </div>
     </header>
 
-    <p v-if="toppedUp" class="notice" role="status">Payment received. Your balance updates as soon as the payment is confirmed, usually within a minute.</p>
-    <p v-if="authInterrupted" class="notice" role="status">Connection interrupted. Retrying automatically…</p>
-
     <div :class="['shell', { 'gallery-open': current, 'has-galleries': galleries.length }]">
+      <!-- Sits above the content column, so the sidebar keeps the full height below the bar -->
+      <div v-if="toppedUp || authInterrupted" class="notices">
+        <p v-if="toppedUp" class="notice" role="status">Payment received. Your balance updates as soon as the payment is confirmed, usually within a minute.</p>
+        <p v-if="authInterrupted" class="notice" role="status">Connection interrupted. Retrying automatically…</p>
+      </div>
       <aside>
         <h1 class="mobile-title">Your galleries</h1>
         <Button class="new" @click="creating = true"><Plus />New gallery</Button>
@@ -77,8 +79,8 @@ async function signOut() {
 @media (max-width: 640px) { .account span { display: none; } }
 
 .mobile-title, .back { display: none; }
-.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 64px); }
-aside { position: sticky; top: 64px; align-self: start; display: flex; flex-direction: column; height: calc(100vh - 64px); overflow-y: auto; padding: 20px 14px; background: var(--foreground); color: var(--background); }
+.shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto 1fr; min-height: calc(100vh - 64px); }
+aside { grid-row: 1 / 3; grid-column: 1; position: sticky; top: 64px; align-self: start; display: flex; flex-direction: column; height: calc(100vh - 64px); overflow-y: auto; padding: 20px 14px; background: var(--foreground); color: var(--background); }
 aside :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 .new { width: 100%; margin-bottom: 18px; background: var(--brand); color: var(--foreground); }
 .new:hover { background: #ffdc4d; }
@@ -103,11 +105,15 @@ nav small.bad { color: #f0907f; }
 .top-up:hover { background: #ffdc4d; }
 .balance small { display: block; margin-top: 10px; color: #8e8e89; font-size: .82rem; }
 
-main { min-width: 0; width: 100%; max-width: 1080px; padding: clamp(24px, 4vw, 44px) clamp(20px, 4vw, 48px) 80px; }
-.notice { margin: 16px clamp(16px, 3vw, 40px); padding: 14px 18px; background: var(--accent); border: 2px solid var(--brand); border-radius: 10px; font-weight: 600; }
+main { grid-column: 2; grid-row: 2; min-width: 0; width: 100%; max-width: 1080px; padding: clamp(24px, 4vw, 44px) clamp(20px, 4vw, 48px) 80px; }
+.notices { grid-column: 2; display: grid; gap: 12px; max-width: 1080px; padding: clamp(24px, 4vw, 44px) clamp(20px, 4vw, 48px) 0; }
+.notices + main { padding-top: 24px; }
+.notice { padding: 14px 18px; background: var(--accent); border: 2px solid var(--brand); border-radius: 10px; font-weight: 600; }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
+  aside, main { grid-column: 1; grid-row: 2; }
+  .notices { grid-column: 1; padding: 16px 16px 0; }
   aside { display: none; }
   .has-galleries:not(.gallery-open) aside { display: flex; position: static; min-height: calc(100dvh - 64px); height: auto; overflow: visible; padding: 28px 20px; }
   .has-galleries:not(.gallery-open) main { display: none; }
