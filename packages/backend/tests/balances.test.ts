@@ -89,12 +89,15 @@ describe("top-ups", () => {
     vi.stubEnv("CREEM_PRODUCT_ID", "prod_credit");
   });
 
-  // Shaped like the events Creem's test mode delivers: tax on top of the chosen amount, in cents.
-  const paid = (orderId: string, { product = "prod_credit", subtotal = 2_000, tax = 420 } = {}) => ({
+  // Shaped like the events Creem's test mode delivers, in cents: the chosen amount, less any promo code, plus tax.
+  const paid = (orderId: string, { product = "prod_credit", subtotal = 2_000, discount = 0, tax = 420 } = {}) => ({
     eventType: "checkout.completed",
     object: {
       object: "checkout", metadata: { userId: "owner" },
-      order: { id: orderId, product, amount_paid: subtotal + tax, tax_amount: tax, currency: "USD", status: "paid", created_at: "2026-10-09T14:58:07.056Z", mode: "test" },
+      order: {
+        id: orderId, product, amount: subtotal, sub_total: subtotal, discount_amount: discount, tax_amount: tax,
+        amount_paid: subtotal - discount + tax, currency: "USD", status: "paid", created_at: "2026-10-09T14:58:07.056Z", mode: "test",
+      },
     },
   });
   const refunded = (orderId: string, refundId: string, amount: number) => ({
@@ -134,6 +137,17 @@ describe("top-ups", () => {
     expect(await credit()).toBe(TRIAL_CREDIT);
     const order = await t.run((ctx) => ctx.db.query("paymentOrders").first());
     expect(order).toMatchObject({ status: "refunded", refundedAmount: 2_420 });
+  });
+
+  test("promo codes still credit the full chosen amount, even when they make it free", async () => {
+    const { t, credit } = setup();
+    await deliver(t, paid("ord_free", { discount: 2_000, tax: 0 }));
+    expect(await credit()).toBe(TRIAL_CREDIT + 20_000);
+
+    await deliver(t, paid("ord_half", { discount: 1_000, tax: 210 }));
+    expect(await credit()).toBe(TRIAL_CREDIT + 40_000);
+    await deliver(t, refunded("ord_half", "ref_half", 1_210));
+    expect(await credit()).toBe(TRIAL_CREDIT + 20_000);
   });
 
   test("come only from signed payments for the credit product", async () => {

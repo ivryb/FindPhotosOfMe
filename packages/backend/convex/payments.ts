@@ -45,7 +45,7 @@ export const createTopUp = action({
   },
 });
 
-/** Credits a paid order to its buyer's balance: `subtotal` is the US cents paid before tax; `total` includes tax. */
+/** Credits a paid order to its buyer's balance: `subtotal` is the chosen amount in US cents; `total` is what was paid, with tax. */
 export const recordTopUp = internalMutation({
   args: {
     providerOrderId: v.string(),
@@ -95,7 +95,7 @@ export const recordRefund = internalMutation({
 
     // Each refund carries only its own amount, so the order keeps the running total. Taking the difference of
     // shares keeps several partial refunds from rounding past what was credited.
-    // A fully discounted order paid nothing, so it has nothing to take back.
+    // A fully discounted order paid nothing, so it can't be refunded and has nothing to take back.
     const share = (refunded: number) => order.amount ? Math.round(credited.amount * Math.min(refunded, order.amount) / order.amount) : 0;
     const before = order.refundedAmount ?? 0;
     const after = before + amount;
@@ -146,7 +146,8 @@ export const webhook = httpAction(async (ctx, request) => {
     await ctx.runMutation(internal.payments.recordTopUp, {
       providerOrderId: String(order.id),
       userId: String(userId),
-      subtotal: Number(order.amount_paid) - Number(order.tax_amount ?? 0),
+      // Before tax and promo codes, so a discounted top-up still credits the full amount the buyer chose.
+      subtotal: Number(order.sub_total),
       total: Number(order.amount_paid),
       currency: String(order.currency),
       testMode: order.mode !== "prod",

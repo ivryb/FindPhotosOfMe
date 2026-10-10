@@ -4,7 +4,7 @@
 
 Organizers or photographers pay once per event. Attendee search is free. Keep seats and team billing out of launch scope. Personal find-and-export jobs and ongoing archives are distinct proposed offers; archive subscriptions need their own storage and renewal behavior.
 
-The pricing direction selected on 4 October is **one calculator with a $10 minimum payment**, replacing the fixed paid plans on the landing pages. The dashboard's Top up dialog uses the same ink contact-sheet calculator: its total becomes the price of a custom-priced Creem checkout, and what the buyer pays before tax becomes balance credit. Unused credit is refundable within 14 days of purchase.
+The pricing direction selected on 4 October is **one calculator with a $10 minimum payment**, replacing the fixed paid plans on the landing pages. The dashboard's Top up dialog uses the same ink contact-sheet calculator: its total becomes the price of a custom-priced Creem checkout, and that chosen amount becomes balance credit, before tax and any promo code. Unused credit is refundable within 14 days of purchase.
 
 The free-trial proposal remains 500 submitted photos / 2 GB, 50 searches, and seven days, with one active trial per account and 500 total trial submissions. Photo and byte limits both apply; attendees never pay. These trial terms are not yet implemented entitlements.
 
@@ -27,7 +27,7 @@ The [backend environment example](../packages/backend/.env.example) lists the re
 The current [payment implementation](../packages/backend/convex/payments.ts) does the following:
 
 - A signed-in owner opens checkout from the Top up dialog for the calculator's total, between $10 and $1,000. Checkout carries the owner's identifier.
-- A signed `checkout.completed` webhook credits the price before tax to that owner's balance after checking the configured product. Test and live mode have separate products and signing secrets, so test payments can't credit a live deployment. The checkout redirect credits nothing.
+- A signed `checkout.completed` webhook first checks the configured product, then credits the chosen amount to that owner's balance before tax and any promo code, so a 100% code still credits in full. Test and live mode have separate products and signing secrets, so test payments can't credit a live deployment. The checkout redirect credits nothing.
 - Repeated notifications for the same order reuse its stored record.
 - Each `refund.created` webhook takes back its share of the credit once, and the balance may go below zero.
 
