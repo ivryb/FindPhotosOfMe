@@ -10,7 +10,7 @@ Face search for event photos: a guest sends a selfie, on the web or through a ga
 ## Working rules
 
 - Keep the existing Convex deployment and R2 storage unless Ivan requests a migration.
-- Push, deploy, or change production only when Ivan explicitly requests it. `bun run dev` and `bun run dev:server` run `convex dev` against the live Convex deployment, so every saved backend file reaches users; check Convex changes with tests and type checks instead.
+- Push, deploy, or change production only when Ivan explicitly requests it. Every push to `main` deploys production through CI. `bun run dev` and `bun run dev:server` push to the development Convex deployment, which is separate from production but still shares its R2 bucket.
 - `bun run check-types` and `bun run test` (which includes the Python tests) are the checks CI runs.
 - Before declaring the product ready to launch, verify sign-in, event creation, photo upload and processing, face search, downloads, and checkout entitlements. Use a test event and separate accounts to verify ownership and access to private search results.
 

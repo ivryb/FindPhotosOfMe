@@ -31,8 +31,8 @@ bun run check-types   # all workspaces
 bun run test          # web (bun test), backend (vitest), and Python (pytest through uv)
 ```
 
-`bun run dev` and `bun run dev:server` also start `convex dev`, which pushes every saved backend file to the live
-Convex deployment. Check backend changes with the tests instead.
+`bun run dev` and `bun run dev:server` also start `convex dev`, which pushes every saved backend file to the development
+Convex deployment. Production is a separate deployment that only `bun run deploy` updates.
 
 Each workspace lists its settings in an `.env.example`: `apps/web`, `packages/backend`, and `python`. To run the Python
 service locally, see [python/README.md](python/README.md).

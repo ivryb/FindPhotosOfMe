@@ -5,7 +5,7 @@ The Python backend runs on Modal as `findphotosofme` in workspace `ivryb`.
 - HTTP endpoint: https://ivryb--findphotosofme-web.modal.run
 - Deployment: https://modal.com/apps/ivryb/main/deployed/findphotosofme
 - Photos, uploads waiting to be processed, and face indexes are in Cloudflare R2.
-- Gallery, upload and search state are in Convex (`honorable-firefly-904`).
+- Gallery, upload and search state are in Convex (`merry-firefly-921`).
 - The model is unchanged: InsightFace `buffalo_l`, running on CPU.
 
 ## Deployment

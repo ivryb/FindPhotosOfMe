@@ -4,7 +4,7 @@
   "scripts": {
     "check-types": "tsc -p convex/tsconfig.json",
     "dev": "convex dev",
-    "deploy": "convex dev --once",
+    "deploy": "convex deploy",
     "dev:setup": "convex dev --configure --until-success",
     "test": "vitest run"
   },

@@ -8,9 +8,10 @@ How the live app is laid out, how to ship it, and how to look at it. Release his
   under `/media`, read from R2 through the `PHOTOS` binding and kept in the edge cache. Canonical origin
   `https://findphotosofme.com`; direct subdomains are galleries. Fallback URL
   `https://findphotosofme.ivrybn.workers.dev`. The account is on Workers Paid, which every photo view counts against.
-- **Convex** `honorable-firefly-904` holds auth, data, upload coordination, and Telegram searches. It is the project's
-  *development* deployment and serves production; the deployment labelled production is unused. Email OTP delivery is
-  not configured on it.
+- **Convex** production deployment `merry-firefly-921` holds auth, data, upload coordination, and Telegram searches.
+  Email OTP delivery is not configured on it. The development deployment `honorable-firefly-904` is for local work only:
+  it has a copy of production's data from 10 October 2026, Creem test mode, and `PYTHON_API_URL` pointing at
+  `localhost:8000`. It still shares the R2 bucket with production.
 - **Modal** app `findphotosofme` in workspace `ivryb` runs face processing and search; see
   [python/README.md](python/README.md).
 - **R2** stores photos, their thumbnail and 2048px screen versions, and face indexes. A lifecycle rule deletes staged
@@ -23,19 +24,26 @@ How the live app is laid out, how to ship it, and how to look at it. Release his
 
 ## Deploying
 
-From the repository root, `bun run deploy` publishes everything in order: Convex functions to
-`honorable-firefly-904` (`convex dev --once`), then Modal, then the Worker. Convex goes first because Modal workers and
-the Worker call its new functions. It stops at the first failure. Each part also deploys alone:
+Every push to `main` deploys production. GitHub Actions ([ci.yml](.github/workflows/ci.yml)) runs the type checks and
+tests, then `bun run deploy`, which publishes Convex functions to `merry-firefly-921` (`convex deploy`), then Modal,
+then the Worker. Convex goes first because Modal workers and the Worker call its new functions. It stops at the first
+failure, and a newer push waits for a running deploy to finish. Pull requests only run the checks.
+
+The deploy step uses four repository secrets: `CONVEX_DEPLOY_KEY` (production deploy key `github-actions`),
+`MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` (Ivan's Modal token), and `CLOUDFLARE_API_TOKEN` (account token
+"FindPhotosOfMe GitHub Actions deploy", limited to Workers scripts and the zone's routes).
+
+To deploy by hand, run the same command from a clean worktree of the release commit; each part also deploys alone:
 
 ```bash
+bun run deploy                                # everything, in order
 bun --filter @FindPhotosOfMe/backend deploy   # Convex
 bun run deploy:modal                          # Modal (needs `modal setup` once)
 bun --filter web deploy                       # Cloudflare Worker
 (cd apps/web && bunx wrangler deploy --dry-run)   # check the Worker build without publishing
 ```
 
-Deploy from a clean worktree of the release commit, so uncommitted work in the main checkout stays out. Modal's rolling
-deploy lets running batches finish on the old workers.
+Modal's rolling deploy lets running batches finish on the old workers.
 
 Nitro generates `apps/web/.output/server/wrangler.json` and the Wrangler redirect under `.wrangler/deploy/`. Build before running Wrangler. The checked-in `apps/web/wrangler.jsonc` owns the Worker name, routes, and compatibility settings; Nitro supplies the entry point and static assets. This uses Nitro 2's [Workers adapter](https://v2.nitro.build/deploy/providers/cloudflare).
 
@@ -45,13 +53,13 @@ Telegram uses Convex's existing scheduler because Workers background execution i
 
 ## Looking at production
 
-Run Convex commands from `packages/backend`, whose `.env.local` points the CLI at `honorable-firefly-904`. Leave off
-`--prod`: it selects the unused production deployment, which has no logs or data.
+Run Convex commands from `packages/backend` with `--prod`; without it, the CLI uses the development deployment from
+`.env.local`.
 
 ```bash
-bunx convex logs --history 500                          # recent function logs
-bunx convex data searchRequests --order desc --limit 5  # any table, newest first
-bunx convex env get NAME                                # deployment settings
+bunx convex logs --prod --history 500                          # recent function logs
+bunx convex data searchRequests --prod --order desc --limit 5  # any table, newest first
+bunx convex env get NAME --prod                                # deployment settings
 (cd apps/web && bunx wrangler tail findphotosofme)      # live Worker logs
 ```
 
