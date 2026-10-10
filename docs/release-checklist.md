@@ -38,7 +38,7 @@ Create or select the production Convex deployment, then configure:
 | `GOOGLE_CLIENT_ID` | Google OAuth web-client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth web-client secret |
 | `CREEM_API_KEY` | Creem API key; a test key (`creem_test_…`) sends checkouts to Creem's sandbox |
-| `CREEM_PRODUCT_ID` | The "FindPhotosOfMe credit" product from the same mode as the key |
+| `CREEM_PRODUCT_ID` | The "Balance top-up" product from the same mode as the key |
 | `CREEM_WEBHOOK_SECRET` | Signing secret of the webhook endpoint in that mode |
 | `CLOUDFLARE_ACCOUNT_ID` | Account that owns the sending domain |
 | `CLOUDFLARE_EMAIL_API_TOKEN` | Token limited to Email Sending: Edit |
@@ -116,7 +116,7 @@ Convex calls Cloudflare's REST API directly. No Worker deployment is required.
 Creem replaced Lemon Squeezy, whose store activation was rejected, as the merchant of record. The old Lemon Squeezy store and its `LEMONSQUEEZY_*` Convex variables are no longer used.
 
 1. The FindPhotosOfMe store on Creem was approved and went live on 9 October 2026. Payouts go to a Ukrainian bank account.
-2. Top-ups sell one product, "FindPhotosOfMe credit": one-time, $10, tax added on top (`tax_mode: exclusive`). Each checkout sets its own price with `custom_price`, so the product price only matters as a floor. Test product: `prod_5cwqyBzktRp7Nfx0CpotfW`; live product: `prod_3os1uBEijbcMrH3qR4CqxT`. Create products through the API: CLI 0.9.0 drops `--billing-type` and the request fails.
+2. Top-ups sell one product, "Balance top-up" (the test product is still called "FindPhotosOfMe credit"): one-time, $10, tax added on top (`tax_mode: exclusive`). Each checkout sets its own price with `custom_price`, so the product price only matters as a floor. Test product: `prod_5cwqyBzktRp7Nfx0CpotfW`; live product: `prod_3os1uBEijbcMrH3qR4CqxT`. Create products through the API: CLI 0.9.0 drops `--billing-type` and the request fails. Branding (logo `icon-512.png`, light theme, accent `#FFD21F`, hover `#FFDC4D`, text `#151515`) is set by hand under Settings → Branding; the API has no endpoint for it.
 3. Test and live mode have separate API keys, products and webhook endpoints, each endpoint with its own signing secret. Keep all three Convex variables from the same mode.
 4. Register the webhook at `https://<deployment>.convex.site/api/creem/webhook` for `checkout.completed` and `refund.created`. `creem listen --forward-to <url>` forwards test-mode events with real signatures to a local server.
 5. Payments went live on 9 October 2026. Convex `honorable-firefly-904` holds the live key, product and the signing secret of live webhook `wh_1Q1ENRtNqB5cPs6V2K645I`, and the Worker has `NUXT_PUBLIC_PAYMENTS=true`. The `LEMONSQUEEZY_*` variables were removed. A correctly signed event for another product was rejected at the product check, and a live checkout opened with a custom price; no real purchase has been made yet.
