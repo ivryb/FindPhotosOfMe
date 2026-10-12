@@ -16,11 +16,13 @@ load_dotenv()
 
 def create_app(
     submit_batch: Callable[[str], Awaitable[object]] | None = None,
+    submit_video: Callable[[str], Awaitable[object]] | None = None,
     submit_merge: Callable[[str, list[str]], Awaitable[object]] | None = None,
     execute_search: Callable[[str, bytes], Awaitable[object]] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Find Photos of Me - Processing Service", version="2.0.0")
     app.state.submit_batch = submit_batch
+    app.state.submit_video = submit_video
     app.state.submit_merge = submit_merge
     app.state.execute_search = execute_search
     app.include_router(batches_router, prefix="/api", tags=["photos"])

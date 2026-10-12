@@ -6,7 +6,7 @@ import { components } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { authComponent } from "./auth";
 import { requireCollectionOwner } from "./authz";
-import { DAY, INCLUDED_DAYS, PRICES, TRIAL_CREDIT, dailyStorageCost, formatMoney } from "./pricing";
+import { DAY, INCLUDED_DAYS, PRICES, TRIAL_CREDIT, billedPhotos, dailyStorageCost, formatMoney } from "./pricing";
 
 // Each account has one balance in mills, shared by all its galleries. Every change is a balance entry,
 // so charges can be traced and a repeated request (a webhook redelivery, a replayed job) applies once.
@@ -60,6 +60,11 @@ export async function requireCredit(ctx: MutationCtx, userId: string, cost: numb
 
 /** Upload holds cannot also pay for another upload, a search, or storage. */
 const availableCredit = (balance: Pick<Doc<"balances">, "credit" | "reserved">) => balance.credit - (balance.reserved ?? 0);
+
+/** What a batch's files, or some of them, are charged as, in photos. Batches from before staging hold only photos. */
+export function batchPhotos(batch: Doc<"uploadBatches">, names = batch.names) {
+  return names.reduce((total, name) => total + billedPhotos(name, batch.staging?.sizes[batch.names.indexOf(name)] ?? 0), 0);
+}
 
 /** Holds credit before issuing upload URLs. The batch owns the hold until completion or storage cleanup. */
 export async function reservePhotos(ctx: MutationCtx, userId: string, photos: number, message: (credit: number) => string) {

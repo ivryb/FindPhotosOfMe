@@ -5,9 +5,9 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { canAccessGallery, requireActiveCollection, requireCollectionOwner, requireServiceToken } from "./authz";
-import { charge, findEntry, releasePhotos, requireCredit, reservePhotos, returnPhotos, returnPhotosNow } from "./balances";
-import { BATCH_PHOTOS, MAX_PHOTO_BYTES, PHOTO_NAME, STAGING_URL_LIFETIME_MS, photoKey, stagingKey } from "./photoKeys";
-import { PRICES, formatMoney } from "./pricing";
+import { batchPhotos, charge, findEntry, releasePhotos, requireCredit, reservePhotos, returnPhotos, returnPhotosNow } from "./balances";
+import { PHOTO_NAME, STAGING_URL_LIFETIME_MS, isVideo, maxBytes, nextBatch, photoKey, stagingKey } from "./photoKeys";
+import { PRICES, billedPhotos, formatMoney } from "./pricing";
 import { batchStatus, uploadFields } from "./schema";
 
 // The upload queue. Each batch reserves credit before storage URLs are issued and is charged only after the server
@@ -15,7 +15,7 @@ import { batchStatus, uploadFields } from "./schema";
 // Workers write each batch’s faces to its own file; merges fold those files into the gallery’s face index.
 // recover runs every few minutes (crons.ts) and retries whatever a lost worker or request left behind.
 
-/** Batches processed at once across all galleries. Matches max_containers of process_batch in python/modal_app.py. */
+/** Batches processed at once across all galleries. Matches max_containers of process_batch and process_video in python/modal_app.py. */
 export const MAX_RUNNING_BATCHES = 10;
 /**
  * A running batch or merge with no result by now lost its worker. The workers' time limits in python/modal_app.py
@@ -86,8 +86,9 @@ export const prepareBatch = mutation({
   handler: async (ctx, { uploadId, first, photos, access }) => {
     const { upload, collection } = await requireUpload(ctx, uploadId, access);
     const names = photos.map((photo) => photo.name);
-    if (!Number.isInteger(first) || first < 0 || first !== upload.sent || !photos.length || photos.length > BATCH_PHOTOS || first + photos.length > upload.photos
-      || new Set(names).size !== names.length || !photos.every(({ name, size }) => PHOTO_NAME.test(name) && Number.isInteger(size) && size >= 0 && size <= MAX_PHOTO_BYTES)) {
+    if (!Number.isInteger(first) || first < 0 || first !== upload.sent || !photos.length || nextBatch(photos, 0).length !== photos.length
+      || first + photos.length > upload.photos || new Set(names).size !== names.length
+      || !photos.every(({ name, size }) => PHOTO_NAME.test(name) && Number.isInteger(size) && size >= 0 && size <= maxBytes(name))) {
       throw new Error("Invalid batch");
     }
     const batches = await ctx.db.query("uploadBatches").withIndex("by_upload", (q) => q.eq("uploadId", uploadId)).collect();
@@ -103,7 +104,7 @@ export const prepareBatch = mutation({
     }
     if (batches.some((batch) => batch.names.some((name) => names.includes(name)))) throw new Error("Photos already submitted");
     if (collection.createdBy) {
-      await reservePhotos(ctx, collection.createdBy, photos.length,
+      await reservePhotos(ctx, collection.createdBy, photos.reduce((total, { name, size }) => total + billedPhotos(name, size), 0),
         (credit) => access ? "Uploads are paused because the gallery owner’s balance has run out. Ask the owner to top up." : `Your balance ran out (${formatMoney(credit)} left). Top up, then add ${upload.name} again to continue.`);
     }
     const expiresAt = Date.now() + STAGING_URL_LIFETIME_MS;
@@ -151,10 +152,10 @@ export const commitBatchForService = mutation({
     if (upload.contributorKey && (!collection.crowdsource || !canAccessGallery(collection, collection.shareToken))) {
       throw new ConvexError("Guest uploads are turned off or this gallery is offline.");
     }
-    if (batch.staging.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batch.names.length);
+    if (batch.staging.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batchPhotos(batch));
     if (collection.createdBy) {
       await charge(ctx, { userId: collection.createdBy, reason: "photos", collectionId: collection._id, sourceId: id },
-        batch.names.length * PRICES.photo, () => "Uploads are paused because the gallery owner’s balance has run out.");
+        batchPhotos(batch) * PRICES.photo, () => "Uploads are paused because the gallery owner’s balance has run out.");
     }
     await ctx.db.patch(id, { status: "pending" });
     await ctx.db.patch(upload._id, { sent: batch.staging.first + batch.names.length });
@@ -183,7 +184,7 @@ export const releaseExpiredBatch = internalMutation({
     const batch = await ctx.db.get(id);
     if (!batch?.staging || batch.staging.expiresAt + STAGING_CLEANUP_GRACE > Date.now()) return null;
     if (batch.status === "staging") {
-      if (batch.staging.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batch.names.length);
+      if (batch.staging.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batchPhotos(batch));
       await ctx.db.delete(id);
     } else if (batch.refundPending) {
       await returnPhotosNow(ctx, batch, batch.refundPending);
@@ -247,13 +248,15 @@ export const completeBatchForService = mutation({
     if (!batch || (batch.status !== "pending" && batch.status !== "running")) return null;
     const kept = batch.names.filter((name) => saved.includes(name));
     await ctx.db.patch(id, { status: "done" });
-    await returnPhotos(ctx, batch, batch.names.length - kept.length);
+    await returnPhotos(ctx, batch, batchPhotos(batch, batch.names.filter((name) => !kept.includes(name))));
     await countProcessed(ctx, batch, { saved: kept.length });
 
     const collection = (await ctx.db.get(batch.collectionId))!;
     const previews = collection.previewImages ?? [];
+    const videos = kept.filter(isVideo).length;
     await ctx.db.patch(collection._id, {
-      imagesCount: collection.imagesCount + kept.length,
+      imagesCount: collection.imagesCount + kept.length - videos,
+      videosCount: (collection.videosCount ?? 0) + videos,
       previewImages: [...previews, ...kept.map((name) => photoKey(batch.collectionId, batch.uploadId, name))].slice(0, 50),
       // Galleries from before sizes were recorded get their total from the thumbnail backfill; adding one batch's
       // bytes to nothing would make their storage look tiny and their extensions nearly free.
@@ -296,10 +299,13 @@ export const failBatchForService = mutation({
   },
 });
 
-/** Claims batches for free workers. Each slot goes to the oldest batch of the gallery with the fewest running, so galleries take turns. */
+/**
+ * Claims batches for free workers. Each slot goes to the oldest batch of the gallery with the fewest running, so galleries
+ * take turns. `video` marks a batch of one video, which goes to the workers that convert videos.
+ */
 export const claim = internalMutation({
   args: {},
-  returns: v.array(v.id("uploadBatches")),
+  returns: v.array(v.object({ id: v.id("uploadBatches"), video: v.boolean() })),
   handler: async (ctx) => {
     const running = await batchesWith(ctx, "running").collect();
     // Galleries with batches waiting are processing; each one's oldest few are enough to fill the free slots.
@@ -311,13 +317,13 @@ export const claim = internalMutation({
     for (const batch of running) load.set(batch.collectionId, (load.get(batch.collectionId) ?? 0) + 1);
     const busy = (batch: Doc<"uploadBatches">) => load.get(batch.collectionId) ?? 0;
 
-    const claimed: Id<"uploadBatches">[] = [];
+    const claimed: { id: Id<"uploadBatches">; video: boolean }[] = [];
     while (running.length + claimed.length < MAX_RUNNING_BATCHES && pending.length) {
       const next = pending.reduce((best, batch, index) => (busy(batch) < busy(pending[best]!) ? index : best), 0);
       const [batch] = pending.splice(next, 1);
       load.set(batch!.collectionId, busy(batch!) + 1);
       await ctx.db.patch(batch!._id, { status: "running", startedAt: Date.now(), attempts: batch!.attempts + 1, progress: undefined });
-      claimed.push(batch!._id);
+      claimed.push({ id: batch!._id, video: batch!.names.some(isVideo) });
     }
     return claimed;
   },
@@ -329,8 +335,8 @@ export const dispatch = internalAction({
   returns: v.null(),
   handler: async (ctx) => {
     const claimed = await ctx.runMutation(internal.uploads.claim, {});
-    await Promise.all(claimed.map(async (id) => {
-      if (!(await callWorker("/api/process-batch", { batch_id: id }))) await ctx.runMutation(internal.uploads.release, { id });
+    await Promise.all(claimed.map(async ({ id, video }) => {
+      if (!(await callWorker("/api/process-batch", { batch_id: id, video }))) await ctx.runMutation(internal.uploads.release, { id });
     }));
     return null;
   },
@@ -432,14 +438,17 @@ export const removeUpload = internalMutation({
     // A batch refunds once, so one that already returned photos without faces would keep the rest of its charge.
     for (const batch of batches) if (await findEntry(ctx, batch._id, "photos_returned")) throw new Error("A batch was partly refunded; refund it by hand");
     for (const batch of batches) {
-      await returnPhotosNow(ctx, batch, batch.names.length);
+      await returnPhotosNow(ctx, batch, batchPhotos(batch));
       await ctx.db.delete(batch._id);
     }
     const tag = photoKey(upload.collectionId, uploadId, "");
     const collection = await ctx.db.get(upload.collectionId);
     if (collection) {
+      // Assumes the upload's videos were all kept: nothing records which of its files were.
+      const videos = batches.flatMap((batch) => batch.names).filter(isVideo).length;
       await ctx.db.patch(collection._id, {
-        imagesCount: Math.max(0, collection.imagesCount - upload.saved),
+        imagesCount: Math.max(0, collection.imagesCount - (upload.saved - videos)),
+        videosCount: Math.max(0, (collection.videosCount ?? 0) - videos),
         storedBytes: Math.max(0, (collection.storedBytes ?? 0) - storedBytes),
         previewImages: collection.previewImages?.filter((key) => !key.startsWith(tag)),
       });
@@ -488,7 +497,7 @@ async function retryOrGiveUp(ctx: MutationCtx, batch: Doc<"uploadBatches">) {
     return;
   }
   await ctx.db.patch(batch._id, { status: "failed" });
-  await returnPhotos(ctx, batch, batch.names.length);
+  await returnPhotos(ctx, batch, batchPhotos(batch));
   await countProcessed(ctx, batch, { failed: batch.names.length });
   await finishIfIdle(ctx, batch.collectionId);
 }

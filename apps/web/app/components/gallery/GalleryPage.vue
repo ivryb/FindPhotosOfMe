@@ -8,9 +8,10 @@ const home = useRuntimeConfig().public.origin || "/";
 const { photos, loaded, failed, load } = useGalleryPhotos(() => props.gallery._id, { preload: true, shareToken: props.shareToken });
 onMounted(() => load());
 // Turning on browsing reveals existing photos without changing their count.
-watch([() => props.gallery.imagesCount, () => props.gallery.showAllPhotos], () => load(true));
+watch([() => props.gallery.imagesCount, () => props.gallery.videosCount, () => props.gallery.showAllPhotos], () => load(true));
 // Galleries that show only previews have just those to browse; search still covers every photo.
-const browsable = computed(() => (props.gallery.showAllPhotos ? props.gallery.imagesCount : props.gallery.previewImages.length));
+const items = computed(() => props.gallery.imagesCount + props.gallery.videosCount);
+const browsable = computed(() => (props.gallery.showAllPhotos ? items.value : props.gallery.previewImages.length));
 const sheet = ref<"upload" | "search" | null>(null);
 watch([() => props.gallery.crowdsource, () => props.gallery.imagesCount], ([uploadsEnabled, photos]) => {
   // An owner can remove an open action while a guest is on the page.
@@ -35,13 +36,13 @@ function view(index: number, found: GalleryPhoto[] | null = null) {
     <section class="wrap intro">
       <h1>{{ gallery.title }}</h1>
       <p class="about">
-        <b>{{ count.format(gallery.imagesCount) }} photos</b>
+        <b>{{ mediaCount(gallery) }}</b>
         <span v-if="gallery.description">{{ gallery.description }}</span>
       </p>
       <p v-if="!gallery.showAllPhotos" class="selection">You’re seeing a few of the photos. Search with a selfie to find every photo you’re in.</p>
     </section>
 
-    <p v-if="!gallery.imagesCount" class="wrap empty">{{ gallery.crowdsource ? "Be the first to share a photo from this event." : "Photos will appear here soon." }}</p>
+    <p v-if="!items" class="wrap empty">{{ gallery.crowdsource ? "Be the first to share a photo from this event." : "Photos will appear here soon." }}</p>
 
     <main class="wide">
       <GalleryGrid :photos="photos" :total="browsable" :loaded="loaded" :failed="failed" @retry="load()" @open="view" />

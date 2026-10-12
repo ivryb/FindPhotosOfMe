@@ -6,6 +6,7 @@ import { useConvexQuery } from "convex-vue";
 import { Upload } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import type { Gallery } from "@/utils/galleries";
+import { UPLOAD_TYPES } from "@/utils/photoSources";
 
 // The Upload photos tab: a sheet of tiles showing what's ready, what's being processed, and what the balance still covers,
 // then where uploads stand.
@@ -15,7 +16,7 @@ const emit = defineEmits<{ topUp: [] }>();
 const { data: uploads } = useConvexQuery(api.uploads.list, { collectionId: props.gallery._id }, { server: false });
 const { sending, upload } = usePhotoUpload(() => props.gallery._id, uploads);
 
-const ready = computed(() => props.gallery.imagesCount);
+const ready = computed(() => props.gallery.imagesCount + (props.gallery.videosCount ?? 0));
 const busy = computed(() => (uploads.value ?? []).reduce((sum, item) => sum + item.sent - item.processed, 0));
 const covered = computed(() => coveredBy(props.credit, "photo"));
 
@@ -55,7 +56,7 @@ function dismiss(key: string) {
 <template>
   <div ref="tab">
     <DashboardCard title="Upload photos">
-      <template #aside><p><b>{{ count.format(ready + busy) }}</b> photos</p></template>
+      <template #aside><p><b>{{ count.format(ready + busy) }}</b> {{ gallery.videosCount ? "photos and videos" : "photos" }}</p></template>
       <div class="sheet" role="img" :aria-label="`${count.format(ready)} photos ready, ${count.format(busy)} having faces found, your balance covers ${count.format(covered)} more`">
         <i v-for="(tile, n) in tiles" :key="n" :class="tile" :style="{ '--n': n % 20 }" />
       </div>
@@ -74,9 +75,9 @@ function dismiss(key: string) {
         </div>
         <button v-else type="button" :class="['drop', { over }]" @click="picker?.click()">
           <Upload />
-          <span><b>Add photos</b><small>Drop ZIP files or photos here, or choose them. JPEG or PNG, up to 50 MB per photo. Keep this tab open while they upload. {{ gallery.crowdsource ? "All valid photos are kept, including photos without faces." : "Photos without faces are left out and not charged." }}</small></span>
+          <span><b>Add photos and videos</b><small>Drop photos, videos or ZIP files here, or choose them. JPEG or PNG photos up to 50 MB, videos up to 500 MB, charged as a photo for every 5 MB. Keep this tab open while they upload. {{ gallery.crowdsource ? "All valid photos are kept, including photos without faces." : "Photos without faces are left out and not charged; videos are always kept." }}</small></span>
         </button>
-        <input ref="picker" type="file" accept=".zip,application/zip,image/jpeg,image/png" multiple hidden @change="add(($event.target as HTMLInputElement).files)">
+        <input ref="picker" type="file" :accept="UPLOAD_TYPES" multiple hidden @change="add(($event.target as HTMLInputElement).files)">
       </div>
 
       <DashboardUploads :uploads="uploads ?? []" :sending="sending" @again="picker?.click()" @dismiss="dismiss" />

@@ -6,6 +6,7 @@ import { useIntervalFn, useNow } from "@vueuse/core";
 import { ChevronRight, Upload } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import type { Sending } from "@/composables/usePhotoUpload";
+import { countFiles, uploadWord } from "@/utils/photoSources";
 
 type UploadItem = FunctionReturnType<typeof api.uploads.list>[number];
 /** Where an upload this tab isn't sending stands. */
@@ -51,28 +52,30 @@ const lines = computed(() => {
     result.push({
       key: "sending",
       title: rest.length ? "Uploading" : `Uploading ${short(first.name)}`,
-      numbers: total ? `${count.format(sent)} of ${photos(total)} sent` : "Reading the files",
-      progress: total ? sent / total : 0,
+      numbers: total ? `${count.format(sent)} of ${countFiles(total, active)} sent` : "Reading the files",
+      progress: total ? (sent + sum(active, (entry) => entry.partly)) / total : 0,
       note: rest.length ? `Keep this tab open until it finishes: ${names(active)}.` : "Keep this tab open until it finishes.",
-      warning: tooLarge ? `${photos(tooLarge)} over 50 MB were skipped.` : undefined,
+      warning: tooLarge ? `${tooLarge === 1 ? "1 file was" : `${count.format(tooLarge)} files were`} too large and skipped: photos can be up to 50 MB and videos up to 500 MB.` : undefined,
     });
   }
   const arriving = ofKind("arriving");
   if (arriving.length) {
     const [received, total] = [sum(arriving, (item) => item.sent), sum(arriving, (item) => item.photos)];
-    result.push({ key: "arriving", title: `${plural(arriving.length, "guest upload")} arriving`, numbers: `${count.format(received)} of ${photos(total)} received`, progress: received / total });
+    result.push({ key: "arriving", title: `${plural(arriving.length, "guest upload")} arriving`, numbers: `${count.format(received)} of ${countFiles(total, arriving)} received`, progress: received / total });
   }
   const finding = ofKind("finding");
   if (finding.length) {
     const [checked, total] = [sum(finding, (item) => item.processed + item.progress), sum(finding, (item) => item.photos)];
-    result.push({ key: "finding", title: "Finding faces", numbers: `${count.format(checked)} of ${photos(total)}`, progress: checked / total, note: names(finding) });
+    // Videos aren't searched for faces, only made ready to play.
+    const title = finding.every((item) => uploadWord(item.name) === "video") ? "Preparing videos" : "Finding faces";
+    result.push({ key: "finding", title, numbers: `${count.format(checked)} of ${countFiles(total, finding)}`, progress: checked / total, note: names(finding) });
   }
   return result;
 });
 
 const problems = computed(() => [
   ...props.sending.flatMap((entry): Problem[] => (entry.error ? [{ key: entry.key, name: entry.name, message: entry.error, action: entry.uploadId ? "again" : "dismiss", alert: true }] : [])),
-  ...ofKind("stopped").map((item): Problem => ({ key: item._id, name: item.name, message: `Stopped at ${count.format(item.sent)} of ${photos(item.photos)}.`, action: "again", alert: false })),
+  ...ofKind("stopped").map((item): Problem => ({ key: item._id, name: item.name, message: `Stopped at ${count.format(item.sent)} of ${countFiles(item.photos, [item])}.`, action: "again", alert: false })),
 ]);
 
 // Finished uploads by day, newest first as Convex lists them. Guests' uploads are counted together.
@@ -91,11 +94,11 @@ const days = computed(() => {
     return {
       label,
       summary: [
-        plural(items.length, "upload"), `${photos(sum(items, (item) => item.saved))} added`,
+        plural(items.length, "upload"), `${countFiles(sum(items, (item) => item.saved), items)} added`,
         leftOut && `${count.format(leftOut)} left out`, failed && `${count.format(failed)} couldn’t be processed`,
       ].filter(Boolean).join(" · "),
       rows: items.filter((item) => !item.contributorKey).map((item) => ({ key: item._id, name: item.name, result: result(item), time: time.format(item._creationTime) })),
-      guests: guests.length ? `${plural(guests.length, "upload")} · ${photos(sum(guests, (item) => item.saved))} added` : "",
+      guests: guests.length ? `${plural(guests.length, "upload")} · ${countFiles(sum(guests, (item) => item.saved), guests)} added` : "",
     };
   });
 });
@@ -104,7 +107,7 @@ const days = computed(() => {
 const leftOutOf = (item: UploadItem) => item.processed - item.saved - item.failed;
 
 function result(item: UploadItem) {
-  if (item.sent < item.photos) return `Stopped at ${count.format(item.sent)} of ${photos(item.photos)}`;
+  if (item.sent < item.photos) return `Stopped at ${count.format(item.sent)} of ${countFiles(item.photos, [item])}`;
   if (item.photos === 1) return item.saved ? "Added" : item.failed ? "Couldn’t be processed" : "Left out";
   return [
     `${count.format(item.saved)} added`, leftOutOf(item) && `${count.format(leftOutOf(item))} left out`, item.failed && `${count.format(item.failed)} couldn’t be processed`,
@@ -121,7 +124,6 @@ function dayLabel(created: number) {
 
 const sum = <T>(items: T[], read: (item: T) => number) => items.reduce((total, item) => total + read(item), 0);
 const plural = (n: number, word: string) => `${count.format(n)} ${n === 1 ? word : `${word}s`}`;
-const photos = (n: number) => plural(n, "photo");
 // Long names keep their end, where the day or part usually is.
 const short = (name: string, max = 44) => (name.length <= max ? name : `${name.slice(0, max - 23)}…${name.slice(-22)}`);
 const names = (items: { name: string }[]) => items.slice(0, 3).map((item) => short(item.name, 32)).join(", ") + (items.length > 3 ? `, and ${count.format(items.length - 3)} more` : "");

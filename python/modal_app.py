@@ -22,7 +22,7 @@ base_image = (
 )
 web_image = base_image.add_local_dir(SOURCE, "/app", ignore=application_source)
 model_image = (
-    base_image.apt_install("libgl1", "libglib2.0-0", "libgomp1", "build-essential")
+    base_image.apt_install("libgl1", "libglib2.0-0", "libgomp1", "build-essential", "ffmpeg")
     .pip_install("patchelf==0.19.1.0")
     .pip_install_from_requirements(SOURCE / "requirements.txt")
     .run_commands(
@@ -41,6 +41,16 @@ model_image = (
               min_containers=0, max_containers=10, scaledown_window=60,
               timeout=480, retries=0)
 def process_batch(batch_id: str):
+    from endpoints.photo_batches import process_batch as run
+    return run(batch_id)
+
+
+# A video is a batch of its own and gets more cores: converting a few minutes of 4K phone video takes one or two minutes
+# here, well within STALLED_AFTER. Up to MAX_RUNNING_BATCHES can run, like photo batches.
+@app.function(image=model_image, secrets=[secret], cpu=4, memory=8192,
+              min_containers=0, max_containers=10, scaledown_window=60,
+              timeout=480, retries=0)
+def process_video(batch_id: str):
     from endpoints.photo_batches import process_batch as run
     return run(batch_id)
 
@@ -68,7 +78,8 @@ def search(search_request_id: str, reference_data: bytes):
 @modal.asgi_app()
 def web():
     from main import create_app
-    return create_app(submit_batch=process_batch.spawn.aio, submit_merge=merge_faces.spawn.aio, execute_search=search.remote.aio)
+    return create_app(submit_batch=process_batch.spawn.aio, submit_video=process_video.spawn.aio,
+                      submit_merge=merge_faces.spawn.aio, execute_search=search.remote.aio)
 
 
 @app.function(image=model_image, secrets=[secret], cpu=1, memory=2048, timeout=7200, retries=0)

@@ -1,5 +1,7 @@
+import shutil
 import subprocess
 import sys
+import tempfile
 import types
 from pathlib import Path
 
@@ -23,14 +25,18 @@ def test_http_requires_token_and_submits_without_waiting(monkeypatch):
     async def submit(*args):
         calls.append(args)
 
-    client = TestClient(create_app(submit_batch=submit, submit_merge=submit, execute_search=submit))
+    async def submit_video(batch_id):
+        calls.append(('video', batch_id))
+
+    client = TestClient(create_app(submit_batch=submit, submit_video=submit_video, submit_merge=submit, execute_search=submit))
     headers = {'Authorization': 'Bearer test-service-token'}
     assert client.post('/api/process-batch', json={'batch_id': 'batch'}).status_code == 401
     assert calls == []
     assert client.post('/api/process-batch', json={'batch_id': 'batch'}, headers=headers).status_code == 202
     assert client.post('/api/merge-faces', json={'collection_id': 'event', 'batch_ids': ['b1']}, headers=headers).status_code == 202
     assert client.post('/api/process-batch', json={}, headers=headers).status_code == 422
-    assert calls == [('batch',), ('event', ['b1'])]
+    assert client.post('/api/process-batch', json={'batch_id': 'clip', 'video': True}, headers=headers).status_code == 202
+    assert calls == [('batch',), ('event', ['b1']), ('video', 'clip')]
     response = client.post('/api/search-photos', headers=headers,
                            data={'search_request_id': 'search'},
                            files={'reference_photo': ('selfie.jpg', b'image', 'image/jpeg')})
@@ -243,3 +249,66 @@ def test_corrupt_guest_photo_does_not_drop_the_valid_photos_in_its_batch(backend
     assert not [key for key in objects if key.startswith('uploads/')]
     assert backend['completed'] == [('b1', ['a.jpg'], len(valid_photo) + len(thumbnail))]
     assert backend['failed'] == []
+
+
+def clip(*options):
+    """A second of test pattern with a tone, as a phone might upload it; `options` tag its colors."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder, 'clip.mov')
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30:duration=1',
+                        '-f', 'lavfi', '-i', 'sine=duration=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', *options,
+                        '-c:a', 'aac', path], check=True)
+        return path.read_bytes()
+
+
+@pytest.fixture
+def video_batch(backend, monkeypatch):
+    pytest.importorskip('cv2')
+    if not shutil.which('ffmpeg'):
+        pytest.skip('ffmpeg is not installed')
+    from services.renditions import make_renditions
+
+    monkeypatch.setattr(photo_batches, 'make_renditions', make_renditions)
+    backend['batch']['photos'] = [{'name': 'clip.mov', 'source': 'uploads/event/up/clip.mov', 'key': 'event/tag-clip.mov'}]
+    return backend
+
+
+def web_copy_colors(data):
+    probe = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,color_transfer',
+                            '-of', 'csv=p=0', '-'], input=data, capture_output=True, check=True)
+    return probe.stdout.decode().strip()
+
+
+def test_a_video_is_kept_with_a_web_copy_that_starts_playing_at_once_and_a_poster(video_batch):
+    objects = video_batch['objects']
+    original = objects['uploads/event/up/clip.mov'] = clip()
+
+    assert photo_batches.process_batch('b1') == {'ok': True, 'saved': 1}
+    web, poster = objects['event/screen/tag-clip.mov'], objects['event/thumbs/tag-clip.mov']
+    assert objects['event/tag-clip.mov'] == original
+    assert web[4:8] == b'ftyp' and web_copy_colors(web).startswith('h264')
+    # The index comes before the frames, so a browser can play and seek before the whole file arrives.
+    assert web.index(b'moov') < web.index(b'mdat')
+    assert poster[8:12] == b'WEBP'
+    # Frames from across the video are screened, not just the poster.
+    assert len(video_batch['screened']) > 1
+    assert batch_key('event', 'b1') not in objects
+    assert video_batch['completed'] == [('b1', ['clip.mov'], len(original) + len(web) + len(poster))]
+    assert 'uploads/event/up/clip.mov' not in objects
+
+
+def test_hdr_phone_videos_get_a_web_copy_in_standard_colors(video_batch):
+    video_batch['objects']['uploads/event/up/clip.mov'] = clip(
+        '-color_primaries', 'bt2020', '-color_trc', 'arib-std-b67', '-colorspace', 'bt2020nc')
+
+    photo_batches.process_batch('b1')
+    assert web_copy_colors(video_batch['objects']['event/screen/tag-clip.mov']) == 'h264,bt709'
+
+
+def test_an_unreadable_video_is_skipped_and_refunded(video_batch):
+    objects = video_batch['objects']
+    objects['uploads/event/up/clip.mov'] = b'not a video'
+
+    assert photo_batches.process_batch('b1') == {'ok': True, 'saved': 0}
+    assert video_batch['completed'] == [('b1', [], 0)]
+    assert [key for key in objects if 'clip' in key] == []

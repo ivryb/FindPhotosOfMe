@@ -18,7 +18,7 @@ import {
   requireServiceToken,
   requireUser,
 } from "./authz";
-import { balanceFor, releasePhotos, returnPhotosNow } from "./balances";
+import { balanceFor, batchPhotos, releasePhotos, returnPhotosNow } from "./balances";
 import { DAY, INCLUDED_DAYS, TRIAL_DAYS } from "./pricing";
 import { originalPhotoKey } from "./photoKeys";
 import { canReadRequest } from "./searchRequests";
@@ -32,6 +32,7 @@ function publicView(collection: Doc<"collections"> | null, shareToken?: string) 
     description: collection.description,
     subdomain: collection.subdomain,
     imagesCount: collection.imagesCount,
+    videosCount: collection.videosCount ?? 0,
     previewImages: collection.previewImages ?? [],
     showAllPhotos: collection.showAllPhotos ?? true,
     crowdsource: collection.crowdsource ?? false,
@@ -239,9 +240,9 @@ export const deleteCollection = mutation({
       ctx.db.query("uploadBatches").withIndex("by_upload", (q) => q.eq("uploadId", upload._id)).collect()))).flat();
     // The owner deletion endpoint has removed the storage prefixes, so settle charges and holds before removing their records.
     for (const batch of batches) {
-      if (batch.status === "pending" || batch.status === "running") await returnPhotosNow(ctx, batch, batch.names.length);
+      if (batch.status === "pending" || batch.status === "running") await returnPhotosNow(ctx, batch, batchPhotos(batch));
       else if (batch.refundPending) await returnPhotosNow(ctx, batch, batch.refundPending);
-      if (batch.status === "staging" && batch.staging?.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batch.names.length);
+      if (batch.status === "staging" && batch.staging?.reservedBy) await releasePhotos(ctx, batch.staging.reservedBy, batchPhotos(batch));
     }
     const sessions = await ctx.db.query("telegramSessions").withIndex("by_collection_chat", (q) => q.eq("collectionId", id)).collect();
     await Promise.all(sessions.map((session) => ctx.db.delete(session._id)));

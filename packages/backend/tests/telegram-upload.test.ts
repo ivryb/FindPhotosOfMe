@@ -62,6 +62,21 @@ test("a Telegram photo reaches R2 staging and the existing paid processing queue
   expect(external.sendMessage).toHaveBeenCalledWith("123", expect.stringContaining("Photo uploaded"));
 });
 
+test("a Telegram video is staged as a video and charged for its size", async () => {
+  const { t, collectionId, args } = await setup();
+  const video = new Uint8Array(6e6);
+  external.getFile.mockResolvedValue({ file_path: "videos/file.mp4", file_size: video.length });
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(video)));
+  await t.action(internal.telegram.uploadAndReply, { ...args, filename: "Telegram-1.mp4" });
+  const batch = await t.run((ctx) => ctx.db.query("uploadBatches").first());
+  expect(batch).toMatchObject({ names: ["video.mp4"], status: "pending" });
+  expect(external.store).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({
+    Key: `uploads/${collectionId}/${batch!._id}/video.mp4`, ContentType: "video/mp4",
+  }) }));
+  expect(await t.run((ctx) => ctx.db.query("balances").first())).toMatchObject({ credit: 100 - 2 * PRICES.photo });
+  expect(external.sendMessage).toHaveBeenCalledWith("123", expect.stringContaining("Video uploaded"));
+});
+
 test("a failed Telegram upload retries against the same reserved batch and charges only after storage succeeds", async () => {
   const { t, collectionId, args } = await setup();
   external.store.mockRejectedValueOnce(new Error("Storage unavailable"));

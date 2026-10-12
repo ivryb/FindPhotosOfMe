@@ -35,7 +35,7 @@ async function copy() {
         <Button variant="outline" size="sm" as="a" :href="link" target="_blank"><ExternalLink />Open page</Button>
       </div>
       <p class="meta">
-        {{ gallery.imagesCount ? `${count.format(gallery.imagesCount)} photos.` : "No photos yet." }}
+        {{ gallery.imagesCount || gallery.videosCount ? `${mediaCount(gallery)}.` : "No photos yet." }}
         <template v-if="gallery.paymentStatus === 'refunded'">This gallery was refunded.</template>
         <template v-else-if="gallery.trial && offline">Offline since {{ until }}.</template>
         <template v-else-if="gallery.trial">Online until {{ until }}. Your first top-up keeps it online for 30 days.</template>

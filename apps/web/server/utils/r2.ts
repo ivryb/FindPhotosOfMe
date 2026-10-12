@@ -73,12 +73,13 @@ class R2Service {
     return bucket;
   }
 
-  async getObjectStream(objectKey: string): Promise<{
+  async getObjectStream(objectKey: string, range?: ByteRange): Promise<{
     stream: ReadableStream;
     contentType: string;
     contentLength?: number;
     lastModified?: Date;
     etag?: string;
+    range?: Span;
   }> {
     this.initializeClient();
     const bucket = this.getBucket();
@@ -87,6 +88,7 @@ class R2Service {
       new GetObjectCommand({
         Bucket: bucket,
         Key: objectKey,
+        Range: range && rangeHeader(range),
       })
     );
 
@@ -108,6 +110,7 @@ class R2Service {
           : undefined,
       lastModified: response.LastModified,
       etag: response.ETag,
+      range: range && response.ContentRange ? span(range, Number(response.ContentRange.split("/")[1])) : undefined,
     };
   }
 
@@ -207,9 +210,32 @@ export function useR2(event: H3Event): R2Service {
   return new R2Service(useRuntimeConfig(event));
 }
 
+/** Part of a file: from `offset`, `length` bytes or to the end, or its last `suffix` bytes. R2 takes these as they are. */
+export type ByteRange = { offset: number; length?: number } | { suffix: number };
+/** Where a part sits in its file, as Content-Range describes it. */
+type Span = { start: number; end: number; size: number };
+
+/** The single range a request asks for, such as `bytes=0-` from a video player. Other ranges mean the whole file. */
+export function byteRange(header: string | undefined): ByteRange | undefined {
+  const [, from, to] = /^bytes=(\d*)-(\d*)$/.exec(header?.trim() ?? "") ?? [];
+  if (from === undefined || to === undefined) return undefined;
+  if (!from) return Number(to) > 0 ? { suffix: Number(to) } : undefined;
+  const offset = Number(from);
+  if (!to) return { offset };
+  return Number(to) >= offset ? { offset, length: Number(to) - offset + 1 } : undefined;
+}
+
+const rangeHeader = (range: ByteRange) =>
+  "suffix" in range ? `bytes=-${range.suffix}` : `bytes=${range.offset}-${range.length === undefined ? "" : range.offset + range.length - 1}`;
+
+function span(range: ByteRange, size: number): Span {
+  if ("suffix" in range) return { start: Math.max(0, size - range.suffix), end: size - 1, size };
+  return { start: range.offset, end: range.length === undefined ? size - 1 : Math.min(size, range.offset + range.length) - 1, size };
+}
+
 /** The production PHOTOS binding on Workers (wrangler.jsonc), faster than R2's S3 API. */
 type Bucket = {
-  get(key: string): Promise<{ body: ReadableStream; size: number; httpEtag: string; httpMetadata?: { contentType?: string } } | null>;
+  get(key: string, options?: { range?: ByteRange }): Promise<{ body: ReadableStream; size: number; httpEtag: string; httpMetadata?: { contentType?: string } } | null>;
   list(options: { prefix: string; delimiter: string; cursor?: string }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
 };
 // Nuxt dev also exposes PHOTOS, but it is an empty local emulator bucket. Read the configured R2 service there.
@@ -229,10 +255,15 @@ export async function listFolder(event: H3Event, prefix: string) {
   return keys;
 }
 
-/** A photo to stream, or undefined if the bucket has none under this key. */
-export async function readPhoto(event: H3Event, key: string): Promise<Awaited<ReturnType<R2Service["getObjectStream"]>> | undefined> {
+/** A photo to stream, or just its `range`, or undefined if the bucket has none under this key. */
+export async function readPhoto(event: H3Event, key: string, range?: ByteRange): Promise<Awaited<ReturnType<R2Service["getObjectStream"]>> | undefined> {
   const bucket = binding(event);
-  if (!bucket) return useR2(event).getObjectStream(key).catch(() => undefined);
-  const object = await bucket.get(key);
-  return object ? { stream: object.body, contentType: object.httpMetadata?.contentType ?? "application/octet-stream", contentLength: object.size, etag: object.httpEtag } : undefined;
+  if (!bucket) return useR2(event).getObjectStream(key, range).catch(() => undefined);
+  const object = await bucket.get(key, range && { range });
+  if (!object) return undefined;
+  const part = range && span(range, object.size);
+  return {
+    stream: object.body, contentType: object.httpMetadata?.contentType ?? "application/octet-stream", etag: object.httpEtag,
+    contentLength: part ? part.end - part.start + 1 : object.size, range: part,
+  };
 }

@@ -46,7 +46,7 @@ async function signOut() {
             <span v-else class="blank" />
             <span>
               <b>{{ gallery.title }}</b>
-              <small :class="galleryStatus(gallery).tone">{{ gallery.imagesCount ? `${count.format(gallery.imagesCount)} photos, ` : "" }}{{ galleryStatus(gallery).label.toLowerCase() }}</small>
+              <small :class="galleryStatus(gallery).tone">{{ gallery.imagesCount || gallery.videosCount ? `${mediaCount(gallery)}, ` : "" }}{{ galleryStatus(gallery).label.toLowerCase() }}</small>
             </span>
           </NuxtLink>
         </nav>

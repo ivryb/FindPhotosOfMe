@@ -77,7 +77,7 @@ function range(from: number, to: number) {
       class="row"
       :style="{ transform: `translateY(${row * rowHeight}px)`, height: `${tileHeight}px`, gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }"
     >
-      <GalleryTile v-for="index in cells(row)" :key="index" :photo="photos[index]" :label="`Open photo ${index + 1}`" :wait="fast" @open="emit('open', index)" />
+      <GalleryTile v-for="index in cells(row)" :key="index" :photo="photos[index]" :label="`${photos[index]?.video ? 'Play video' : 'Open photo'} ${index + 1}`" :wait="fast" @open="emit('open', index)" />
     </div>
   </div>
 </template>

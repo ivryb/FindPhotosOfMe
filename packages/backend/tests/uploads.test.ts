@@ -143,7 +143,7 @@ describe("processing", () => {
     const collectionId = await gallery();
     await setCredit(1_000);
     await sendPhotos(t, collectionId, 100);
-    const [first, second] = await t.mutation(internal.uploads.claim, {});
+    const [first, second] = (await t.mutation(internal.uploads.claim, {})).map(({ id }) => id);
     const report = (id: Id<"uploadBatches">, attempt: number, progress: number) =>
       t.mutation(api.uploads.reportProgressForService, { id, attempt, progress, serviceToken });
 
@@ -167,7 +167,7 @@ describe("processing", () => {
 
     const claimed = await t.mutation(internal.uploads.claim, {});
     expect(claimed).toHaveLength(MAX_RUNNING_BATCHES);
-    const owners = await t.run((ctx) => Promise.all(claimed.map((id) => ctx.db.get(id))));
+    const owners = await t.run((ctx) => Promise.all(claimed.map(({ id }) => ctx.db.get(id))));
     expect(owners.some((batch) => batch?.collectionId === small)).toBe(true);
     expect(await t.mutation(internal.uploads.claim, {})).toEqual([]);
   });
@@ -179,7 +179,7 @@ describe("processing", () => {
     await sendPhotos(t, collectionId, 50);
 
     for (let outage = 0; outage < 5; outage++) {
-      const [id] = await t.mutation(internal.uploads.claim, {});
+      const [{ id }] = await t.mutation(internal.uploads.claim, {});
       await t.mutation(internal.uploads.release, { id: id! });
     }
     const [batch] = await batches(collectionId);
@@ -199,7 +199,7 @@ describe("processing", () => {
     await sendPhotos(t, quiet, 50);
 
     const claimed = await t.mutation(internal.uploads.claim, {});
-    const galleries = await t.run((ctx) => Promise.all(claimed.map((id) => ctx.db.get(id))));
+    const galleries = await t.run((ctx) => Promise.all(claimed.map(({ id }) => ctx.db.get(id))));
     expect(galleries.some((batch) => batch?.collectionId === quiet)).toBe(true);
   });
 
@@ -228,11 +228,78 @@ describe("processing", () => {
     }
     const [batch] = await batches(collectionId);
     expect(batch?.status).toBe("failed");
+    vi.setSystemTime(batch!.staging!.expiresAt + 60_000);
     await t.mutation(internal.uploads.releaseExpiredBatch, { id: batch!._id });
     expect(await credit()).toBe(1_000);
     const [upload] = await t.query(api.uploads.list, { collectionId });
     expect(upload).toMatchObject({ processed: 50, failed: 50 });
     expect((await t.run((ctx) => ctx.db.get(collectionId)))?.status).toBe("complete");
+  });
+});
+
+describe("videos", () => {
+  test("a video is charged as one photo for every started 5 MB, and returned the same way when it isn't kept", async () => {
+    const { t, gallery, setCredit, credit } = setup();
+    const collectionId = await gallery();
+    await setCredit(1_000);
+    const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "toast.mov", size: 12e6, photos: 1 });
+    const { batchId } = await t.mutation(api.uploads.prepareBatch, { uploadId, first: 0, photos: [{ name: "toast.mov", size: 12e6 }] });
+    await t.mutation(api.uploads.commitBatchForService, { id: batchId, serviceToken });
+    expect(await credit()).toBe(1_000 - 3 * PRICES.photo);
+
+    await t.mutation(api.uploads.completeBatchForService, { id: batchId, saved: [], savedBytes: 0, serviceToken });
+    const batch = await t.run((ctx) => ctx.db.get(batchId));
+    vi.setSystemTime(batch!.staging!.expiresAt + 60_000);
+    await t.mutation(internal.uploads.releaseExpiredBatch, { id: batchId });
+    expect(await credit()).toBe(1_000);
+  });
+
+  test("a video travels alone in its batch, and may be larger than a photo", async () => {
+    const { t, gallery, setCredit } = setup();
+    const collectionId = await gallery();
+    await setCredit(10_000);
+    const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "3 photos and 2 videos", size: 1, photos: 5 });
+    const prepare = (photos: { name: string; size: number }[]) => t.mutation(api.uploads.prepareBatch, { uploadId, first: 0, photos });
+    await expect(prepare([{ name: "a.jpg", size: 100 }, { name: "b.mp4", size: 100 }])).rejects.toThrow("Invalid batch");
+    await expect(prepare([{ name: "b.mp4", size: 100 }, { name: "c.mp4", size: 100 }])).rejects.toThrow("Invalid batch");
+    await expect(prepare([{ name: "a.jpg", size: 60 * 1024 ** 2 }])).rejects.toThrow("Invalid batch");
+    await expect(prepare([{ name: "b.mp4", size: 501 * 1024 ** 2 }])).rejects.toThrow("Invalid batch");
+    await expect(prepare([{ name: "b.mp4", size: 400 * 1024 ** 2 }])).resolves.toMatchObject({ collectionId });
+  });
+
+  test("kept videos are counted apart from photos", async () => {
+    const { t, gallery, setCredit, batches } = setup();
+    const collectionId = await gallery();
+    await setCredit(1_000);
+    const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "toast.mp4", size: 100, photos: 1 });
+    const { batchId } = await t.mutation(api.uploads.prepareBatch, { uploadId, first: 0, photos: [{ name: "toast.mp4", size: 100 }] });
+    await t.mutation(api.uploads.commitBatchForService, { id: batchId, serviceToken });
+    await sendPhotos(t, collectionId, 50);
+    for (const batch of await batches(collectionId)) {
+      await t.mutation(api.uploads.completeBatchForService, { id: batch._id, saved: batch.names, savedBytes: 1, serviceToken });
+    }
+    expect(await t.run((ctx) => ctx.db.get(collectionId))).toMatchObject({ imagesCount: 50, videosCount: 1 });
+  });
+
+  test("a video goes to the workers that convert videos", async () => {
+    const { t, gallery, setCredit } = setup();
+    const collectionId = await gallery();
+    await setCredit(1_000);
+    vi.stubEnv("PYTHON_API_URL", "https://workers.test");
+    const calls: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      calls.push(JSON.parse(String(init.body)));
+      return new Response(null, { status: 202 });
+    }));
+    const { uploadId } = await t.mutation(api.uploads.start, { collectionId, name: "toast.mp4", size: 100, photos: 1 });
+    const { batchId } = await t.mutation(api.uploads.prepareBatch, { uploadId, first: 0, photos: [{ name: "toast.mp4", size: 100 }] });
+    await t.mutation(api.uploads.commitBatchForService, { id: batchId, serviceToken });
+    await sendPhotos(t, collectionId, 50);
+    await t.action(internal.uploads.dispatch, {});
+    vi.unstubAllGlobals();
+    expect(calls).toHaveLength(2);
+    expect(calls).toContainEqual({ batch_id: batchId, video: true });
+    expect(calls).toContainEqual(expect.objectContaining({ video: false }));
   });
 });
 

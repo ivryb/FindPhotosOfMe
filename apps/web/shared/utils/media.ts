@@ -1,4 +1,4 @@
-import { resizedKey } from "@FindPhotosOfMe/backend/convex/photoKeys";
+import { isVideo, resizedKey } from "@FindPhotosOfMe/backend/convex/photoKeys";
 import type { GalleryPhoto } from "#shared/types/gallery";
 
 /** A photo's stable links through /media. Search results carry their request so its access can be checked. */
@@ -9,6 +9,7 @@ export function mediaLinks(key: string, { requestId, shareToken }: { requestId?:
   query.set("download", "1");
   return {
     key,
+    video: isVideo(key),
     thumb: mediaUrl(resizedKey(key, "thumbs"), view),
     screen: mediaUrl(resizedKey(key, "screen"), view),
     full: mediaUrl(key, view),

@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { Play } from "@lucide/vue";
 import type { GalleryPhoto } from "#shared/types/gallery";
 
-// One cell of a photo grid: a plain placeholder until its photo arrives, then the thumbnail fading in.
+// One cell of a photo grid: a plain placeholder until its photo arrives, then the thumbnail fading in. A video shows
+// its poster with a play mark.
 // While `wait` is set the tile doesn't ask for its photo yet; once it has asked, it keeps the photo.
 const props = defineProps<{ photo?: GalleryPhoto; label: string; wait?: boolean }>();
 defineEmits<{ open: [] }>();
@@ -22,7 +24,8 @@ watch(image, (img) => {
 
 <template>
   <button v-if="photo" type="button" class="tile" :aria-label="label" :data-photo="photo.key" @click="$emit('open')">
-    <img v-if="asked" ref="image" :src="full ? photo.full : photo.thumb" alt="" decoding="async" :class="{ loaded }" @load="loaded = true" @error="full = true">
+    <img v-if="asked" ref="image" :src="full ? photo.full : photo.thumb" alt="" decoding="async" :class="{ loaded }" @load="loaded = true" @error="full = !photo.video">
+    <span v-if="photo.video" class="play" aria-hidden="true"><Play /></span>
   </button>
   <div v-else class="tile" aria-hidden="true" />
 </template>
@@ -33,5 +36,7 @@ watch(image, (img) => {
 img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .35s ease, scale .3s ease; }
 img.loaded { opacity: 1; }
 .tile:hover img { scale: 1.03; }
+.play { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 30px; height: 30px; background: rgb(10 10 10 / .6); color: #fff; border-radius: 50%; backdrop-filter: blur(6px); }
+.play svg { width: 14px; height: 14px; margin-left: 2px; fill: currentColor; }
 @media (prefers-reduced-motion: reduce) { img { transition: none; } }
 </style>

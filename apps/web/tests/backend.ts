@@ -1,7 +1,9 @@
 import type { ServerWebSocket } from "bun";
+import { readFileSync } from "node:fs";
 import type { ClientMessage } from "../node_modules/convex/src/browser/sync/protocol";
 import type { FunctionReturnType } from "convex/server";
 import type { api } from "@FindPhotosOfMe/backend/convex/_generated/api";
+import { isGalleryPhoto, originalPhotoKey } from "@FindPhotosOfMe/backend/convex/photoKeys";
 
 type SocketData = {
   version: { querySet: number; identity: number; ts: string };
@@ -13,13 +15,17 @@ export const emptyGalleryToken = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 export const sessionCookie = "__Secure-better-auth.session_token=test-session";
 export const ownerJwt = `${btoa(JSON.stringify({ alg: "none" }))}.${btoa(JSON.stringify({ sub: "owner", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600 }))}.fixture`;
 
-// A fake R2 bucket: a public gallery of 130 photos with thumbnails and a face index, served from the landing samples.
+// A fake R2 bucket: a public gallery of 130 photos with thumbnails and a face index, served from the landing samples,
+// and a short video made from one of them, which is also its poster.
 const SAMPLES = ["nx-01", "nx-02", "nx-03", "nx-04", "t01", "t02", "t03", "t04", "u03", "u04"];
 const GALLERY_PHOTOS = Array.from({ length: 130 }, (_, index) => `photo-${String(index + 1).padStart(3, "0")}.jpg`);
 /** What the fixture search finds. */
 const FOUND = ["test-collection/photo-007.jpg", "test-collection/photo-042.jpg", "test-collection/photo-099.jpg"];
+const VIDEO_KEYS = ["test-collection/toast.mp4", "test-collection/screen/toast.mp4"];
+const VIDEO = readFileSync(new URL("toast.mp4", import.meta.url));
+const VIDEO_POSTER = new URL("../public/landing/t01.jpg", import.meta.url);
 const BUCKET_KEYS = [
-  "test-collection/embeddings.json",
+  "test-collection/embeddings.json", ...VIDEO_KEYS, "test-collection/thumbs/toast.mp4",
   ...["test-collection", "preview-collection", "private-collection", "secret-collection"].flatMap((id) =>
     GALLERY_PHOTOS.flatMap((name) => [`${id}/${name}`, `${id}/thumbs/${name}`])),
 ].sort();
@@ -39,10 +45,20 @@ function listBucket(url: URL) {
   );
 }
 
+/** Answers GetObject for the video, honouring a Range header the way R2 does. */
+function readVideo(request: Request) {
+  const headers = { "content-type": "video/mp4", etag: '"fixture-video"' };
+  const [, from, to] = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range") ?? "") ?? [];
+  if (from === undefined || to === undefined) return new Response(VIDEO, { headers });
+  const start = from ? Number(from) : VIDEO.length - Number(to);
+  const end = from && to ? Math.min(Number(to), VIDEO.length - 1) : VIDEO.length - 1;
+  return new Response(VIDEO.slice(start, end + 1), { status: 206, headers: { ...headers, "content-range": `bytes ${start}-${end}/${VIDEO.length}` } });
+}
+
 /** Public views of the fixture galleries: one browsable, one showing only previews, one whose owner is out of balance. */
 function publicGallery(id: string) {
-  const base = { _id: id, subdomain: "itarena", title: "IT Arena SSR fixture", description: "Photos from both days.", imagesCount: GALLERY_PHOTOS.length };
-  if (id === "test-collection") return { ...base, previewImages: [], showAllPhotos: true };
+  const base = { _id: id, subdomain: "itarena", title: "IT Arena SSR fixture", description: "Photos from both days.", imagesCount: GALLERY_PHOTOS.length, videosCount: 0 };
+  if (id === "test-collection") return { ...base, videosCount: 1, previewImages: [], showAllPhotos: true };
   if (id === "preview-collection") return { ...base, previewImages: ["preview-collection/photo-001.jpg", "preview-collection/photo-002.jpg"], showAllPhotos: false };
   return null;
 }
@@ -62,12 +78,12 @@ export function startBackend(port = 0) {
   const sockets = new Set<ServerWebSocket<SocketData>>();
   const collection = () => ({
     _id: galleryId, _creationTime: 1700000000000, ...(subdomain ? { subdomain } : {}),
-    title, description, imagesCount, published, showAllPhotos, sharing, crowdsource, shareToken: galleryToken,
+    title, description, imagesCount, videosCount: 1, published, showAllPhotos, sharing, crowdsource, shareToken: galleryToken,
     status: "complete", previewImages: ["test-collection/photo-001.jpg"], createdBy: "owner",
   });
   const secretGallery = (token: unknown) => token === galleryToken || token === emptyGalleryToken ? {
     _id: token === galleryToken ? "secret-collection" : "empty-collection", title: "Our weekend together", description: "A little of the weekend, from everyone’s point of view.",
-    imagesCount: token === galleryToken ? GALLERY_PHOTOS.length : 0, previewImages: [], showAllPhotos: true, crowdsource: true,
+    imagesCount: token === galleryToken ? GALLERY_PHOTOS.length : 0, videosCount: 0, previewImages: [], showAllPhotos: true, crowdsource: true,
   } : null;
   const publicView = (id: string, token?: unknown) => id === "secret-collection" || id === "empty-collection"
     ? secretGallery(token)?._id === id ? secretGallery(token) : null : id === galleryId
@@ -225,7 +241,10 @@ export function startBackend(port = 0) {
       return size === undefined ? new Response(null, { status: 404 }) : new Response(null, { headers: { "content-length": String(size) } });
     }
     if (path.startsWith("/r2/fixture-bucket/")) {
-      const index = BUCKET_KEYS.indexOf(decodeURIComponent(path.slice("/r2/fixture-bucket/".length)));
+      const key = decodeURIComponent(path.slice("/r2/fixture-bucket/".length));
+      if (VIDEO_KEYS.includes(key)) return readVideo(request);
+      if (key === "test-collection/thumbs/toast.mp4") return new Response(Bun.file(VIDEO_POSTER));
+      const index = BUCKET_KEYS.indexOf(key);
       if (index < 0) return new Response("NoSuchKey", { status: 404 });
       return new Response(Bun.file(new URL(`../public/landing/${SAMPLES[index % SAMPLES.length]}.jpg`, import.meta.url)), { headers: { etag: `"fixture-${index}"` } });
     }
@@ -297,7 +316,7 @@ export function startBackend(port = 0) {
     if (path === "/api/query") {
       const body = await request.json();
       if (body.path === "collections:canReadPhoto") {
-        const original = body.args[0].key.replace(/^([^/]+)\/thumbs\//, "$1/");
+        const original = originalPhotoKey(body.args[0].key) ?? "";
         const id = original.split("/")[0];
         const gallery = publicView(id, body.args[0].shareToken);
         const owner = request.headers.get("authorization") === `Bearer ${ownerJwt}`;
@@ -307,7 +326,7 @@ export function startBackend(port = 0) {
             : requestId === "private-search" && owner && original === "private-collection/photo-007.jpg";
           return Response.json({ status: "success", value: allowed, logLines: [] });
         }
-        const allowed = /^[^/]+\/[^/]+\.(jpe?g|png|bmp)$/i.test(original) && (
+        const allowed = isGalleryPhoto(original) && (
           Boolean(gallery && (gallery.showAllPhotos || gallery.previewImages.includes(original))) ||
           (owner && ["test-collection", "preview-collection", "private-collection"].includes(id))
         );

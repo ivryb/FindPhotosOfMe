@@ -14,7 +14,8 @@ How the live app is laid out, how to ship it, and how to look at it. Release his
   `localhost:8000`. It still shares the R2 bucket with production.
 - **Modal** app `findphotosofme` in workspace `ivryb` runs face processing and search; see
   [python/README.md](python/README.md).
-- **R2** stores photos, their thumbnail and 2048px screen versions, and face indexes. A lifecycle rule deletes staged
+- **R2** stores photos, their thumbnail and 2048px screen versions, videos with their poster and playable web copy,
+  and face indexes. A lifecycle rule deletes staged
   `uploads/` objects after 7 days. CORS allows the root, www, `*.findphotosofme.com`, localhost, and the Worker
   fallback.
 - **DNS** is Cloudflare zone `087e5025719045bfa3e3c8c418b1378a`; the Spaceship registration delegates to

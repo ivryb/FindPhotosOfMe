@@ -57,12 +57,35 @@ async function browsable() {
   return body;
 }
 
-test("a browsable gallery returns every photo at once, without thumbnails or the face index", async () => {
+test("a browsable gallery returns every photo and video at once, without their copies or the face index", async () => {
   const { keys } = await browsable();
-  expect(keys).toHaveLength(130);
-  expect(new Set(keys).size).toBe(130);
+  expect(keys).toHaveLength(131);
+  expect(new Set(keys).size).toBe(131);
   expect(keys[0]).toBe("test-collection/photo-001.jpg");
-  expect(keys.some((key) => key.includes("thumbs/") || key.endsWith("embeddings.json"))).toBe(false);
+  expect(keys).toContain("test-collection/toast.mp4");
+  expect(keys.some((key) => key.includes("thumbs/") || key.includes("screen/") || key.endsWith("embeddings.json"))).toBe(false);
+});
+
+test("videos stream in parts, so browsers start playing and seek without loading the whole file", async () => {
+  const file = new Uint8Array(await Bun.file(new URL("toast.mp4", import.meta.url)).arrayBuffer());
+  const last = file.length - 1;
+  const video = mediaLinks("test-collection/toast.mp4");
+  const part = async (range: string) => {
+    const response = await fetch(app.origin + video.screen, { headers: { range } });
+    return { status: response.status, range: response.headers.get("content-range"), type: response.headers.get("content-type"), bytes: new Uint8Array(await response.arrayBuffer()) };
+  };
+  expect(await part("bytes=100-199")).toEqual({ status: 206, range: `bytes 100-199/${file.length}`, type: "video/mp4", bytes: file.slice(100, 200) });
+  expect(await part("bytes=0-1")).toMatchObject({ range: `bytes 0-1/${file.length}`, bytes: file.slice(0, 2) });
+  expect(await part("bytes=1000-")).toMatchObject({ status: 206, range: `bytes 1000-${last}/${file.length}`, bytes: file.slice(1000) });
+  expect(await part("bytes=-10")).toMatchObject({ status: 206, range: `bytes ${last - 9}-${last}/${file.length}`, bytes: file.slice(-10) });
+  expect((await part(`bytes=${last - 9}-${last + 1000}`)).range).toBe(`bytes ${last - 9}-${last}/${file.length}`);
+
+  const whole = await fetch(app.origin + video.full);
+  expect(whole.status).toBe(200);
+  expect(whole.headers.get("accept-ranges")).toBe("bytes");
+  expect(new Uint8Array(await whole.arrayBuffer())).toEqual(file);
+  expect((await fetch(app.origin + video.thumb)).headers.get("content-type")).toContain("image/");
+  expect((await fetch(`${app.origin}/media/other-collection/screen/toast.mp4`, { headers: { range: "bytes=0-1" } })).status).toBe(403);
 });
 
 test("each photo's links load its thumbnail and full photo through this site", async () => {
@@ -195,4 +218,24 @@ test("anonymous upload completion checks the contributor and exact stored sizes 
   expect((await finish()).status).toBe(200);
   uploaded = await (await fetch(`${app.backendOrigin}/__fixture/uploads`)).json();
   expect(uploaded.batches.filter((item: { uploadId: string }) => item.uploadId === uploadId)).toHaveLength(1);
+});
+
+test("guests get upload links for videos larger than a photo may be, signed for their type", async () => {
+  const { galleryToken } = await import("./backend");
+  const access = { shareToken: galleryToken, contributorKey: "c".repeat(32) };
+  const started = await fetch(`${app.backendOrigin}/api/mutation`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path: "uploads:start", args: [{ collectionId: "secret-collection", name: "toast.mov", size: 400 * 1024 ** 2, photos: 1, access }], format: "json" }),
+  });
+  const { value: { uploadId } } = await started.json();
+  const presign = (photos: { name: string; size: number }[]) => fetch(`${app.origin}/api/uploads/presign`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ uploadId, first: 0, photos, access }),
+  });
+  expect((await presign([{ name: "stage.jpg", size: 60 * 1024 ** 2 }])).status).toBe(400);
+  expect((await presign([{ name: "toast.mov", size: 600 * 1024 ** 2 }])).status).toBe(400);
+  const signed = await presign([{ name: "toast.mov", size: 400 * 1024 ** 2 }]);
+  expect(signed.status).toBe(200);
+  const { urls } = await signed.json() as { urls: string[] };
+  const stored = await fetch(urls[0]!, { method: "PUT", body: "v", headers: { "content-type": "video/quicktime" } });
+  expect(stored.status).toBe(200);
 });

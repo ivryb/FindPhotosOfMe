@@ -8,6 +8,9 @@ import type { Id } from "@FindPhotosOfMe/backend/convex/_generated/dataModel";
 import { galleryUrl } from "@FindPhotosOfMe/backend/gallery";
 import { telegramWebhookSecret } from "@FindPhotosOfMe/backend/telegram";
 
+// What the bot takes in upload mode, by Telegram's content type. Photos sent as photos come as JPEG.
+const EXTENSIONS: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "video/mp4": "mp4", "video/quicktime": "mov" };
+
 export default defineEventHandler(async (event) => {
   assertMethod(event, "POST");
   const collectionId = getRouterParam(event, "collectionId");
@@ -58,38 +61,39 @@ export default defineEventHandler(async (event) => {
   });
   bot.hears("Upload photos", async (ctx) => {
     await convex.mutation(api.telegramAccess.enter, { ...chatArgs(ctx.chat.id), mode: "upload" });
-    await ctx.reply("Send photos or albums to add them to the gallery. Everyone with access will be able to see and download them. Send JPEG or PNG files to preserve their original quality. Choose Find my photos when you want to search instead.", { reply_markup: keyboard });
+    await ctx.reply("Send photos, videos or albums to add them to the gallery. Everyone with access will be able to see and download them. Send photos as JPEG or PNG files to preserve their original quality. Choose Find my photos when you want to search instead.", { reply_markup: keyboard });
   });
   bot.hears("Browse gallery", async (ctx) => {
     await convex.mutation(api.telegramAccess.enter, chatArgs(ctx.chat.id));
     const link = galleryUrl(collection, config.public.origin || getRequestURL(event).origin);
     await ctx.reply("Browse and download the gallery’s photos.", { reply_markup: new InlineKeyboard().url("Open gallery", link) });
   });
-  bot.on([":photo", ":document"], async (ctx) => {
+  bot.on([":photo", ":video", ":document"], async (ctx) => {
     await convex.mutation(api.telegramAccess.enter, chatArgs(ctx.chat.id));
     const session = await convex.query(api.telegramAccess.getForService, chatArgs(ctx.chat.id));
     const photo = ctx.message?.photo?.at(-1);
-    const document = ctx.message?.document;
-    const file = photo ?? document;
+    const sent = ctx.message?.video ?? ctx.message?.document;
+    const file = photo ?? sent;
     if (!file) return;
     if (session.mode === "upload") {
-      if (document && !["image/jpeg", "image/png"].includes(document.mime_type ?? "")) {
-        await ctx.reply("Send JPEG or PNG photos. You can also upload photos or ZIPs on the gallery page.");
+      const extension = EXTENSIONS[sent ? sent.mime_type ?? "" : "image/jpeg"];
+      if (!extension) {
+        await ctx.reply("Send JPEG or PNG photos, or MP4 or MOV videos. You can also upload photos, videos or ZIPs on the gallery page.");
         return;
       }
       if ((file.file_size ?? 0) > 20 * 1024 * 1024) {
-        await ctx.reply("Use the gallery’s web uploader for photos over 20 MB. Choose Browse gallery to open it.");
+        await ctx.reply("Use the gallery’s web uploader for files over 20 MB. Choose Browse gallery to open it.");
         return;
       }
       await convex.mutation(api.telegramAccess.queueUpload, {
         ...chatArgs(ctx.chat.id), fileId: file.file_id,
-        filename: `Telegram-${ctx.message!.message_id}.${document?.mime_type === "image/png" ? "png" : "jpg"}`,
+        filename: `Telegram-${ctx.message!.message_id}.${extension}`,
         mediaGroupId: ctx.message?.media_group_id,
       });
       return;
     }
     if (!photo) {
-      await ctx.reply("Send your selfie as a photo, or choose Upload photos to contribute image files.");
+      await ctx.reply("Send your selfie as a photo, or choose Upload photos to contribute photos and videos.");
       return;
     }
     const initial = await ctx.reply("🔍 Starting search...");

@@ -27,7 +27,7 @@ const link = computed(() => (props.gallery.published === false ? "" : address.li
         <header><img src="/icon.svg" alt="">FindPhotosOfMe</header>
         <section class="intro">
           <h1>{{ title || "Untitled gallery" }}</h1>
-          <p class="about"><b>{{ count.format(gallery.imagesCount) }} photos</b><span v-if="description">{{ description }}</span></p>
+          <p class="about"><b>{{ mediaCount(gallery) }}</b><span v-if="description">{{ description }}</span></p>
           <p v-if="!browse" class="selection">You’re seeing a few of the photos. Search with a selfie to find every photo you’re in.</p>
         </section>
         <div class="grid">

@@ -50,6 +50,8 @@ export default defineSchema({
       v.literal("error")
     ),
     imagesCount: v.number(),
+    // Videos kept, counted apart from the photos in imagesCount, which are what searches look through
+    videosCount: v.optional(v.number()),
     // Bytes of photos and thumbnails in R2, for pricing storage
     storedBytes: v.optional(v.number()),
     // Legacy per-gallery plans; migrations.moveToBalance clears them. Remove once it has run in production.

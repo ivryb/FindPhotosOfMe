@@ -8,6 +8,7 @@ from datetime import datetime
 from services.convex_client import ConvexService
 from services.face_index import Faces, index_key
 from services.r2_storage import R2StorageService
+from services.video import is_video
 
 
 def remove_upload(collection_id: str, upload_id: str, r2=None, convex=None) -> dict:
@@ -35,7 +36,7 @@ def remove_upload(collection_id: str, upload_id: str, r2=None, convex=None) -> d
     r2.delete_files([item["Key"] for item in found])
     if left := files():
         raise RuntimeError(f"{len(left)} files of {upload_id} are still stored")
-    # The gallery's size counts each photo and its thumbnail, not its screen version.
-    billed = sum(item["Size"] for item in found if not item["Key"].startswith(f"{collection_id}/screen/"))
+    # The gallery's size counts each photo and its thumbnail, not its screen version. A video's web copy counts too.
+    billed = sum(item["Size"] for item in found if is_video(item["Key"]) or not item["Key"].startswith(f"{collection_id}/screen/"))
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {collection_id}: removed {faces} faces and {len(found)} files of {upload_id}, {billed:,} billed bytes")
     return {"faces": faces, "files": len(found), "stored_bytes": billed}

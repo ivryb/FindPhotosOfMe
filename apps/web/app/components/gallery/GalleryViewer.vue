@@ -2,13 +2,13 @@
 import { ChevronLeft, ChevronRight, Download, X } from "@lucide/vue";
 import { DialogContent, DialogPortal, DialogRoot, DialogTitle } from "reka-ui";
 import type PhotoSwipe from "photoswipe";
-import type { SlideData } from "photoswipe";
+import type { PhotoSwipeEventsMap, SlideData } from "photoswipe";
 import "photoswipe/style.css";
 import type { GalleryPhoto } from "#shared/types/gallery";
 
 // Full-screen photos on PhotoSwipe: drag between photos, pinch or double-tap to zoom, drag down to close. Each photo
-// opens on its thumbnail and sharpens as the screen-sized version loads. The viewer keeps the photos it opened with;
-// photos added meanwhile show the next time it opens.
+// opens on its thumbnail and sharpens as the screen-sized version loads. Videos play with the browser's controls while
+// they're the current slide. The viewer keeps the photos it opened with; photos added meanwhile show the next time it opens.
 const open = defineModel<boolean>("open", { required: true });
 const props = defineProps<{ photos: GalleryPhoto[]; index: number }>();
 
@@ -65,13 +65,55 @@ function readSize(photo: GalleryPhoto) {
 function slide(photo: GalleryPhoto, index: number): SlideData {
   return {
     ...(sizes.get(photo.key) ?? GUESS),
-    src: originals.has(photo.key) ? photo.full : photo.screen,
+    ...(photo.video ? { type: "video", videoSrc: photo.screen } : { src: originals.has(photo.key) ? photo.full : photo.screen }),
     msrc: photo.thumb,
-    alt: `Photo ${index + 1}`,
+    alt: `${photo.video ? "Video" : "Photo"} ${index + 1}`,
     // The tile to zoom from and back to. Sheets come after the page, so a search result wins over the grid behind it.
     element: [...document.querySelectorAll<HTMLElement>(`[data-photo="${CSS.escape(photo.key)}"]`)].at(-1),
     thumbCropped: true,
   };
+}
+
+type Content = PhotoSwipeEventsMap["contentActivate"]["content"];
+// How far up from a video's bottom edge its controls reach; drags starting there stay with the controls.
+const CONTROLS = 56;
+
+// A video slide is a <video> that opens on its poster, the thumbnail, and loads only once it's the current slide.
+function playVideos(pswp: PhotoSwipe) {
+  const video = (content: Content) => (content.type === "video" ? content.element as HTMLVideoElement | undefined : undefined);
+  // Browsers that have seen the visitor interact with the page play it with sound. Safari and in-app browsers may
+  // refuse, which leaves the poster with the browser's play button.
+  const play = (content: Content) => {
+    if (content.isAttached && content.slide?.isActive) video(content)?.play().catch(() => {});
+  };
+  pswp.addFilter("useContentPlaceholder", (use, content) => use || content.type === "video");
+  pswp.on("contentLoad", (event) => {
+    const { content } = event;
+    if (content.type !== "video") return;
+    event.preventDefault();
+    if (content.element) return;
+    const element = Object.assign(document.createElement("video"), {
+      className: "photo-viewer-video", src: content.data.videoSrc, poster: content.data.msrc, ariaLabel: content.data.alt,
+      controls: true, playsInline: true, preload: "none",
+    });
+    // PhotoSwipe's types allow only images and divs here, but it shows any element.
+    content.element = element as unknown as HTMLDivElement;
+    content.onLoaded();
+  });
+  pswp.on("contentAppend", ({ content }) => play(content));
+  pswp.on("contentActivate", ({ content }) => play(content));
+  pswp.on("contentDeactivate", ({ content }) => video(content)?.pause());
+  pswp.on("pointerDown", (event) => {
+    const slide = pswp.currSlide;
+    if (slide?.content.type !== "video") return;
+    const bottom = slide.bounds.center.y + slide.height * slide.currZoomLevel;
+    const y = event.originalEvent.pageY - pswp.offset.y;
+    if (y > bottom - CONTROLS && y < bottom) event.preventDefault();
+  });
+  // Zooming a video back into its tile stutters, so videos fade out instead.
+  pswp.on("close", () => {
+    if (pswp.currSlide?.content.type === "video") pswp.options.showHideAnimationType = "fade";
+  });
 }
 
 // Phones use the whole screen below the bar; larger screens keep room for the arrows.
@@ -124,6 +166,7 @@ async function create() {
     originals.add(photo.key);
     pswp.refreshSlideContent(content.index);
   });
+  playVideos(pswp);
   pswp.on("change", () => (current.value = pswp.currIndex));
   pswp.on("verticalDrag", () => (revealing.value = true));
   pswp.on("pinchClose", () => (revealing.value = true));
@@ -149,7 +192,7 @@ onScopeDispose(() => viewer.value?.destroy());
   <DialogRoot :open="layer" @update:open="(value) => value || viewer?.close()">
     <DialogPortal>
       <DialogContent class="photo-viewer-layer" :aria-describedby="undefined">
-        <DialogTitle class="sr-only">Photo {{ current + 1 }} of {{ photos.length }}</DialogTitle>
+        <DialogTitle class="sr-only">{{ photo?.video ? "Video" : "Photo" }} {{ current + 1 }} of {{ photos.length }}</DialogTitle>
         <div ref="stage" />
       </DialogContent>
     </DialogPortal>
@@ -157,7 +200,7 @@ onScopeDispose(() => viewer.value?.destroy());
   <Teleport v-if="viewer?.element && photo" :to="viewer.element">
     <div class="photo-viewer-bar">
       <p class="photo-viewer-count pswp__hide-on-close">{{ count.format(current + 1) }} of {{ count.format(photos.length) }}</p>
-      <a class="photo-viewer-button pswp__hide-on-close" :href="photo.download" aria-label="Download this photo"><Download /></a>
+      <a class="photo-viewer-button pswp__hide-on-close" :href="photo.download" :aria-label="photo.video ? 'Download this video' : 'Download this photo'"><Download /></a>
       <button type="button" class="photo-viewer-button pswp__hide-on-close" aria-label="Close" @click="viewer.close()"><X /></button>
     </div>
     <button v-if="current > 0" type="button" class="photo-viewer-button photo-viewer-prev pswp__hide-on-close" aria-label="Previous photo" @click="viewer.prev()"><ChevronLeft /></button>
@@ -183,6 +226,9 @@ html[data-viewer] #__nuxt { visibility: hidden; transition: visibility 0s .35s; 
 .photo-viewer-button:hover { background: rgb(60 60 60 / .8); }
 .photo-viewer-button svg { width: 22px; height: 22px; }
 .photo-viewer-prev, .photo-viewer-next { position: absolute; top: 50%; translate: 0 -50%; }
+/* PhotoSwipe sizes the video like a photo and places it in the slide's top left corner. Tailwind's base styles would
+   cap its width at that of PhotoSwipe's wrapper, which has none. */
+.photo-viewer-video { position: absolute; top: 0; left: 0; max-width: none; background: #000; }
 .photo-viewer-prev { left: clamp(8px, 2vw, 24px); }
 .photo-viewer-next { right: clamp(8px, 2vw, 24px); }
 @media (pointer: coarse) { .photo-viewer-prev, .photo-viewer-next { display: none; } }

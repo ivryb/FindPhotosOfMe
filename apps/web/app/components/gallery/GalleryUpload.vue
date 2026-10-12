@@ -6,6 +6,7 @@ import { useConvexClient } from "convex-vue";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import type { Sending } from "@/composables/usePhotoUpload";
+import { UPLOAD_TYPES, countFiles, uploadWord } from "@/utils/photoSources";
 
 // `browse` says whether guests can scroll the whole gallery; without it they find their photos by searching.
 // `canSearch` points guests looking for themselves to Find me, which `find` opens.
@@ -39,7 +40,6 @@ function add(files: FileList | null | undefined) {
   if (picker.value) picker.value.value = "";
 }
 
-const photos = (n: number) => `${count.format(n)} ${n === 1 ? "photo" : "photos"}`;
 const icons = { busy: LoaderCircle, waiting: CircleDashed, done: CircleCheck, error: CircleAlert };
 type Row = { key: string; name: string; text: string; tone: keyof typeof icons; progress?: number };
 // The guest's uploads, newest first, with what this tab is sending laid over them so rows keep their place as they
@@ -55,20 +55,21 @@ const rows = computed<Row[]>(() => [
 function sendingRow(entry: Sending): Row {
   const row = { key: entry.uploadId ?? entry.key, name: entry.name };
   if (entry.error) return { ...row, tone: "error", text: entry.error };
-  if (!entry.photos) return { ...row, tone: "busy", text: "Opening your photos…" };
+  if (!entry.photos) return { ...row, tone: "busy", text: "Opening your files…" };
   // Read, and waiting for the upload ahead of it: this tab sends one at a time.
   if (!entry.uploadId) return { ...row, tone: "waiting", text: "Waiting to upload" };
-  return { ...row, tone: "busy", text: `${count.format(entry.sent)} of ${photos(entry.photos)} uploaded`, progress: entry.sent / entry.photos };
+  return { ...row, tone: "busy", text: `${count.format(entry.sent)} of ${countFiles(entry.photos, [entry])} uploaded`, progress: (entry.sent + entry.partly) / entry.photos };
 }
 
 // A guest is done once their photos reach storage. Processing runs on our side and can take a while, so it isn't
-// shown as something to wait for.
+// shown as something to wait for. Videos can't be found by a selfie, so they're only said to join the gallery.
 function uploadRow(item: Doc<"uploads">): Row {
   const row = { key: item._id, name: item.name };
-  if (item.sent < item.photos) return { ...row, tone: "error", text: `${count.format(item.sent)} of ${photos(item.photos)} uploaded. Choose the same files to continue.` };
-  if (item.processed < item.photos) return { ...row, tone: "done", text: props.browse ? "Uploaded. Your photos will appear in the gallery as they’re processed, which can take a while." : "Uploaded. Once they’re processed, which can take a while, search with a selfie to find the ones you’re in." };
+  if (item.sent < item.photos) return { ...row, tone: "error", text: `${count.format(item.sent)} of ${countFiles(item.photos, [item])} uploaded. Choose the same files to continue.` };
+  if (item.processed < item.photos) return { ...row, tone: "done", text: uploadWord(item.name) === "video" ? `Uploaded. ${item.photos === 1 ? "Your video joins the gallery once it’s" : "Your videos join the gallery as they’re"} processed, which can take a while.`
+    : props.browse ? "Uploaded. Your photos will appear in the gallery as they’re processed, which can take a while." : "Uploaded. Once they’re processed, which can take a while, search with a selfie to find the ones you’re in." };
   const missing = item.processed - item.saved;
-  return { ...row, tone: item.saved ? "done" : "error", text: `${photos(item.saved)} added to the gallery${missing ? `. ${count.format(missing)} couldn’t be processed` : ""}.` };
+  return { ...row, tone: item.saved ? "done" : "error", text: `${countFiles(item.saved, [item])} added to the gallery${missing ? `. ${count.format(missing)} couldn’t be processed` : ""}.` };
 }
 </script>
 
@@ -88,7 +89,7 @@ function uploadRow(item: Doc<"uploads">): Row {
         <!-- Guests looking for themselves uploaded selfies here, so this says what it's for and points to Find me. -->
         <DrawerTitle as="h2"><CirclePlus class="title-icon" aria-hidden="true" />Add your photos to this gallery</DrawerTitle>
         <DrawerDescription class="description">
-          Share photos you took at the event. Everyone with access to this gallery can see and download them.
+          Share photos and videos you took at the event. Everyone with access to this gallery can see and download them.
           <span v-if="canSearch" class="find-me"><b>Looking for photos of yourself?</b> Use <button type="button" @click="$emit('find')">Find me</button> instead.</span>
         </DrawerDescription>
         <p v-if="failure" class="failure" role="alert">{{ failure }}</p>
@@ -102,13 +103,13 @@ function uploadRow(item: Doc<"uploads">): Row {
           </li>
         </ul>
         <Button v-if="rows.length" size="xl" variant="outline" class="add" :disabled="!ready" @click="picker?.click()">
-          <Upload aria-hidden="true" />Add more photos
+          <Upload aria-hidden="true" />Add more
         </Button>
         <button v-else class="drop" type="button" :disabled="!ready" @click="picker?.click()">
-          <Upload aria-hidden="true" /><b>Choose photos or ZIPs</b><span>Or drop them here. JPEG or PNG, up to 50 MB each.</span>
+          <Upload aria-hidden="true" /><b>Choose photos, videos or ZIPs</b><span>Or drop them here. JPEG or PNG photos up to 50 MB, videos up to 500 MB.</span>
         </button>
-        <input ref="picker" type="file" accept=".zip,application/zip,image/jpeg,image/png" multiple hidden @change="add(($event.target as HTMLInputElement).files)">
-        <p v-if="uploading || !rows.length" class="hint">Keep this tab open while your photos upload. You can close this sheet and keep browsing.</p>
+        <input ref="picker" type="file" :accept="UPLOAD_TYPES" multiple hidden @change="add(($event.target as HTMLInputElement).files)">
+        <p v-if="uploading || !rows.length" class="hint">Keep this tab open while your files upload. You can close this sheet and keep browsing.</p>
       </section>
     </DrawerContent>
   </Drawer>

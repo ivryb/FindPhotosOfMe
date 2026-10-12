@@ -71,6 +71,14 @@ and Telegram flows rely on.
   also screened by OpenAI's moderation endpoint, using its thumbnail; sexual
   content, gore and self-harm are skipped and refunded the same way. If
   moderation stays unreachable, the batch fails and is retried.
+- **Videos**: each video is a batch of its own and goes to `process_video`,
+  up to 10 workers at once with 4 CPUs / 8 GiB and the same eight-minute limit.
+  ffmpeg makes the web copy that the gallery plays, an H.264 MP4 of at most 1920
+  pixels on its long edge with its index first, so browsers can start and seek
+  before it has loaded. The copy is saved under `screen/`, and HDR phone video is
+  tone mapped to standard colors. The poster is a frame a tenth of the way in,
+  saved under `thumbs/`. Videos are kept in every gallery, since no faces are
+  looked for, and five frames from across each are screened by moderation.
 - **Moderation limits**: OpenAI's [model page](https://developers.openai.com/api/docs/models/omni-moderation-latest)
   (checked October 2026) lists these per-account limits for
   `omni-moderation-latest`. The endpoint is free, sends no rate-limit headers,
@@ -110,7 +118,8 @@ again replaces its faces instead of repeating them.
 Every processing request requires `Authorization: Bearer <SERVICE_TOKEN>`.
 `GET /health` is public and checks HTTP service availability, not model readiness.
 
-- `POST /api/process-batch` takes `{"batch_id": "<Convex upload batch ID>"}`.
+- `POST /api/process-batch` takes `{"batch_id": "<Convex upload batch ID>", "video": false}`; `video` marks a
+  batch of one video.
 - `POST /api/merge-faces` takes `{"collection_id": "<gallery ID>", "batch_ids": ["<batch ID>", ...]}`.
 - `POST /api/search-photos` takes multipart fields `search_request_id` (an
   existing Convex search record) and `reference_photo` (JPEG/PNG/WebP, up to 10 MiB).
@@ -119,7 +128,7 @@ Telegram result delivery is owned by the Convex/frontend integration, not Python
 
 ## Local development and validation
 
-Use Python 3.11:
+Use Python 3.11, with ffmpeg installed for videos:
 
 ```sh
 pip install -r python/requirements.txt

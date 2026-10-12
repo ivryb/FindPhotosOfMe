@@ -1,6 +1,8 @@
 // The one place prices live: the landing calculator, top-up checkout, and balance charges all read these.
 // Money is counted in mills, thousandths of a dollar, so a $0.002 photo is a whole number.
 
+import { isVideo } from "./photoKeys";
+
 export const MILLS_PER_DOLLAR = 1_000;
 
 /** What each thing costs, in mills. Storage is per GB for each 30 days beyond the included time, charged by the day. */
@@ -20,6 +22,11 @@ export const TRIAL_DAYS = 7;
 
 /** Calculator estimates assume an average photo of this size. */
 export const PHOTO_BYTES = 5e6;
+
+/** What an uploaded file is charged as, in photos. Videos are charged for their size: a photo for every started PHOTO_BYTES. */
+export function billedPhotos(name: string, size: number) {
+  return isVideo(name) ? Math.max(1, Math.ceil(size / PHOTO_BYTES)) : 1;
+}
 
 /** What someone expects to use: photos, searches, and how many days to keep the photos online. */
 export type Usage = { photos: number; searches: number; days: number };
